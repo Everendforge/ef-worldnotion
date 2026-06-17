@@ -183,6 +183,7 @@ function TreeNode({
   expandedPaths,
   onToggleExpand,
   onContextMenu,
+  onCreateFolderDescription,
 }: {
   node: VaultTreeNode;
   selectedPath?: string;
@@ -190,6 +191,7 @@ function TreeNode({
   expandedPaths: Set<string>;
   onToggleExpand: (path: string) => void;
   onContextMenu: (event: React.MouseEvent, path: string, kind: "file" | "folder") => void;
+  onCreateFolderDescription: (folderPath: string) => void;
 }) {
   const isExpanded = expandedPaths.has(node.path);
   const hasChildren = node.children.length > 0;
@@ -198,10 +200,23 @@ function TreeNode({
     <div className="tree-node">
       <button
         type="button"
-        className={`tree-button ${selectedPath === node.path ? "active" : ""}`}
+        className={`tree-button ${selectedPath === node.path ? "active" : ""} ${node.hasDescription ? "has-description" : ""}`}
         onClick={() => {
-          if (node.kind === "folder" && hasChildren) {
-            onToggleExpand(node.path);
+          if (node.kind === "folder") {
+            if (hasChildren) {
+              onToggleExpand(node.path);
+            }
+            // Also try to open folder description
+            const folderName = node.name;
+            const descriptionPath = `${node.path}/${folderName}.md`;
+            if (node.hasDescription) {
+              onSelectPath(descriptionPath);
+            } else {
+              const shouldCreate = confirm(`No description found for ${folderName}. Create one?`);
+              if (shouldCreate) {
+                onCreateFolderDescription(node.path);
+              }
+            }
           } else if (node.kind === "file") {
             onSelectPath(node.path);
           }
@@ -223,6 +238,7 @@ function TreeNode({
           <FileText size={14} />
         )}
         <span>{node.name}</span>
+        {node.hasDescription && <span className="description-badge" title="Has description">●</span>}
       </button>
       {node.kind === "folder" && hasChildren && isExpanded && (
         <div className="tree-children">
@@ -235,6 +251,7 @@ function TreeNode({
               expandedPaths={expandedPaths}
               onToggleExpand={onToggleExpand}
               onContextMenu={onContextMenu}
+              onCreateFolderDescription={onCreateFolderDescription}
             />
           ))}
         </div>
@@ -446,8 +463,12 @@ function App() {
 
     try {
       if (action === "newBlankPage") {
+        console.log("Creating new blank page at:", parentPath);
         const name = prompt("Enter page name:");
-        if (!name) return;
+        if (!name) {
+          console.log("User cancelled page creation");
+          return;
+        }
         
         const fileName = name.endsWith(".md") ? name : `${name}.md`;
         const filePath = parentPath ? `${parentPath}/${fileName}` : fileName;
@@ -462,8 +483,12 @@ function App() {
         selectPath(filePath);
         setMessage(`Created ${fileName}`);
       } else if (action === "newPageFromTemplate" && templateType) {
+        console.log("Creating page from template:", templateType, "at:", parentPath);
         const name = prompt(`Enter ${templateType} name:`);
-        if (!name) return;
+        if (!name) {
+          console.log("User cancelled template page creation");
+          return;
+        }
         
         await invoke("create_entity", {
           vaultPath: index.rootPath,
@@ -478,20 +503,91 @@ function App() {
         selectPath(filePath);
         setMessage(`Created ${templateType}: ${name}`);
       } else if (action === "newFolder") {
+        console.log("Creating new folder at:", parentPath);
         const name = prompt("Enter folder name:");
-        if (!name) return;
+        if (!name) {
+          console.log("User cancelled folder creation");
+          return;
+        }
+        
+        const folderPath = parentPath ? `${parentPath}/${name}` : name;
         
         await invoke("create_folder", {
           vaultPath: index.rootPath,
-          relativePath: parentPath ? `${parentPath}/${name}` : name,
+          relativePath: folderPath,
         });
         
-        await refreshUniverse();
-        setExpandedPaths((prev) => new Set(prev).add(parentPath ? `${parentPath}/${name}` : name));
+        // Auto-create folder description file
+        const descriptionPath = `${folderPath}/${name}.md`;
+        await invoke("save_file", {
+          vaultPath: index.rootPath,
+          relativePath: descriptionPath,
+          content: `---\nid: ${crypto.randomUUID()}\ntype: folder-description\nfolder: ${name}\n---\n\n# ${name}\n\nDescription of this folder's contents.\n`,
+        });
+        
+        await refreshUniverse(descriptionPath);
+        setExpandedPaths((prev) => new Set(prev).add(folderPath));
+        selectPath(descriptionPath);
         setMessage(`Created folder: ${name}`);
       }
     } catch (error) {
+      console.error("Error in handleContextMenuAction:", error);
       setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setContextMenu(null);
+    }
+  }
+
+  async function createFolderDescription(folderPath: string) {
+    if (!index) return;
+    
+    const folderName = folderPath.split("/").pop() ?? folderPath;
+    const descriptionPath = `${folderPath}/${folderName}.md`;
+    
+    try {
+      await invoke("save_file", {
+        vaultPath: index.rootPath,
+        relativePath: descriptionPath,
+        content: `---\nid: ${crypto.randomUUID()}\ntype: folder-description\nfolder: ${folderName}\n---\n\n# ${folderName}\n\nDescription of this folder's contents.\n`,
+      });
+      
+      await refreshUniverse(descriptionPath);
+      selectPath(descriptionPath);
+      setMessage(`Created folder description: ${folderName}.md`);
+    } catch (error) {
+      console.error("Error creating folder description:", error);
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function editWorldDescription() {
+    if (!index) return;
+    
+    const vaultName = pathName(index.rootPath);
+    const descriptionPath = `${vaultName}.md`;
+    
+    // Check if file exists in index
+    const exists = index.files.some(f => f.relativePath === descriptionPath);
+    
+    if (!exists) {
+      // Create world description file
+      try {
+        await invoke("save_file", {
+          vaultPath: index.rootPath,
+          relativePath: descriptionPath,
+          content: `---\nid: ${crypto.randomUUID()}\ntype: world-description\nname: ${vaultName}\n---\n\n# ${vaultName}\n\nDescription of this world.\n`,
+        });
+        
+        await refreshUniverse(descriptionPath);
+        selectPath(descriptionPath);
+        setMessage(`Created world description: ${vaultName}.md`);
+      } catch (error) {
+        console.error("Error creating world description:", error);
+        setMessage(error instanceof Error ? error.message : String(error));
+      }
+    } else {
+      // File exists, just open it
+      selectPath(descriptionPath);
     }
   }
 
@@ -775,6 +871,10 @@ function App() {
             <Home size={15} />
             Home
           </button>
+          <button type="button" onClick={editWorldDescription} title="Edit world description">
+            <FileText size={15} />
+            World
+          </button>
         </div>
 
         <label className="search-box">
@@ -795,6 +895,7 @@ function App() {
                   expandedPaths={expandedPaths}
                   onToggleExpand={toggleExpand}
                   onContextMenu={handleContextMenu}
+                  onCreateFolderDescription={createFolderDescription}
                 />
               ))
             ) : (

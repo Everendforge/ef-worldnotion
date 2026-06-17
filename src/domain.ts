@@ -98,6 +98,7 @@ export type VaultTreeNode = {
   path: string;
   kind: "folder" | "file";
   children: VaultTreeNode[];
+  hasDescription?: boolean;
 };
 
 export type EntityTemplate = {
@@ -317,6 +318,23 @@ function parseTemplates(files: VaultFile[]): EntityTemplate[] {
 function buildTree(files: VaultFile[]): VaultTreeNode[] {
   const roots: VaultTreeNode[] = [];
   const folders = new Map<string, VaultTreeNode>();
+  
+  // Build set of folder description file paths to exclude from tree
+  const descriptionFiles = new Set<string>();
+  files.forEach((file) => {
+    if (isHiddenMetadata(file.relativePath)) return;
+    
+    const parentPath = dirname(file.relativePath);
+    const fileName = file.relativePath.split("/").pop() ?? "";
+    
+    // Check if this file is a folder description ({FolderName}.md)
+    if (parentPath && fileName.endsWith(".md")) {
+      const folderName = parentPath.split("/").pop() ?? "";
+      if (fileName === `${folderName}.md`) {
+        descriptionFiles.add(file.relativePath);
+      }
+    }
+  });
 
   function ensureFolder(folderPath: string): VaultTreeNode {
     const existing = folders.get(folderPath);
@@ -337,7 +355,7 @@ function buildTree(files: VaultFile[]): VaultTreeNode[] {
   }
 
   files
-    .filter((file) => !isHiddenMetadata(file.relativePath))
+    .filter((file) => !isHiddenMetadata(file.relativePath) && !descriptionFiles.has(file.relativePath))
     .forEach((file) => {
       const parentPath = dirname(file.relativePath);
       const node: VaultTreeNode = {
@@ -352,6 +370,15 @@ function buildTree(files: VaultFile[]): VaultTreeNode[] {
         roots.push(node);
       }
     });
+  
+  // Mark folders that have description files
+  folders.forEach((folder) => {
+    const folderName = folder.name;
+    const expectedDescPath = `${folder.path}/${folderName}.md`;
+    if (descriptionFiles.has(expectedDescPath)) {
+      folder.hasDescription = true;
+    }
+  });
 
   function sort(nodes: VaultTreeNode[]) {
     nodes.sort((a, b) => {

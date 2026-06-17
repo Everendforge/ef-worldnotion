@@ -2,6 +2,7 @@
   --wn-bg: #f6f7f5;
   --wn-panel: #ffffff;
   --wn-panel-2: #f1f3f0;
+  --wn-card: #ffffff;
   --wn-border: #dcded9;
   --wn-text: #202522;
   --wn-muted: #737b75;
@@ -27,6 +28,7 @@
   --wn-bg: #181a19;
   --wn-panel: #202321;
   --wn-panel-2: #282c29;
+  --wn-card: #202321;
   --wn-border: #3a403c;
   --wn-text: #e7ece8;
   --wn-muted: #9ca59f;
@@ -327,6 +329,21 @@ button:hover:not(:disabled),
 }
 
 .tree-button:hover .tree-chevron {
+  opacity: 1;
+}
+
+.tree-button.has-description {
+  font-weight: 500;
+}
+
+.description-badge {
+  margin-left: auto;
+  font-size: 8px;
+  color: var(--wn-accent);
+  opacity: 0.6;
+}
+
+.tree-button:hover .description-badge {
   opacity: 1;
 }
 
