@@ -8,7 +8,7 @@ aliases: [The Gate]
 climate: dry volcanic basin
 ---
 
-# Ash Gate
+Ash Gate
 
 Ash Gate is a trade city built against black basalt cliffs.
 

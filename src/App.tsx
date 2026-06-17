@@ -13,6 +13,8 @@ import {
   Sun,
 } from "lucide-react";
 import "./App.css";
+import { TiptapEditor } from "./components";
+import { htmlToMarkdown } from "./utils/editor-adapters";
 import {
   Entity,
   EntityTemplate,
@@ -30,7 +32,7 @@ import {
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 type ThemeChoice = "light" | "dark";
-type EditorMode = "rendered" | "markdown";
+type EditorMode = "rendered" | "markdown" | "tiptap";
 type AppView = "home" | "workspace";
 
 type BrowserFileHandle = {
@@ -862,6 +864,15 @@ function App() {
             </button>
             <button
               type="button"
+              className={editorMode === "tiptap" ? "active" : ""}
+              onClick={() => setEditorMode("tiptap")}
+              disabled={!editor}
+              title="WYSIWYG Editor"
+            >
+              Editor
+            </button>
+            <button
+              type="button"
               onClick={() => updateSettings({ theme: settings.theme === "light" ? "dark" : "light" })}
               title="Toggle theme"
             >
@@ -882,6 +893,15 @@ function App() {
           <div className="editor-surface">
             {editorMode === "markdown" ? (
               <textarea value={editor.rawMarkdown} onChange={(event) => updateRawMarkdown(event.target.value)} />
+            ) : editorMode === "tiptap" ? (
+              <TiptapEditor
+                content={editor.rawMarkdown}
+                onChange={(html) => {
+                  const markdown = htmlToMarkdown(html);
+                  updateRawMarkdown(markdown);
+                }}
+                disabled={!canWrite}
+              />
             ) : (
               <div className="rendered-editor-wrap">
                 <div
