@@ -1,6 +1,6 @@
 ---
 id: example-concept
-tipo: concept
+type: concept
 name: Example Concept
 status: draft
 tags: [example]

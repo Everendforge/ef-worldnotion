@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://everendforge.github.io/spec/schemas/v0.1/validation-report.schema.json",
+  "title": "Everend Validation Report v0.1",
+  "type": "object",
+  "required": ["specVersion", "tool", "findings"],
+  "properties": {
+    "specVersion": {
+      "const": "0.1"
+    },
+    "tool": {
+      "type": "string",
+      "minLength": 1
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "severity", "message"],
+        "properties": {
+          "code": {
+            "enum": [
+              "missing_frontmatter",
+              "missing_required_field",
+              "duplicate_id",
+              "broken_wikilink",
+              "missing_canon_ref",
+              "broken_graph_transition",
+              "missing_runtime_asset"
+            ]
+          },
+          "severity": {
+            "enum": ["info", "warning", "error"]
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "file": {
+            "type": "string",
+            "minLength": 1
+          },
+          "nodeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "field": {
+            "type": "string",
+            "minLength": 1
+          },
+          "suggestion": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

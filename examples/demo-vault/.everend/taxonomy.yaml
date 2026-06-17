@@ -1,0 +1,60 @@
+specVersion: "0.1"
+types:
+  character:
+    label: Character
+    description: Person, creature, or viewpoint actor in the world.
+    properties:
+      role:
+        type: select
+        options: [protagonist, antagonist, supporting]
+      homeLocation:
+        type: entityRef
+        targetTypes: [location]
+  location:
+    label: Location
+    description: Place, region, settlement, room, or navigable site.
+    properties:
+      region:
+        type: text
+      relatedOrganizations:
+        type: entityRefList
+        targetTypes: [organization]
+  organization:
+    label: Organization
+    description: Faction, institution, house, guild, or other group.
+    properties:
+      headquarters:
+        type: entityRef
+        targetTypes: [location]
+  item:
+    label: Item
+    description: Portable object, relic, tool, artifact, or inventory-relevant entity.
+    properties:
+      rarity:
+        type: select
+        options: [common, rare, legendary]
+      material:
+        type: text
+      relatedCharacters:
+        type: entityRefList
+        targetTypes: [character]
+  story:
+    label: Story
+    description: Narrative container used for planning in WorldNotion.
+    properties:
+      draftStatus:
+        type: select
+        options: [outline, draft, revised, final]
+  scene:
+    label: Scene
+    description: Narrative planning unit used by WorldNotion, not a PathBranching runtime node.
+    properties:
+      location:
+        type: entityRef
+        targetTypes: [location]
+      viewpointCharacter:
+        type: entityRef
+        targetTypes: [character]
+      draftStatus:
+        type: select
+        options: [outline, draft, revised, final]

@@ -1,9 +1,12 @@
 ---
 id: example-character
-tipo: character
+type: character
 name: Example Character
-status: draft
+status: canon
 tags: [example]
+aliases: [Example Hero]
+homeLocation: example-location
+role: protagonist
 ---
 
 # Example Character
@@ -14,3 +17,4 @@ Related:
 
 - [[Example-Location]]
 - [[Example-Organization]]
+- [[Example-Relic]]

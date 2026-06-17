@@ -1,7 +1,11 @@
-# Everend WorldNotion Demo Vault
+# Everend Empty Demo Vault
 
-This is a deliberately empty placeholder vault for testing WorldNotion.
+This vault is a deliberately empty template for testing Everend-compatible tools.
 
-It contains generic example files only. It is not derived from private canon or any real worldbuilding project.
+It contains placeholder entities only. It is not derived from any private worldbuilding project and should not be treated as canon for any story.
+
+The `.everend/taxonomy.yaml` file demonstrates optional project-specific taxonomy metadata. The Markdown files remain readable without it.
+
+`Example-Universe` is the root universe folder. Its subfolders demonstrate categories such as characters, locations, items, scenes, and stories.
 
 Replace every placeholder with your own content.

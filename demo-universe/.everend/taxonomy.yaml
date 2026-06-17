@@ -1,0 +1,29 @@
+specVersion: "0.1"
+types:
+  character:
+    label: Character
+    description: Person, creature, or viewpoint actor.
+    properties:
+      role:
+        type: select
+        options: [protagonist, ally, rival, antagonist]
+      homeLocation:
+        type: entityRef
+  location:
+    label: Location
+    description: Place, region, settlement, or site.
+    properties:
+      climate:
+        type: text
+  item:
+    label: Item
+    description: Portable object, relic, tool, artifact, or inventory-relevant entity.
+    properties:
+      rarity:
+        type: select
+        options: [common, rare, legendary]
+      relatedCharacters:
+        type: entityRefList
+  story:
+    label: Story
+    description: Narrative container for arcs and scenes.

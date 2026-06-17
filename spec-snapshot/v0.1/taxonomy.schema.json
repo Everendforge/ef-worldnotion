@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://everendforge.github.io/spec/schemas/v0.1/taxonomy.schema.json",
+  "title": "Everend Taxonomy Manifest v0.1",
+  "type": "object",
+  "required": ["specVersion", "types"],
+  "properties": {
+    "specVersion": {
+      "const": "0.1"
+    },
+    "types": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["label"],
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "required": ["type"],
+              "properties": {
+                "type": {
+                  "enum": [
+                    "text",
+                    "number",
+                    "boolean",
+                    "date",
+                    "select",
+                    "multiSelect",
+                    "entityRef",
+                    "entityRefList"
+                  ]
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "type": "string"
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                },
+                "targetTypes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                },
+                "required": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": true,
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "type": {
+                        "const": "select"
+                      }
+                    },
+                    "required": ["type"]
+                  },
+                  "then": {
+                    "required": ["options"]
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "type": {
+                        "const": "multiSelect"
+                      }
+                    },
+                    "required": ["type"]
+                  },
+                  "then": {
+                    "required": ["options"]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}
