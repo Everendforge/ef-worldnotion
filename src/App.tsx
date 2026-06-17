@@ -15,7 +15,7 @@ import {
   Sun,
 } from "lucide-react";
 import "./App.css";
-import { ContextMenu, CodeMirrorEditor, MarkdownPreview } from "./components";
+import { ContextMenu, CodeMirrorEditor } from "./components";
 import type { ContextMenuAction } from "./components";
 import {
   Entity,
@@ -32,7 +32,6 @@ import {
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 type ThemeChoice = "light" | "dark";
-type EditorMode = "source" | "preview";
 type AppView = "home" | "workspace";
 
 type BrowserFileHandle = {
@@ -348,7 +347,6 @@ function App() {
   const [query, setQuery] = useState("");
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
-  const [editorMode, setEditorMode] = useState<EditorMode>("source");
   const [editor, setEditor] = useState<EditorState>();
   const [message, setMessage] = useState("");
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => {
@@ -461,6 +459,7 @@ function App() {
         });
         
         await refreshUniverse(filePath);
+        selectPath(filePath);
         setMessage(`Created ${fileName}`);
       } else if (action === "newPageFromTemplate" && templateType) {
         const name = prompt(`Enter ${templateType} name:`);
@@ -476,6 +475,7 @@ function App() {
         const fileName = `${name}.md`;
         const filePath = parentPath ? `${parentPath}/${fileName}` : fileName;
         await refreshUniverse(filePath);
+        selectPath(filePath);
         setMessage(`Created ${templateType}: ${name}`);
       } else if (action === "newFolder") {
         const name = prompt("Enter folder name:");
@@ -548,7 +548,6 @@ function App() {
       dirty: false,
       mode: path.startsWith(".everend/templates/") ? "template" : "file",
     });
-    setEditorMode("source");
   }
 
   function selectPath(path: string) {
@@ -776,10 +775,6 @@ function App() {
             <Home size={15} />
             Home
           </button>
-          <button type="button" onClick={openUniverse}>
-            <FolderOpen size={15} />
-            Open
-          </button>
         </div>
 
         <label className="search-box">
@@ -839,22 +834,6 @@ function App() {
           <div className="editor-actions">
             <button
               type="button"
-              className={editorMode === "source" ? "active" : ""}
-              onClick={() => setEditorMode("source")}
-              disabled={!editor}
-            >
-              Source
-            </button>
-            <button
-              type="button"
-              className={editorMode === "preview" ? "active" : ""}
-              onClick={() => setEditorMode("preview")}
-              disabled={!editor}
-            >
-              Preview
-            </button>
-            <button
-              type="button"
               onClick={() => updateSettings({ theme: settings.theme === "light" ? "dark" : "light" })}
               title="Toggle theme"
             >
@@ -873,16 +852,12 @@ function App() {
 
         {editor ? (
           <div className="editor-surface">
-            {editorMode === "source" ? (
-              <CodeMirrorEditor
-                value={editor.rawMarkdown}
-                onChange={updateRawMarkdown}
-                theme={settings.theme}
-                readOnly={!canWrite}
-              />
-            ) : (
-              <MarkdownPreview markdown={editor.bodyMarkdown} />
-            )}
+            <CodeMirrorEditor
+              value={editor.rawMarkdown}
+              onChange={updateRawMarkdown}
+              theme={settings.theme}
+              readOnly={!canWrite}
+            />
           </div>
         ) : (
           <section className="empty-editor">
