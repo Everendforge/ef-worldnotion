@@ -10,8 +10,9 @@ function addFontFamilyMatches(
   from: number,
   decorations: Range<Decoration>[],
 ) {
-  // Match <span style="font-family: FONT">content</span>
-  const fontPattern = /<span\s+style="font-family:\s*([^"]+)">([^<]+)<\/span>/g;
+  // Match <!--font:FONTNAME-->content<!--/font-->
+  // This pattern allows font specifications without breaking markdown portability
+  const fontPattern = /<!--font:\s*([^-]+?)\s*-->([\s\S]*?)<!--\/font-->/g;
   let match: RegExpExecArray | null;
   
   while ((match = fontPattern.exec(text)) !== null) {
@@ -21,11 +22,10 @@ function addFontFamilyMatches(
     const content = match[2];
     
     // Find where the content starts and ends
-    const openTagEnd = match[0].indexOf(">") + 1;
-    const contentFrom = fullFrom + openTagEnd;
+    const openTagLen = `<!--font:${fontFamily}-->`.length;
+    const contentFrom = fullFrom + openTagLen;
     const contentTo = contentFrom + content.length;
     
-    // ALWAYS hide tags and apply font style, even when cursor is inside
     // Hide opening tag
     decorations.push(marker(fullFrom, contentFrom, "cm-markdown-syntax-hidden"));
     
