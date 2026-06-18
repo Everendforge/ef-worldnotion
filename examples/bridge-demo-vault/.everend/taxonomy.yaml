@@ -1,0 +1,97 @@
+specVersion: "0.1"
+types:
+  character:
+    label: Character
+    description: Person, creature, or viewpoint actor.
+    properties:
+      role:
+        type: select
+        options: [playable, ally, rival, antagonist, narrator]
+      speakerTags:
+        type: multiSelect
+      homeLocation:
+        type: entityRef
+      runtimeHint:
+        type: text
+  location:
+    label: Location
+    description: Place, region, settlement, or site.
+    properties:
+      region:
+        type: text
+      governingOrganization:
+        type: entityRef
+      runtimeHint:
+        type: text
+  item:
+    label: Item
+    description: Portable object, relic, tool, artifact, or inventory-relevant entity.
+    properties:
+      itemCategory:
+        type: select
+        options: [questItem, consumable, keyItem, lore]
+      relatedCharacters:
+        type: entityRefList
+      unlocksKnowledge:
+        type: entityRef
+      runtimeHint:
+        type: text
+  organization:
+    label: Organization
+    description: Faction, institution, house, or guild.
+    properties:
+      headquarters:
+        type: entityRef
+      relatedCharacters:
+        type: entityRefList
+  concept:
+    label: Concept
+    description: Rule, myth, system, abstract idea, or research note.
+    properties:
+      relatedEntities:
+        type: entityRefList
+      conceptClass:
+        type: select
+        options: [seasonal-cycle, memory, doctrine, ritual, symbol, system]
+  knowledge-entry:
+    label: Knowledge Entry
+    description: Unlockable world knowledge used by branching conditions.
+    properties:
+      legacyNumericId:
+        type: number
+      unlockScope:
+        type: select
+        options: [global, character, story]
+      relatedEntities:
+        type: entityRefList
+  story:
+    label: Story
+    description: Narrative container for arcs and scenes.
+    properties:
+      protagonist:
+        type: entityRef
+  scene:
+    label: Scene
+    description: Narrative planning unit used by WorldNotion and referenced by PathBranching.
+    properties:
+      story:
+        type: entityRef
+      location:
+        type: entityRef
+      viewpointCharacter:
+        type: entityRef
+      unlocksKnowledge:
+        type: entityRefList
+      draftStatus:
+        type: select
+        options: [outline, draft, revised, final]
+  branch-sequence:
+    label: Branch Sequence
+    description: Planning entity that maps to a PathBranching sequence.
+    properties:
+      characterRef:
+        type: entityRef
+      entryScene:
+        type: entityRef
+      runtimeHint:
+        type: text

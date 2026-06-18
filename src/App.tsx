@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl as openExternalUrl } from "@tauri-apps/plugin-opener";
 import { EditorView } from "@codemirror/view";
-import { openSearchPanel } from "@codemirror/search";
+import { findNext, findPrevious } from "@codemirror/search";
 import { foldCode } from "@codemirror/language";
 import {
   BookOpen,
@@ -32,10 +32,16 @@ import {
   Sparkles,
 } from "lucide-react";
 import "./App.css";
-import { ContextMenu, CodeMirrorEditor, SettingsModal } from "./components";
+import { ContextMenu, CodeMirrorEditor, SettingsModal, CommandPalette } from "./components";
+import { FontSelector } from "./components/FontSelector";
+import { SearchPanel } from "./components/SearchPanel";
+import { OutlineGuide } from "./components/OutlineGuide";
+import { Breadcrumbs } from "./components/Breadcrumbs";
 import { InputDialog } from "./components/InputDialog";
 import { Toast } from "./components/Toast";
 import type { ContextMenuAction } from "./components";
+import { extractOutline, findCurrentHeader } from "./utils/outlineExtractor";
+import { useFonts } from "./utils/useFonts";
 import {
   AppSettingsV4,
   DEFAULT_EDITOR_SETTINGS,
@@ -53,6 +59,10 @@ import {
   ThemeId,
   WorkspaceSession,
   shortcutFor,
+  FileResult,
+  CommandResult,
+  HeaderResult,
+  TagResult,
 } from "./editorTypes";
 import {
   Entity,
@@ -72,6 +82,7 @@ import {
   slugify,
 } from "./domain";
 import { isDarkTheme, normalizeThemeId, themeById, themeForStyleCommand, toggledThemeMode } from "./themes";
+import { incrementFileAccess } from "./utils/fileAccessStats";
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 type AppView = "home" | "workspace";
@@ -120,6 +131,18 @@ function loadSettings(): AppSettingsV4 {
         : [];
     const parsedExplorer: Partial<AppSettingsV4["explorer"]> = parsed.explorer ?? {};
     const activeSection = parsedExplorer.activeSection === "favorites" ? "favorites" : "allFiles";
+    
+    // Merge keybindings: keep user customizations but add new defaults
+    const mergedKeybindings = (() => {
+      if (!parsed.keybindings?.length) return DEFAULT_KEYBINDINGS;
+      
+      const userBindings = new Map(parsed.keybindings.map(kb => [kb.commandId, kb.shortcut]));
+      return DEFAULT_KEYBINDINGS.map(defaultKb => ({
+        commandId: defaultKb.commandId,
+        shortcut: userBindings.get(defaultKb.commandId) ?? defaultKb.shortcut,
+      }));
+    })();
+    
     return {
       theme: normalizeThemeId(parsed.theme),
       recentUniverse: parsed.recentUniverse,
@@ -127,7 +150,7 @@ function loadSettings(): AppSettingsV4 {
       recentUniverseProfiles: parsed.recentUniverseProfiles ?? {},
       editor: { ...DEFAULT_EDITOR_SETTINGS, ...(parsed.editor ?? {}) },
       explorer: { ...DEFAULT_EXPLORER_SETTINGS, ...parsedExplorer, activeSection },
-      keybindings: parsed.keybindings?.length ? parsed.keybindings : DEFAULT_KEYBINDINGS,
+      keybindings: mergedKeybindings,
       sessions: parsed.sessions ?? {},
     };
   } catch {
@@ -526,6 +549,76 @@ function UniverseIconFrame({ profile, size = 34 }: { profile?: UniverseProfile; 
   );
 }
 
+// Command Palette Helper Functions
+function buildFileResults(index: VaultIndex | null): FileResult[] {
+  if (!index) return [];
+  
+  return index.entities.map((entity) => ({
+    type: "file" as const,
+    id: entity.path,
+    title: entity.name,
+    subtitle: entity.path,
+    path: entity.path,
+    tags: entity.tags || [],
+    lastModified: entity.file.modifiedMs || undefined,
+  }));
+}
+
+function buildCommandResults(keybindings: Array<{ commandId: EditorCommandId; shortcut: string }>): CommandResult[] {
+  return EDITOR_COMMANDS.map((command) => ({
+    type: "command" as const,
+    id: command.id,
+    commandId: command.id,
+    title: command.label,
+    subtitle: command.group,
+    group: command.group,
+    shortcut: shortcutFor(command.id, keybindings),
+  }));
+}
+
+function buildHeaderResults(markdown: string): HeaderResult[] {
+  const results: HeaderResult[] = [];
+  const lines = markdown.split("\n");
+  
+  lines.forEach((line, index) => {
+    const match = line.match(/^(#{1,6})\s+(.+)$/);
+    if (match) {
+      const level = match[1].length;
+      const title = match[2].trim();
+      results.push({
+        type: "header" as const,
+        id: `header-${index}`,
+        title,
+        level,
+        line: index + 1,
+      });
+    }
+  });
+  
+  return results;
+}
+
+function buildTagResults(index: VaultIndex | null): TagResult[] {
+  if (!index) return [];
+  
+  const tagCounts = new Map<string, number>();
+  
+  index.entities.forEach((entity) => {
+    entity.tags?.forEach((tag: string) => {
+      tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+    });
+  });
+  
+  return Array.from(tagCounts.entries()).map(([tag, count]) => ({
+    type: "tag" as const,
+    id: `tag-${tag}`,
+    tag,
+    title: `#${tag}`,
+    subtitle: `${count} file${count !== 1 ? "s" : ""}`,
+    fileCount: count,
+  }));
+}
+
 const FLOATING_FORMAT_COMMANDS: FloatingFormatCommand[] = [
   { id: "bold", label: "B" },
   { id: "italic", label: "I" },
@@ -837,13 +930,20 @@ function App() {
   const [activeTabPath, setActiveTabPath] = useState<string>();
   const [showSettings, setShowSettings] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showQuickSwitcher, setShowQuickSwitcher] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
   const [showInspector, setShowInspector] = useState(true);
   const [appZoom, setAppZoom] = useState(1);
   const [floatingToolbarRect, setFloatingToolbarRect] = useState<DOMRect>();
-  const [commandQuery, setCommandQuery] = useState("");
   const [templatesExpanded, setTemplatesExpanded] = useState(false);
+  const [showSearchPanel, setShowSearchPanel] = useState(false);
+  const [cursorLine, setCursorLine] = useState(0);
   const editorViewRef = useRef<EditorView | null>(null);
+  const editorShellRef = useRef<HTMLDivElement | null>(null);
+  
+  // Font detection hook
+  const { fonts } = useFonts();
+  
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => {
     const stored = localStorage.getItem("worldnotion.expandedPaths");
     return stored ? new Set(JSON.parse(stored)) : new Set();
@@ -887,6 +987,17 @@ function App() {
   };
 
   const activeTab = tabs.find((tab) => tab.path === activeTabPath);
+  
+  // Calculate outline and current header for breadcrumbs
+  const outline = useMemo(() => {
+    if (!activeTab) return [];
+    return extractOutline(activeTab.rawMarkdown);
+  }, [activeTab?.rawMarkdown]);
+  
+  const currentHeader = useMemo(() => {
+    return findCurrentHeader(outline, cursorLine);
+  }, [outline, cursorLine]);
+  
   const openTabPaths = useMemo(() => new Set(tabs.map((tab) => tab.path)), [tabs]);
   const dirtyTabPaths = useMemo(() => new Set(tabs.filter((tab) => tab.dirty).map((tab) => tab.path)), [tabs]);
   const favoritePaths = useMemo(
@@ -1571,12 +1682,37 @@ function App() {
     if (!confirmed) return;
     if (browserRoot) {
       await removeBrowserPath(browserRoot, path, true);
+      // Also delete folder note if trashing a folder
+      if (kind === "folder") {
+        const folderNotePath = folderDescriptionPath(path);
+        if (index.files.some((file) => file.relativePath === folderNotePath)) {
+          try {
+            await removeBrowserPath(browserRoot, folderNotePath, true);
+          } catch {
+            // Ignore error if folder note doesn't exist
+          }
+        }
+      }
     } else {
       const result = await invoke<WriteResult>("trash_path", {
         vaultPath: index.rootPath,
         relativePath: path,
       });
       if (!result.ok) throw new Error(result.message ?? "Could not move item to Trash.");
+      // Also trash folder note if trashing a folder
+      if (kind === "folder") {
+        const folderNotePath = folderDescriptionPath(path);
+        if (index.files.some((file) => file.relativePath === folderNotePath)) {
+          try {
+            await invoke<WriteResult>("trash_path", {
+              vaultPath: index.rootPath,
+              relativePath: folderNotePath,
+            });
+          } catch {
+            // Ignore error if folder note doesn't exist
+          }
+        }
+      }
     }
     setTabs((current) => current.filter((tab) => !(tab.path === path || tab.path.startsWith(`${path}/`))));
     if (selectedPath === path || selectedPath?.startsWith(`${path}/`)) {
@@ -1815,9 +1951,51 @@ function App() {
     const existing = tabs.find((tab) => tab.path === path);
     if (existing) {
       activateTab(path);
+      
+      // Actualizar estadísticas de acceso
+      if (nextIndex?.rootPath) {
+        setSettings((current) => {
+          const currentSession = current.sessions[nextIndex.rootPath] || {
+            rootPath: nextIndex.rootPath,
+            tabs: [],
+          };
+          const updatedStats = incrementFileAccess(currentSession, path);
+          return {
+            ...current,
+            sessions: {
+              ...current.sessions,
+              [nextIndex.rootPath]: {
+                ...currentSession,
+                fileAccessStats: updatedStats,
+              },
+            },
+          };
+        });
+      }
       return;
     }
     openDocument(nextIndex, path);
+    
+    // Actualizar estadísticas de acceso
+    if (nextIndex?.rootPath) {
+      setSettings((current) => {
+        const currentSession = current.sessions[nextIndex.rootPath] || {
+          rootPath: nextIndex.rootPath,
+          tabs: [],
+        };
+        const updatedStats = incrementFileAccess(currentSession, path);
+        return {
+          ...current,
+          sessions: {
+            ...current.sessions,
+            [nextIndex.rootPath]: {
+              ...currentSession,
+              fileAccessStats: updatedStats,
+            },
+          },
+        };
+      });
+    }
   }
 
   function resolveWikilink(label: string): ResolvedWikilink {
@@ -1906,6 +2084,7 @@ function App() {
   function selectFolder(path: string) {
     setSelectedExplorerTarget({ path, kind: "folder" });
     setSelectedPath(path);
+    setActiveTabPath(undefined); // Clear active tab to show folder view
   }
 
   async function openUniverse() {
@@ -2087,6 +2266,20 @@ function App() {
     if (!view) return;
     const selection = view.state.selection.main;
     const selected = view.state.sliceDoc(selection.from, selection.to) || placeholder;
+    view.dispatch({
+      changes: { from: selection.from, to: selection.to, insert: `${before}${selected}${after}` },
+      selection: { anchor: selection.from + before.length, head: selection.from + before.length + selected.length },
+    });
+    view.focus();
+  }
+
+  function applyFontFamily(fontFamily: string) {
+    const view = editorViewRef.current;
+    if (!view) return;
+    const selection = view.state.selection.main;
+    const selected = view.state.sliceDoc(selection.from, selection.to) || "text";
+    const before = `<span style="font-family: ${fontFamily}">`;
+    const after = `</span>`;
     view.dispatch({
       changes: { from: selection.from, to: selection.to, insert: `${before}${selected}${after}` },
       selection: { anchor: selection.from + before.length, head: selection.from + before.length + selected.length },
@@ -2301,7 +2494,20 @@ function App() {
         await saveEditor();
         break;
       case "search":
-        if (editorViewRef.current) openSearchPanel(editorViewRef.current);
+      case "replace":
+        if (settings.editor.searchPanelEnabled) {
+          setShowSearchPanel(true);
+        }
+        break;
+      case "findNext":
+        if (settings.editor.searchPanelEnabled && editorViewRef.current) {
+          findNext(editorViewRef.current);
+        }
+        break;
+      case "findPrevious":
+        if (settings.editor.searchPanelEnabled && editorViewRef.current) {
+          findPrevious(editorViewRef.current);
+        }
         break;
       case "bold":
         replaceSelection("**");
@@ -2355,10 +2561,25 @@ function App() {
         insertAtCursor("\n\n---\n\n");
         break;
       case "foldBlock":
-        if (editorViewRef.current) foldCode(editorViewRef.current);
+        if (settings.editor.codeFoldingEnabled && editorViewRef.current) {
+          foldCode(editorViewRef.current);
+        }
         break;
       case "commandPalette":
-        setShowCommandPalette(true);
+        if (settings.editor.commandPaletteEnabled) {
+          setShowCommandPalette(true);
+        }
+        break;
+      case "quickSwitcher":
+        if (settings.editor.quickSwitcherEnabled) {
+          setShowQuickSwitcher(true);
+        }
+        break;
+      case "toggleOutline":
+        setSettings({
+          ...settings,
+          editor: { ...settings.editor, outlineGuideEnabled: !settings.editor.outlineGuideEnabled },
+        });
         break;
       case "switchMode":
         if (activeTabPath) {
@@ -2431,6 +2652,15 @@ function App() {
       case "wn:edit:find":
         await executeCommand("search");
         break;
+      case "wn:edit:replace":
+        await executeCommand("replace");
+        break;
+      case "wn:edit:find-next":
+        await executeCommand("findNext");
+        break;
+      case "wn:edit:find-previous":
+        await executeCommand("findPrevious");
+        break;
       case "wn:edit:bold":
         await executeCommand("bold");
         break;
@@ -2455,6 +2685,15 @@ function App() {
       case "wn:view:command-palette":
         setShowCommandPalette(true);
         break;
+      case "wn:view:quick-switcher":
+        setShowQuickSwitcher(true);
+        break;
+      case "wn:view:toggle-outline":
+        setSettings({
+          ...settings,
+          editor: { ...settings.editor, outlineGuideEnabled: !settings.editor.outlineGuideEnabled },
+        });
+        break;
       case "wn:view:reload":
         window.location.reload();
         break;
@@ -2478,7 +2717,7 @@ function App() {
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (showSettings) return;
+      if (showSettings || showCommandPalette || showQuickSwitcher) return;
       const binding = settings.keybindings.find((candidate) => shortcutMatches(event, candidate.shortcut));
       if (!binding) return;
       event.preventDefault();
@@ -2487,7 +2726,7 @@ function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeTabPath, settings.keybindings, showSettings, tabs]);
+  }, [activeTabPath, settings.keybindings, showSettings, showCommandPalette, showQuickSwitcher, tabs]);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -2509,6 +2748,8 @@ function App() {
       unlisten?.();
     };
   }, [activeTabPath, activeTab?.path, index?.rootPath, settings.recentUniverse, settings.theme, tabs]);
+
+  const currentSession = index?.rootPath ? settings.sessions[index.rootPath] : undefined;
 
   const activeEditorValue =
     activeTab?.mode === "write" ? rawToEditorParts(activeTab.rawMarkdown).bodyMarkdown : activeTab?.rawMarkdown ?? "";
@@ -2852,7 +3093,7 @@ function App() {
       </aside>
       ) : null}
 
-      <section className="editor-shell">
+      <section className="editor-shell" ref={editorShellRef}>
         <div className="tab-bar">
           <div className="tab-strip">
             {tabs.map((tab) => (
@@ -2906,65 +3147,69 @@ function App() {
           </button>
         </div>
 
-        <header className="editor-header">
-          <div>
-            <p className="eyebrow">{activeTab?.isTemplate ? "Template" : "Markdown document"}</p>
-            <h2>{activeTab ? pathName(activeTab.path) : "No document selected"}</h2>
-          </div>
-          <div className="editor-actions">
-            <div className="mode-toggle" aria-label="Editor mode">
-              <button
-                type="button"
-                className={activeTab?.mode === "write" ? "active" : ""}
-                onClick={() =>
-                  activeTabPath &&
-                  setTabs((current) =>
-                    current.map((tab) => (tab.path === activeTabPath ? { ...tab, mode: "write" } : tab)),
-                  )
-                }
-                disabled={!activeTab}
-              >
-                Write
-              </button>
-              <button
-                type="button"
-                className={activeTab?.mode === "source" ? "active" : ""}
-                onClick={() =>
-                  activeTabPath &&
-                  setTabs((current) =>
-                    current.map((tab) => (tab.path === activeTabPath ? { ...tab, mode: "source" } : tab)),
-                  )
-                }
-                disabled={!activeTab}
-              >
-                Source
-              </button>
-            </div>
+        {activeTab && settings.editor.breadcrumbsEnabled && (
+          <Breadcrumbs
+            filePath={activeTab.path}
+          />
+        )}
+
+        <div className="floating-control-panel">
+          <div className="mode-toggle" aria-label="Editor mode">
             <button
               type="button"
-              onClick={toggleBuiltinTheme}
-              title="Toggle theme"
+              className={activeTab?.mode === "write" ? "active" : ""}
+              onClick={() =>
+                activeTabPath &&
+                setTabs((current) =>
+                  current.map((tab) => (tab.path === activeTabPath ? { ...tab, mode: "write" } : tab)),
+                )
+              }
+              disabled={!activeTab}
             >
-              {isDarkTheme(settings.theme) ? <Sun size={15} /> : <Moon size={15} />}
+              Write
             </button>
-            <span className={`save-status ${activeTab?.dirty ? "dirty" : ""}`}>
-              {!activeTab ? "No file" : !canWrite ? "Read only" : activeTab.dirty ? "Unsaved" : "Saved"}
-            </span>
-            <button type="button" onClick={saveEditor} disabled={!activeTab || !canWrite}>
-              <Save size={15} />
-              Save
+            <button
+              type="button"
+              className={activeTab?.mode === "source" ? "active" : ""}
+              onClick={() =>
+                activeTabPath &&
+                setTabs((current) =>
+                  current.map((tab) => (tab.path === activeTabPath ? { ...tab, mode: "source" } : tab)),
+                )
+              }
+              disabled={!activeTab}
+            >
+              Source
             </button>
           </div>
-        </header>
+          <button
+            type="button"
+            onClick={toggleBuiltinTheme}
+            title="Toggle theme"
+          >
+            {isDarkTheme(settings.theme) ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
+          <button type="button" onClick={saveEditor} disabled={!activeTab || !canWrite} title="Save">
+            <Save size={15} />
+          </button>
+        </div>
 
-        {floatingToolbarRect && activeTab?.mode === "write" ? (
+        {floatingToolbarRect && activeTab?.mode === "write" && Number.isFinite(floatingToolbarRect.left) && Number.isFinite(floatingToolbarRect.top) ? (
           <div
             className="floating-format-toolbar"
-            style={{
-              left: Math.max(12, floatingToolbarRect.left),
-              top: Math.max(78, floatingToolbarRect.top - 44),
-            }}
+            style={(() => {
+              const shellRect = editorShellRef.current?.getBoundingClientRect();
+              const shellLeft = shellRect?.left ?? 0;
+              const shellTop = shellRect?.top ?? 0;
+              const left = Math.max(12, floatingToolbarRect.left - shellLeft);
+              const top = Math.max(36, floatingToolbarRect.top - shellTop - 44);
+              return Number.isFinite(left) && Number.isFinite(top) ? { left, top } : { display: 'none' };
+            })()}
           >
+            <FontSelector
+              availableFonts={fonts}
+              onSelectFont={applyFontFamily}
+            />
             {FLOATING_FORMAT_COMMANDS.map((command) => (
               <button
                 key={command.id}
@@ -2997,7 +3242,7 @@ function App() {
         {loadState === "loading" ? <div className="loading-banner">Loading universe...</div> : null}
         {activeTab ? (
           <div
-            className={`editor-surface page-style-${settings.editor.pageStyle} mode-${activeTab.mode}`}
+            className={`editor-surface page-style-${settings.editor.pageStyle} mode-${activeTab.mode}${settings.editor.outlineGuideEnabled ? ' outline-visible' : ''}${settings.editor.showPaperShadow ? ' paper-shadow' : ''}`}
             style={
               settings.editor.pageStyle === "custom"
                 ? ({ "--wn-custom-page": settings.editor.customPageColor } as CSSProperties)
@@ -3019,21 +3264,96 @@ function App() {
                 void openUrl(url);
               }}
               onRequestUrl={() => promptUser("Insert link", "https://example.com", "https://")}
-              onSelectionChange={setFloatingToolbarRect}
+              onSelectionChange={(rect) => {
+                setFloatingToolbarRect(rect);
+                // Update cursor line for outline
+                if (editorViewRef.current) {
+                  const view = editorViewRef.current;
+                  const line = view.state.doc.lineAt(view.state.selection.main.head);
+                  setCursorLine(line.number - 1); // 0-indexed
+                }
+              }}
               onEditorReady={(view) => {
                 editorViewRef.current = view;
+                // Set initial cursor line
+                const line = view.state.doc.lineAt(view.state.selection.main.head);
+                setCursorLine(line.number - 1);
               }}
             />
+            {settings.editor.searchPanelEnabled && showSearchPanel && (
+              <SearchPanel
+                editorView={editorViewRef.current}
+                onClose={() => setShowSearchPanel(false)}
+              />
+            )}
+            
+            {/* Outline guide - visible by default when enabled */}
+            {settings.editor.outlineGuideEnabled && activeTab && (
+              <OutlineGuide
+                outline={outline}
+                currentHeader={currentHeader}
+                onNavigate={(line) => {
+                  if (editorViewRef.current) {
+                    // In write mode, adjust for frontmatter offset
+                    let targetLine = line;
+                    if (activeTab.mode === "write") {
+                      const parts = rawToEditorParts(activeTab.rawMarkdown);
+                      const frontmatterLines = parts.frontmatterRaw.split("\n").length;
+                      targetLine = line - frontmatterLines;
+                      // Ensure we don't navigate to negative lines
+                      if (targetLine < 0) return;
+                    }
+                    const pos = editorViewRef.current.state.doc.line(targetLine + 1).from;
+                    editorViewRef.current.dispatch({
+                      selection: { anchor: pos },
+                      scrollIntoView: true,
+                    });
+                    editorViewRef.current.focus();
+                  }
+                }}
+              />
+            )}
           </div>
         ) : (
           <section className="empty-editor">
             <FileText size={42} />
-            <h2>No document selected</h2>
-            <p>Select a file from the explorer or start a new note.</p>
-            <button type="button" onClick={createNoteFromTabButton}>
-              <Plus size={15} />
-              New note
-            </button>
+            {selectedExplorerTarget?.kind === "folder" ? (
+              <>
+                <h2>Folder: {pathName(selectedExplorerTarget.path) || "Root"}</h2>
+                <p>View or create a note to describe this folder's contents.</p>
+                {(() => {
+                  const folderName = selectedExplorerTarget.path.split("/").pop() || pathName(index.rootPath);
+                  const parentPath = dirname(selectedExplorerTarget.path);
+                  const descriptionPath = parentPath ? `${parentPath}/${folderName}.md` : `${folderName}.md`;
+                  const hasDescription = index.files.some((file) => file.relativePath === descriptionPath);
+                  
+                  if (hasDescription) {
+                    return (
+                      <button type="button" onClick={() => selectPath(descriptionPath)}>
+                        <FileEdit size={15} />
+                        Edit folder note
+                      </button>
+                    );
+                  } else {
+                    return (
+                      <button type="button" onClick={() => createFolderDescription(selectedExplorerTarget.path)}>
+                        <Plus size={15} />
+                        Create folder note
+                      </button>
+                    );
+                  }
+                })()}
+              </>
+            ) : (
+              <>
+                <h2>No document selected</h2>
+                <p>Select a file from the explorer or start a new note.</p>
+                <button type="button" onClick={createNoteFromTabButton}>
+                  <Plus size={15} />
+                  New note
+                </button>
+              </>
+            )}
           </section>
         )}
       </section>
@@ -3064,34 +3384,65 @@ function App() {
       ) : null}
 
       {showCommandPalette ? (
-        <div className="settings-backdrop" role="dialog" aria-modal="true" aria-label="Command palette">
-          <div className="command-palette">
-            <input
-              autoFocus
-              value={commandQuery}
-              onChange={(event) => setCommandQuery(event.target.value)}
-              placeholder="Run command..."
-            />
-            <div className="command-list">
-              {EDITOR_COMMANDS.filter((command) =>
-                command.label.toLowerCase().includes(commandQuery.toLowerCase()),
-              ).map((command) => (
-                <button
-                  key={command.id}
-                  type="button"
-                  onClick={() => {
-                    setShowCommandPalette(false);
-                    setCommandQuery("");
-                    void executeCommand(command.id);
-                  }}
-                >
-                  <span>{command.label}</span>
-                  <small>{shortcutFor(command.id, settings.keybindings)}</small>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+        <CommandPalette
+          isOpen={showCommandPalette}
+          onClose={() => setShowCommandPalette(false)}
+          fileResults={buildFileResults(index)}
+          commandResults={buildCommandResults(settings.keybindings)}
+          headerResults={buildHeaderResults(activeTab?.rawMarkdown || "")}
+          tagResults={buildTagResults(index)}
+          recentFiles={settings.explorer.recentFiles}
+          favorites={settings.explorer.favorites.map((f) => f.path)}
+          fileAccessStats={currentSession?.fileAccessStats}
+          onSelectFile={(path) => {
+            openOrCreateTab(path);
+            setShowCommandPalette(false);
+          }}
+          onSelectCommand={(commandId) => {
+            setShowCommandPalette(false);
+            void executeCommand(commandId);
+          }}
+          onSelectHeader={(line) => {
+            // Scroll to line in editor
+            if (editorViewRef.current) {
+              const state = editorViewRef.current.state;
+              const lineInfo = state.doc.line(line);
+              editorViewRef.current.dispatch({
+                selection: { anchor: lineInfo.from },
+                effects: EditorView.scrollIntoView(lineInfo.from, { y: "center" }),
+              });
+              editorViewRef.current.focus();
+            }
+            setShowCommandPalette(false);
+          }}
+          onSelectTag={(tag) => {
+            // Search for files with this tag
+            setQuery(tag);
+            setShowCommandPalette(false);
+          }}
+        />
+      ) : null}
+
+      {showQuickSwitcher ? (
+        <CommandPalette
+          isOpen={showQuickSwitcher}
+          onClose={() => setShowQuickSwitcher(false)}
+          fileResults={buildFileResults(index)}
+          commandResults={[]}
+          headerResults={[]}
+          tagResults={[]}
+          recentFiles={settings.explorer.recentFiles}
+          favorites={settings.explorer.favorites.map((f) => f.path)}
+          fileAccessStats={currentSession?.fileAccessStats}
+          quickSwitcherMode={true}
+          onSelectFile={(path) => {
+            openOrCreateTab(path);
+            setShowQuickSwitcher(false);
+          }}
+          onSelectCommand={() => {}}
+          onSelectHeader={() => {}}
+          onSelectTag={() => {}}
+        />
       ) : null}
 
       {contextMenu && (

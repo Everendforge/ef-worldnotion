@@ -4,8 +4,11 @@ import { markdown } from "@codemirror/lang-markdown";
 import { EditorState as CodeMirrorState, Prec } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView, keymap } from "@codemirror/view";
+import { selectSubwordBackward, selectSubwordForward } from "@codemirror/commands";
+import { foldGutter, foldKeymap } from "@codemirror/language";
 import { markdownSyntaxPlugin } from "./markdownSyntaxPlugin";
 import { wikilinkPlugin } from "./wikilinkPlugin";
+import { fontFamilyPlugin } from "./fontFamilyPlugin";
 import {
   EditorMode,
   EditorSettings,
@@ -333,8 +336,16 @@ export function CodeMirrorEditor({
         theme={isDarkTheme(theme) ? oneDark : undefined}
         extensions={[
           markdown(),
+          ...(settings.codeFoldingEnabled ? [
+            foldGutter({
+              openText: "▼",
+              closedText: "▶",
+            }),
+            keymap.of(foldKeymap),
+          ] : []),
           ...(mode === "write" ? [wikilinkPlugin({ resolveWikilink, onOpenWikilink, onMissingWikilink })] : []),
           ...(mode === "write" && settings.hideMarkdownSyntaxInWrite ? [markdownSyntaxPlugin] : []),
+          ...(mode === "write" ? [fontFamilyPlugin] : []),
           ...(settings.lineWrap ? [EditorView.lineWrapping] : []),
           CodeMirrorState.tabSize.of(settings.tabSize),
           Prec.highest(keymap.of([
@@ -410,6 +421,26 @@ export function CodeMirrorEditor({
                 return true;
               },
             },
+            {
+              key: "Cmd-Shift-ArrowLeft",
+              mac: "Cmd-Shift-ArrowLeft",
+              run: selectSubwordBackward,
+            },
+            {
+              key: "Cmd-Shift-ArrowRight",
+              mac: "Cmd-Shift-ArrowRight",
+              run: selectSubwordForward,
+            },
+            {
+              key: "Alt-Shift-ArrowLeft",
+              mac: "Alt-Shift-ArrowLeft",
+              run: selectSubwordBackward,
+            },
+            {
+              key: "Alt-Shift-ArrowRight",
+              mac: "Alt-Shift-ArrowRight",
+              run: selectSubwordForward,
+            },
           ])),
           EditorView.domEventHandlers({
             keydown(event) {
@@ -429,16 +460,19 @@ export function CodeMirrorEditor({
               if (!selection.empty) {
                 const from = update.view.coordsAtPos(selection.from);
                 const to = update.view.coordsAtPos(selection.to);
-                if (from && to) {
-                  onSelectionChange?.(
-                    new DOMRect(
-                      Math.min(from.left, to.left),
-                      Math.min(from.top, to.top),
-                      Math.max(1, Math.abs(to.left - from.left)),
-                      Math.max(from.bottom - from.top, to.bottom - to.top),
-                    ),
-                  );
-                  return;
+                if (from && to && from.left !== undefined && from.top !== undefined && to.left !== undefined && to.top !== undefined) {
+                  const minLeft = Math.min(from.left, to.left);
+                  const minTop = Math.min(from.top, to.top);
+                  const width = Math.max(1, Math.abs(to.left - from.left));
+                  const height = Math.max(from.bottom - from.top, to.bottom - to.top);
+                  
+                  // Validate coordinates are numbers and not NaN
+                  if (Number.isFinite(minLeft) && Number.isFinite(minTop) && Number.isFinite(width) && Number.isFinite(height)) {
+                    onSelectionChange?.(
+                      new DOMRect(minLeft, minTop, width, height),
+                    );
+                    return;
+                  }
                 }
               }
               onSelectionChange?.(undefined);
@@ -465,12 +499,22 @@ export function CodeMirrorEditor({
             },
             ".cm-activeLine, .cm-activeLineGutter": {
               backgroundColor: "var(--wn-panel-2)",
+              position: "relative",
+              zIndex: "0",
             },
             ".cm-cursor": {
               borderLeftColor: "var(--wn-accent)",
             },
-            ".cm-selectionBackground, .cm-content ::selection": {
-              backgroundColor: "var(--wn-accent-soft) !important",
+            ".cm-selectionBackground": {
+              backgroundColor: "var(--wn-accent)",
+              opacity: "0.75",
+              position: "relative",
+              zIndex: "1",
+            },
+            ".cm-content ::selection": {
+              backgroundColor: "var(--wn-accent)",
+              opacity: "0.75",
+              color: "inherit",
             },
             ".cm-content": {
               fontFamily: mode === "source" ? settings.sourceFontFamily : settings.writeFontFamily,

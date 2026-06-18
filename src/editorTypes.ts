@@ -17,6 +17,9 @@ export type ThemeId =
 export type EditorCommandId =
   | "save"
   | "search"
+  | "replace"
+  | "findNext"
+  | "findPrevious"
   | "bold"
   | "italic"
   | "inlineCode"
@@ -36,6 +39,8 @@ export type EditorCommandId =
   | "horizontalRule"
   | "foldBlock"
   | "commandPalette"
+  | "quickSwitcher"
+  | "toggleOutline"
   | "switchMode"
   | "closeTab"
   | "nextTab"
@@ -68,6 +73,14 @@ export type EditorSettings = {
   persistTabs: boolean;
   reuseOpenTabs: boolean;
   confirmCloseDirtyTab: boolean;
+  showPaperShadow: boolean; // Show paper container with shadow in write mode
+  // Navigation & Visualization features (Phase 1 & 2)
+  commandPaletteEnabled: boolean;
+  quickSwitcherEnabled: boolean;
+  searchPanelEnabled: boolean;
+  outlineGuideEnabled: boolean;
+  breadcrumbsEnabled: boolean;
+  codeFoldingEnabled: boolean;
 };
 
 export type EditorDocumentParts = {
@@ -114,10 +127,26 @@ export type OpenTab = {
 
 export type PersistedOpenTab = Pick<OpenTab, "path" | "title" | "mode" | "modifiedMs" | "isTemplate">;
 
+export type FileEditorState = {
+  cursorPosition?: { line: number; column: number };
+  scrollPosition?: number;
+  foldedRanges?: Array<{ from: number; to: number }>;
+  selection?: { from: number; to: number };
+  lastModified: number;
+};
+
+export type FileAccessStats = {
+  path: string;
+  count: number;
+  lastAccessed: number;
+};
+
 export type WorkspaceSession = {
   rootPath: string;
   activePath?: string;
   tabs: PersistedOpenTab[];
+  editorState?: Record<string, FileEditorState>;
+  fileAccessStats?: FileAccessStats[];
 };
 
 export type ExplorerFavorite = {
@@ -155,6 +184,43 @@ export type AppSettingsV4 = {
   sessions: Record<string, WorkspaceSession>;
 };
 
+export type CommandPaletteMode = "files" | "commands" | "headers" | "tags";
+
+export type CommandPaletteResultBase = {
+  id: string;
+  title: string;
+  subtitle?: string;
+  icon?: string;
+};
+
+export type FileResult = CommandPaletteResultBase & {
+  type: "file";
+  path: string;
+  tags?: string[];
+  lastModified?: number;
+};
+
+export type CommandResult = CommandPaletteResultBase & {
+  type: "command";
+  commandId: EditorCommandId;
+  group: string;
+  shortcut?: string;
+};
+
+export type HeaderResult = CommandPaletteResultBase & {
+  type: "header";
+  level: number;
+  line: number;
+};
+
+export type TagResult = CommandPaletteResultBase & {
+  type: "tag";
+  tag: string;
+  fileCount: number;
+};
+
+export type CommandPaletteResult = FileResult | CommandResult | HeaderResult | TagResult;
+
 export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   lineNumbers: true,
   lineWrap: true,
@@ -170,6 +236,14 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   persistTabs: true,
   reuseOpenTabs: true,
   confirmCloseDirtyTab: true,
+  showPaperShadow: true, // Paper style enabled by default
+  // Navigation & Visualization features (Phase 1 & 2) - enabled by default
+  commandPaletteEnabled: true,
+  quickSwitcherEnabled: true,
+  searchPanelEnabled: true,
+  outlineGuideEnabled: true,
+  breadcrumbsEnabled: true,
+  codeFoldingEnabled: true,
 };
 
 export const DEFAULT_EXPLORER_SETTINGS: ExplorerSettings = {
@@ -182,7 +256,10 @@ export const DEFAULT_EXPLORER_SETTINGS: ExplorerSettings = {
 
 export const EDITOR_COMMANDS: EditorCommand[] = [
   { id: "save", label: "Save", group: "file", defaultShortcut: "Mod+S" },
-  { id: "search", label: "Search", group: "navigation", defaultShortcut: "Mod+F" },
+  { id: "search", label: "Find", group: "navigation", defaultShortcut: "Mod+F" },
+  { id: "replace", label: "Find and Replace", group: "navigation", defaultShortcut: "Mod+H" },
+  { id: "findNext", label: "Find Next", group: "navigation", defaultShortcut: "F3" },
+  { id: "findPrevious", label: "Find Previous", group: "navigation", defaultShortcut: "Shift+F3" },
   { id: "bold", label: "Bold", group: "format", defaultShortcut: "Mod+B" },
   { id: "italic", label: "Italic", group: "format", defaultShortcut: "Mod+I" },
   { id: "inlineCode", label: "Inline Code", group: "format", defaultShortcut: "Mod+E" },
@@ -202,6 +279,8 @@ export const EDITOR_COMMANDS: EditorCommand[] = [
   { id: "horizontalRule", label: "Horizontal Rule", group: "insert", defaultShortcut: "Mod+Shift+H" },
   { id: "foldBlock", label: "Fold Current Block", group: "navigation", defaultShortcut: "Mod+Alt+[" },
   { id: "commandPalette", label: "Command Palette", group: "workspace", defaultShortcut: "Mod+P" },
+  { id: "quickSwitcher", label: "Quick Switcher", group: "workspace", defaultShortcut: "Mod+Alt+O" },
+  { id: "toggleOutline", label: "Toggle Outline", group: "workspace", defaultShortcut: "Mod+Shift+O" },
   { id: "switchMode", label: "Switch Write/Source Mode", group: "workspace", defaultShortcut: "Mod+/" },
   { id: "closeTab", label: "Close Tab", group: "workspace", defaultShortcut: "Mod+W" },
   { id: "nextTab", label: "Next Tab", group: "workspace", defaultShortcut: "Mod+Shift+]" },

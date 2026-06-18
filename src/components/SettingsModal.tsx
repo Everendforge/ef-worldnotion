@@ -284,6 +284,7 @@ export function SettingsModal({
             ) : null}
 
             {activeSection === "editor" ? (
+              <>
               <div className="settings-grid">
                 <label>
                   <span>Active style</span>
@@ -307,6 +308,10 @@ export function SettingsModal({
                     onChange={(event) => updateEditor({ customPageColor: event.target.value })}
                     disabled={settings.editor.pageStyle !== "custom"}
                   />
+                </label>
+                <label>
+                  <span>Paper shadow (Write mode)</span>
+                  <input type="checkbox" checked={settings.editor.showPaperShadow} onChange={(event) => updateEditor({ showPaperShadow: event.target.checked })} />
                 </label>
                 <label>
                   <span>Line numbers</span>
@@ -348,6 +353,39 @@ export function SettingsModal({
                   </select>
                 </label>
               </div>
+
+              <h3 style={{ gridColumn: "1 / -1", fontSize: "13px", fontWeight: 600, margin: "16px 0 8px 0", color: "var(--wn-muted)" }}>Navigation</h3>
+              <div className="settings-grid">
+                <label>
+                  <span>Command Palette (Cmd+P)</span>
+                  <input type="checkbox" checked={settings.editor.commandPaletteEnabled} onChange={(event) => updateEditor({ commandPaletteEnabled: event.target.checked })} />
+                </label>
+                <label>
+                  <span>Quick Switcher (Cmd+Alt+O)</span>
+                  <input type="checkbox" checked={settings.editor.quickSwitcherEnabled} onChange={(event) => updateEditor({ quickSwitcherEnabled: event.target.checked })} />
+                </label>
+                <label>
+                  <span>Find & Replace (Cmd+F)</span>
+                  <input type="checkbox" checked={settings.editor.searchPanelEnabled} onChange={(event) => updateEditor({ searchPanelEnabled: event.target.checked })} />
+                </label>
+              </div>
+
+              <h3 style={{ gridColumn: "1 / -1", fontSize: "13px", fontWeight: 600, margin: "16px 0 8px 0", color: "var(--wn-muted)" }}>Visualization</h3>
+              <div className="settings-grid">
+                <label>
+                  <span>Outline Guide (Cmd+Shift+O)</span>
+                  <input type="checkbox" checked={settings.editor.outlineGuideEnabled} onChange={(event) => updateEditor({ outlineGuideEnabled: event.target.checked })} />
+                </label>
+                <label>
+                  <span>Breadcrumbs</span>
+                  <input type="checkbox" checked={settings.editor.breadcrumbsEnabled} onChange={(event) => updateEditor({ breadcrumbsEnabled: event.target.checked })} />
+                </label>
+                <label>
+                  <span>Code Folding</span>
+                  <input type="checkbox" checked={settings.editor.codeFoldingEnabled} onChange={(event) => updateEditor({ codeFoldingEnabled: event.target.checked })} />
+                </label>
+              </div>
+              </>
             ) : null}
 
             {activeSection === "shortcuts" ? (
