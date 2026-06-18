@@ -684,22 +684,17 @@ export function CodeMirrorEditor({
             },
             ".cm-activeLine, .cm-activeLineGutter": {
               backgroundColor: "var(--wn-panel-2)",
-              position: "relative",
-              zIndex: "0",
             },
             ".cm-cursor": {
               borderLeftColor: "var(--wn-accent)",
             },
             ".cm-selectionBackground": {
               backgroundColor: "var(--wn-accent)",
-              opacity: "0.75",
-              position: "relative",
-              zIndex: "1",
+              opacity: "0.5",
             },
-            ".cm-content ::selection": {
+            ".cm-selection": {
               backgroundColor: "var(--wn-accent)",
-              opacity: "0.75",
-              color: "inherit",
+              opacity: "0.5",
             },
             ".cm-content": {
               fontFamily: mode === "source" ? settings.sourceFontFamily : settings.writeFontFamily,

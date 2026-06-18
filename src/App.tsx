@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl as openExternalUrl } from "@tauri-apps/plugin-opener";
 import { EditorView } from "@codemirror/view";
-import { findNext, findPrevious } from "@codemirror/search";
+import { openSearchPanel } from "@codemirror/search";
 import { foldCode } from "@codemirror/language";
 import {
   BookOpen,
@@ -33,14 +33,12 @@ import {
 } from "lucide-react";
 import "./App.css";
 import { ContextMenu, CodeMirrorEditor, SettingsModal, CommandPalette } from "./components";
-import { FontSelector } from "./components/FontSelector";
-import { SearchPanel } from "./components/SearchPanel";
 import { OutlineGuide } from "./components/OutlineGuide";
-import { Breadcrumbs } from "./components/Breadcrumbs";
+import { FontSelector } from "./components/FontSelector";
 import { InputDialog } from "./components/InputDialog";
 import { Toast } from "./components/Toast";
-import type { ContextMenuAction } from "./components";
 import { extractOutline, findCurrentHeader } from "./utils/outlineExtractor";
+import type { ContextMenuAction } from "./components";
 import { useFonts } from "./utils/useFonts";
 import {
   AppSettingsV4,
@@ -936,7 +934,6 @@ function App() {
   const [appZoom, setAppZoom] = useState(1);
   const [floatingToolbarRect, setFloatingToolbarRect] = useState<DOMRect>();
   const [templatesExpanded, setTemplatesExpanded] = useState(false);
-  const [showSearchPanel, setShowSearchPanel] = useState(false);
   const [cursorLine, setCursorLine] = useState(0);
   const editorViewRef = useRef<EditorView | null>(null);
   const editorShellRef = useRef<HTMLDivElement | null>(null);
@@ -987,17 +984,6 @@ function App() {
   };
 
   const activeTab = tabs.find((tab) => tab.path === activeTabPath);
-  
-  // Calculate outline and current header for breadcrumbs
-  const outline = useMemo(() => {
-    if (!activeTab) return [];
-    return extractOutline(activeTab.rawMarkdown);
-  }, [activeTab?.rawMarkdown]);
-  
-  const currentHeader = useMemo(() => {
-    return findCurrentHeader(outline, cursorLine);
-  }, [outline, cursorLine]);
-  
   const openTabPaths = useMemo(() => new Set(tabs.map((tab) => tab.path)), [tabs]);
   const dirtyTabPaths = useMemo(() => new Set(tabs.filter((tab) => tab.dirty).map((tab) => tab.path)), [tabs]);
   const favoritePaths = useMemo(
@@ -2494,20 +2480,7 @@ function App() {
         await saveEditor();
         break;
       case "search":
-      case "replace":
-        if (settings.editor.searchPanelEnabled) {
-          setShowSearchPanel(true);
-        }
-        break;
-      case "findNext":
-        if (settings.editor.searchPanelEnabled && editorViewRef.current) {
-          findNext(editorViewRef.current);
-        }
-        break;
-      case "findPrevious":
-        if (settings.editor.searchPanelEnabled && editorViewRef.current) {
-          findPrevious(editorViewRef.current);
-        }
+        if (editorViewRef.current) openSearchPanel(editorViewRef.current);
         break;
       case "bold":
         replaceSelection("**");
@@ -2561,25 +2534,13 @@ function App() {
         insertAtCursor("\n\n---\n\n");
         break;
       case "foldBlock":
-        if (settings.editor.codeFoldingEnabled && editorViewRef.current) {
-          foldCode(editorViewRef.current);
-        }
+        if (editorViewRef.current) foldCode(editorViewRef.current);
         break;
       case "commandPalette":
-        if (settings.editor.commandPaletteEnabled) {
-          setShowCommandPalette(true);
-        }
+        setShowCommandPalette(true);
         break;
       case "quickSwitcher":
-        if (settings.editor.quickSwitcherEnabled) {
-          setShowQuickSwitcher(true);
-        }
-        break;
-      case "toggleOutline":
-        setSettings({
-          ...settings,
-          editor: { ...settings.editor, outlineGuideEnabled: !settings.editor.outlineGuideEnabled },
-        });
+        setShowQuickSwitcher(true);
         break;
       case "switchMode":
         if (activeTabPath) {
@@ -2652,15 +2613,6 @@ function App() {
       case "wn:edit:find":
         await executeCommand("search");
         break;
-      case "wn:edit:replace":
-        await executeCommand("replace");
-        break;
-      case "wn:edit:find-next":
-        await executeCommand("findNext");
-        break;
-      case "wn:edit:find-previous":
-        await executeCommand("findPrevious");
-        break;
       case "wn:edit:bold":
         await executeCommand("bold");
         break;
@@ -2688,12 +2640,6 @@ function App() {
       case "wn:view:quick-switcher":
         setShowQuickSwitcher(true);
         break;
-      case "wn:view:toggle-outline":
-        setSettings({
-          ...settings,
-          editor: { ...settings.editor, outlineGuideEnabled: !settings.editor.outlineGuideEnabled },
-        });
-        break;
       case "wn:view:reload":
         window.location.reload();
         break;
@@ -2717,7 +2663,7 @@ function App() {
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (showSettings || showCommandPalette || showQuickSwitcher) return;
+      if (showSettings) return;
       const binding = settings.keybindings.find((candidate) => shortcutMatches(event, candidate.shortcut));
       if (!binding) return;
       event.preventDefault();
@@ -2726,7 +2672,7 @@ function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeTabPath, settings.keybindings, showSettings, showCommandPalette, showQuickSwitcher, tabs]);
+  }, [activeTabPath, settings.keybindings, showSettings, tabs]);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -2750,6 +2696,37 @@ function App() {
   }, [activeTabPath, activeTab?.path, index?.rootPath, settings.recentUniverse, settings.theme, tabs]);
 
   const currentSession = index?.rootPath ? settings.sessions[index.rootPath] : undefined;
+
+  // Calculate outline and current header for breadcrumbs
+  const outline = useMemo(() => {
+    if (!activeTab) return [];
+    
+    let headers = extractOutline(activeTab.rawMarkdown);
+    
+    // In write mode, adjust outline line numbers to match bodyMarkdown coordinates
+    if (activeTab.mode === "write") {
+      const parts = rawToEditorParts(activeTab.rawMarkdown);
+      const frontmatterLines = parts.frontmatterRaw.split("\n").length;
+      
+      // Recursively adjust line numbers for all headers
+      const adjustHeaders = (hdrs: typeof headers): typeof headers => {
+        return hdrs.map(h => ({
+          ...h,
+          line: Math.max(0, h.line - frontmatterLines),
+          children: adjustHeaders(h.children),
+        }));
+      };
+      
+      headers = adjustHeaders(headers);
+    }
+    
+    return headers;
+  }, [activeTab?.rawMarkdown, activeTab?.mode]);
+  
+  const currentHeader = useMemo(() => {
+    if (!activeTab) return null;
+    return findCurrentHeader(outline, cursorLine, 0);
+  }, [outline, cursorLine]);
 
   const activeEditorValue =
     activeTab?.mode === "write" ? rawToEditorParts(activeTab.rawMarkdown).bodyMarkdown : activeTab?.rawMarkdown ?? "";
@@ -3147,12 +3124,6 @@ function App() {
           </button>
         </div>
 
-        {activeTab && settings.editor.breadcrumbsEnabled && (
-          <Breadcrumbs
-            filePath={activeTab.path}
-          />
-        )}
-
         <div className="floating-control-panel">
           <div className="mode-toggle" aria-label="Editor mode">
             <button
@@ -3242,7 +3213,7 @@ function App() {
         {loadState === "loading" ? <div className="loading-banner">Loading universe...</div> : null}
         {activeTab ? (
           <div
-            className={`editor-surface page-style-${settings.editor.pageStyle} mode-${activeTab.mode}${settings.editor.outlineGuideEnabled ? ' outline-visible' : ''}${settings.editor.showPaperShadow ? ' paper-shadow' : ''}`}
+            className={`editor-surface page-style-${settings.editor.pageStyle} mode-${activeTab.mode}`}
             style={
               settings.editor.pageStyle === "custom"
                 ? ({ "--wn-custom-page": settings.editor.customPageColor } as CSSProperties)
@@ -3268,46 +3239,31 @@ function App() {
                 setFloatingToolbarRect(rect);
                 // Update cursor line for outline
                 if (editorViewRef.current) {
-                  const view = editorViewRef.current;
-                  const line = view.state.doc.lineAt(view.state.selection.main.head);
+                  const pos = editorViewRef.current.state.selection.main.head;
+                  const line = editorViewRef.current.state.doc.lineAt(pos);
                   setCursorLine(line.number - 1); // 0-indexed
                 }
               }}
               onEditorReady={(view) => {
                 editorViewRef.current = view;
-                // Set initial cursor line
-                const line = view.state.doc.lineAt(view.state.selection.main.head);
-                setCursorLine(line.number - 1);
               }}
             />
-            {settings.editor.searchPanelEnabled && showSearchPanel && (
-              <SearchPanel
-                editorView={editorViewRef.current}
-                onClose={() => setShowSearchPanel(false)}
-              />
-            )}
-            
-            {/* Outline guide - visible by default when enabled */}
+
+            {/* Outline guide - visible when enabled */}
             {settings.editor.outlineGuideEnabled && activeTab && (
               <OutlineGuide
                 outline={outline}
                 currentHeader={currentHeader}
                 onNavigate={(line) => {
                   if (editorViewRef.current) {
-                    // In write mode, adjust for frontmatter offset
-                    let targetLine = line;
-                    if (activeTab.mode === "write") {
-                      const parts = rawToEditorParts(activeTab.rawMarkdown);
-                      const frontmatterLines = parts.frontmatterRaw.split("\n").length;
-                      targetLine = line - frontmatterLines;
-                      // Ensure we don't navigate to negative lines
-                      if (targetLine < 0) return;
-                    }
-                    const pos = editorViewRef.current.state.doc.line(targetLine + 1).from;
+                    // Outline lines are already adjusted for write mode, so use directly
+                    const pos = editorViewRef.current.state.doc.line(line + 1).from;
                     editorViewRef.current.dispatch({
                       selection: { anchor: pos },
-                      scrollIntoView: true,
+                      effects: EditorView.scrollIntoView(pos, { y: "center" }),
                     });
+                    // Update cursor line immediately after navigation
+                    setCursorLine(line);
                     editorViewRef.current.focus();
                   }
                 }}
@@ -3431,8 +3387,6 @@ function App() {
           commandResults={[]}
           headerResults={[]}
           tagResults={[]}
-          recentFiles={settings.explorer.recentFiles}
-          favorites={settings.explorer.favorites.map((f) => f.path)}
           fileAccessStats={currentSession?.fileAccessStats}
           quickSwitcherMode={true}
           onSelectFile={(path) => {

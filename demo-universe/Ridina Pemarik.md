@@ -5,7 +5,9 @@ name: Ridina Pemarik
 status: draft
 ---
 
+dsda
 # Ridina
+
 ## ridina 2
 #### Heading 4
 ###### Heading 6
@@ -17,10 +19,8 @@ status: draft
 > dasdasd
 > dasd 
 **asad** dasdasd
-*ddasd* dasdasd ssdasdasdsadsadjsahduysafgsvbfhjdsabfsjbhjdsafbjsdbfjhdsbfjhdsbfjhdsbfjhdsbfjhdsbfhjdsbfjhsdbfhjdsbfhjbhjfbfhjbfhj
+*ddasd* dasdasd ssdasdasdsadsadjsahduysafgsvbfh
 `asdaddasdasds` 
 [dasdasdsad](https://web.whatsapp.com/) dsadas
-[[Mara Voss|Mara Voss]] dsadas
+[[Mara Voss|Mara Voss]]
 [[Alo|Alo]]sdadasdsad [[Alo|Alo]]dsd
-
-
