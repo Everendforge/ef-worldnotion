@@ -13,7 +13,6 @@ import {
   FileText,
   Folder,
   FolderOpen,
-  FolderPlus,
   Home,
   Italic,
   Link,
@@ -69,6 +68,18 @@ import {
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 type AppView = "home" | "workspace";
+type PathChange = {
+  fromPath: string;
+  toPath: string;
+  mode: "single" | "tree";
+};
+type PointerDragItem = {
+  path: string;
+  kind: "file" | "folder";
+  startX: number;
+  startY: number;
+  active: boolean;
+};
 
 type BrowserFileHandle = {
   getFile: () => Promise<File>;
@@ -142,7 +153,20 @@ function formatValue(value: unknown): string {
 }
 
 function pathName(path: string): string {
-  return path.replace(/^browser:/, "").split("/").pop() ?? path;
+  return path.replace(/^browser:/, "").split(/[\\/]/).pop() ?? path;
+}
+
+function platformLabels() {
+  const platform = navigator.platform.toLowerCase();
+  const userAgent = navigator.userAgent.toLowerCase();
+  const isMac = platform.includes("mac");
+  const isWindows = platform.includes("win") || userAgent.includes("windows");
+  return {
+    revealItem: isWindows ? "Reveal in Explorer" : isMac ? "Reveal in Finder" : "Reveal in Files",
+    revealUniverse: isWindows ? "Reveal universe folder in Explorer" : isMac ? "Reveal universe folder in Finder" : "Reveal universe folder",
+    trashAction: isWindows ? "Move to Recycle Bin" : "Move to Trash",
+    trashDone: isWindows ? "Moved to Recycle Bin." : "Moved to Trash.",
+  };
 }
 
 function rememberUniverse(settings: AppSettingsV4, rootPath: string): AppSettingsV4 {
@@ -176,7 +200,7 @@ function fileTitle(path: string) {
 
 function relativeFromAbsolute(rootPath: string, absolutePath: string) {
   return absolutePath.startsWith(rootPath)
-    ? absolutePath.slice(rootPath.length).replace(/^\/+/, "")
+    ? absolutePath.slice(rootPath.length).replace(/^[\\/]+/, "")
     : absolutePath;
 }
 
@@ -192,13 +216,18 @@ function childPathAfterMove(path: string, fromPath: string, toFolderPath: string
   return path;
 }
 
-function countTreeFiles(node: VaultTreeNode): number {
-  if (node.kind === "file") return 1;
-  return node.children.reduce((count, child) => count + countTreeFiles(child), 0);
+function pathIsAffectedByChange(path: string | undefined, change: PathChange) {
+  if (!path) return false;
+  return change.mode === "tree" ? path === change.fromPath || path.startsWith(`${change.fromPath}/`) : path === change.fromPath;
+}
+
+function pathAfterChange(path: string, change: PathChange) {
+  return change.mode === "tree" ? childPathAfterMove(path, change.fromPath, dirname(change.toPath)) : change.toPath;
 }
 
 async function readBrowserUniverse(root: BrowserDirectoryHandle): Promise<VaultReadResult> {
   const files: VaultFile[] = [];
+  const directories: string[] = [];
   const errors: VaultReadResult["errors"] = [];
 
   async function walk(directory: BrowserDirectoryHandle, prefix: string) {
@@ -209,6 +238,7 @@ async function readBrowserUniverse(root: BrowserDirectoryHandle): Promise<VaultR
 
       if ("entries" in maybeDirectory) {
         if (name.startsWith(".") && name !== ".everend") continue;
+        directories.push(relativePath);
         await walk(maybeDirectory, relativePath);
         continue;
       }
@@ -232,8 +262,9 @@ async function readBrowserUniverse(root: BrowserDirectoryHandle): Promise<VaultR
   }
 
   await walk(root, "");
+  directories.sort((a, b) => a.localeCompare(b));
   files.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
-  return { rootPath: `browser:${root.name}`, files, errors };
+  return { rootPath: `browser:${root.name}`, files, directories, errors };
 }
 
 async function getBrowserDirectory(root: BrowserDirectoryHandle, relativePath: string, create = false) {
@@ -397,6 +428,14 @@ function contentFromTemplate(index: VaultIndex, entityType: string, name: string
     .replace(/\{\{status\}\}/g, "draft");
 }
 
+function folderDescriptionContent(name: string) {
+  return `---\nid: ${slugify(name)}-folder\ntype: folder-description\nname: ${name}\nstatus: draft\nfolder: ${name}\n---\n\n# ${name}\n\nDescription of this folder's contents.\n`;
+}
+
+function universeNoteContent(name: string) {
+  return `---\nid: ${slugify(name)}\ntype: universe\nname: ${name}\nstatus: draft\n---\n\n# ${name}\n`;
+}
+
 function TreeNode({
   node,
   selectedPath,
@@ -410,6 +449,8 @@ function TreeNode({
   onContextMenu,
   onToggleFavorite,
   onDragMove,
+  onPointerDragStart,
+  isPointerClickSuppressed,
 }: {
   node: VaultTreeNode;
   selectedPath?: string;
@@ -422,7 +463,9 @@ function TreeNode({
   onToggleExpand: (path: string) => void;
   onContextMenu: (event: React.MouseEvent, path: string, kind: "file" | "folder" | "empty") => void;
   onToggleFavorite: (path: string, kind: "file" | "folder") => void;
-  onDragMove: (fromPath: string, toFolderPath: string) => void;
+  onDragMove: (fromPath: string, toFolderPath: string, kind?: "file" | "folder") => void;
+  onPointerDragStart: (path: string, kind: "file" | "folder", x: number, y: number) => void;
+  isPointerClickSuppressed: () => boolean;
 }) {
   const isExpanded = expandedPaths.has(node.path);
   const hasChildren = node.children.length > 0;
@@ -430,6 +473,7 @@ function TreeNode({
   const isOpen = openTabPaths.has(node.path);
   const isDirty = dirtyTabPaths.has(node.path);
   const activateNode = () => {
+    if (isPointerClickSuppressed()) return;
     if (node.kind === "folder") {
       onSelectFolder(node.path);
       if (hasChildren) {
@@ -445,10 +489,17 @@ function TreeNode({
       <div
         role="button"
         tabIndex={0}
-        draggable
+        draggable={false}
+        data-tree-node="true"
+        data-tree-drop-path={node.kind === "folder" ? node.path : undefined}
         onDragStart={(event) => {
           event.dataTransfer.setData("text/plain", node.path);
+          event.dataTransfer.setData("application/worldnotion-kind", node.kind);
           event.dataTransfer.effectAllowed = "move";
+        }}
+        onPointerDown={(event) => {
+          if (event.button !== 0 || (event.target as HTMLElement).closest("button")) return;
+          onPointerDragStart(node.path, node.kind, event.clientX, event.clientY);
         }}
         onDragOver={(event) => {
           if (node.kind === "folder") {
@@ -457,11 +508,13 @@ function TreeNode({
           }
         }}
         onDrop={(event) => {
-          if (node.kind !== "folder") return;
           event.preventDefault();
+          event.stopPropagation();
+          if (node.kind !== "folder") return;
           const fromPath = event.dataTransfer.getData("text/plain");
+          const fromKind = event.dataTransfer.getData("application/worldnotion-kind") as "file" | "folder" | "";
           if (fromPath && fromPath !== node.path && !node.path.startsWith(`${fromPath}/`)) {
-            onDragMove(fromPath, node.path);
+            onDragMove(fromPath, node.path, fromKind || undefined);
           }
         }}
         className={`tree-button ${selectedPath === node.path ? "active" : ""} ${node.hasDescription ? "has-description" : ""} ${isOpen ? "is-open" : ""}`}
@@ -537,6 +590,8 @@ function TreeNode({
               onContextMenu={onContextMenu}
               onToggleFavorite={onToggleFavorite}
               onDragMove={onDragMove}
+              onPointerDragStart={onPointerDragStart}
+              isPointerClickSuppressed={isPointerClickSuppressed}
             />
           ))}
         </div>
@@ -655,7 +710,6 @@ function App() {
   const [errorMessage, setErrorMessage] = useState("");
   const [tabs, setTabs] = useState<OpenTab[]>([]);
   const [activeTabPath, setActiveTabPath] = useState<string>();
-  const [message, setMessage] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
@@ -682,13 +736,14 @@ function App() {
     title: "",
   });
 
-  const [toastMessage, setToastMessage] = useState("");
-  const [toastVisible, setToastVisible] = useState(false);
+  const [toastQueue, setToastQueue] = useState<string[]>([]);
+  const [activeToast, setActiveToast] = useState("");
+  const [pointerDragItem, setPointerDragItem] = useState<PointerDragItem>();
+  const suppressTreeClickRef = useRef(false);
 
   const showToast = (message: string) => {
     console.log(`[App] Showing toast: ${message}`);
-    setToastMessage(message);
-    setToastVisible(true);
+    setToastQueue((current) => [...current, message]);
   };
 
   const activeTab = tabs.find((tab) => tab.path === activeTabPath);
@@ -698,11 +753,27 @@ function App() {
     () => new Set(settings.explorer.favorites.map((favorite) => favorite.path)),
     [settings.explorer.favorites],
   );
+  const labels = useMemo(() => platformLabels(), []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = settings.theme;
     saveSettings(settings);
   }, [settings]);
+
+  useEffect(() => {
+    if (activeToast || !toastQueue.length) return;
+    const [nextToast, ...remainingToasts] = toastQueue;
+    setActiveToast(nextToast);
+    setToastQueue(remainingToasts);
+  }, [activeToast, toastQueue]);
+
+  useEffect(() => {
+    if (!activeToast) return;
+    const timer = window.setTimeout(() => {
+      setActiveToast("");
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [activeToast]);
 
   useEffect(() => {
     if (!index || !settings.editor.persistTabs) return;
@@ -753,12 +824,15 @@ function App() {
 
   const visibleTree = useMemo(() => {
     if (!index) return [];
-    const tree = settings.explorer.showHiddenEverend ? buildTree(index.files, true) : index.tree;
+    const tree = settings.explorer.showHiddenEverend
+      ? buildTree(index.files, index.directories, true, `${pathName(index.rootPath)}.md`)
+      : index.tree;
     if (!query.trim()) return tree;
     const normalized = query.toLowerCase();
-    return tree
-      .map((node) => filterTree(node, normalized))
-      .filter((node): node is VaultTreeNode => Boolean(node));
+    const files: VaultTreeNode[] = [];
+    const folders: VaultTreeNode[] = [];
+    collectSearchMatches(tree, normalized, files, folders);
+    return [...files, ...folders];
   }, [index, query, settings.explorer.showHiddenEverend]);
 
   const activeExplorerSection = settings.explorer.activeSection;
@@ -771,14 +845,6 @@ function App() {
       entityCount: index.entities.length,
       templateCount: index.templates.length,
       findingCount: index.findings.length,
-      spaces: index.tree
-        .filter((node) => node.kind === "folder")
-        .map((node) => ({
-          name: node.name,
-          path: node.path,
-          fileCount: countTreeFiles(node),
-          hasDescription: node.hasDescription,
-        })),
     };
   }, [index]);
   const favoriteItems = useMemo(() => {
@@ -799,19 +865,69 @@ function App() {
     });
   }, [index, settings.explorer.favorites]);
 
-  function filterTree(node: VaultTreeNode, normalized: string): VaultTreeNode | undefined {
-    const children = node.children
-      .map((child) => filterTree(child, normalized))
-      .filter((child): child is VaultTreeNode => Boolean(child));
-    if (node.name.toLowerCase().includes(normalized) || node.path.toLowerCase().includes(normalized) || children.length) {
-      return { ...node, children };
-    }
-    return undefined;
+  function collectSearchMatches(
+    nodes: VaultTreeNode[],
+    normalized: string,
+    files: VaultTreeNode[],
+    folders: VaultTreeNode[],
+  ) {
+    nodes.forEach((node) => {
+      const matches = node.name.toLowerCase().includes(normalized) || node.path.toLowerCase().includes(normalized);
+      if (matches) {
+        if (node.kind === "file") {
+          files.push({ ...node, children: [] });
+        } else {
+          folders.push({ ...node, children: [] });
+        }
+      }
+      collectSearchMatches(node.children, normalized, files, folders);
+    });
   }
 
   useEffect(() => {
     localStorage.setItem("worldnotion.expandedPaths", JSON.stringify(Array.from(expandedPaths)));
   }, [expandedPaths]);
+
+  useEffect(() => {
+    if (!pointerDragItem) return;
+
+    function handlePointerMove(event: PointerEvent) {
+      setPointerDragItem((current) => {
+        if (!current || current.active) return current;
+        const distance = Math.hypot(event.clientX - current.startX, event.clientY - current.startY);
+        return distance > 6 ? { ...current, active: true } : current;
+      });
+    }
+
+    function handlePointerUp(event: PointerEvent) {
+      const dragItem = pointerDragItem;
+      setPointerDragItem(undefined);
+      if (!dragItem) return;
+      if (!dragItem.active) return;
+
+      suppressTreeClickRef.current = true;
+      window.setTimeout(() => {
+        suppressTreeClickRef.current = false;
+      }, 0);
+
+      const element = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
+      const folderTarget = element?.closest<HTMLElement>("[data-tree-drop-path]");
+      const nodeTarget = element?.closest<HTMLElement>("[data-tree-node]");
+      const rootTarget = element?.closest<HTMLElement>("[data-tree-root-drop]");
+      if (nodeTarget && !folderTarget) return;
+      const targetFolder = folderTarget?.dataset.treeDropPath ?? (rootTarget ? "" : undefined);
+      if (targetFolder === undefined) return;
+      if (targetFolder === dragItem.path || targetFolder.startsWith(`${dragItem.path}/`)) return;
+      void moveExplorerPath(dragItem.path, targetFolder, dragItem.kind);
+    }
+
+    document.addEventListener("pointermove", handlePointerMove);
+    document.addEventListener("pointerup", handlePointerUp, { once: true });
+    return () => {
+      document.removeEventListener("pointermove", handlePointerMove);
+      document.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [pointerDragItem]);
 
   function toggleExpand(path: string) {
     setExpandedPaths((prev) => {
@@ -872,19 +988,19 @@ function App() {
     });
   }
 
-  function updateTabsForPathChange(fromPath: string, toPath: string, mode: "single" | "tree") {
+  function updateTabsForPathChange(change: PathChange) {
     setTabs((current) =>
       current.map((tab) => {
-        const affected = mode === "tree" ? tab.path === fromPath || tab.path.startsWith(`${fromPath}/`) : tab.path === fromPath;
-        if (!affected) return tab;
-        const path = mode === "tree" ? childPathAfterMove(tab.path, fromPath, dirname(toPath)) : toPath;
+        if (!pathIsAffectedByChange(tab.path, change)) return tab;
+        const path = pathAfterChange(tab.path, change);
         return { ...tab, path, title: fileTitle(path), absolutePath: index ? `${index.rootPath}/${path}` : tab.absolutePath };
       }),
     );
-    if (selectedPath === fromPath || (mode === "tree" && selectedPath?.startsWith(`${fromPath}/`))) {
-      const nextSelected = mode === "tree" && selectedPath ? childPathAfterMove(selectedPath, fromPath, dirname(toPath)) : toPath;
-      setSelectedPath(nextSelected);
-      setActiveTabPath(nextSelected);
+    if (pathIsAffectedByChange(activeTabPath, change) && activeTabPath) {
+      setActiveTabPath(pathAfterChange(activeTabPath, change));
+    }
+    if (pathIsAffectedByChange(selectedPath, change) && selectedPath) {
+      setSelectedPath(pathAfterChange(selectedPath, change));
     }
   }
 
@@ -943,9 +1059,9 @@ function App() {
           }
 
           console.log(`[newBlankPage] Refreshing universe with path: ${filePath}`);
-          await refreshUniverse(filePath);
+          const nextIndex = await refreshUniverse(filePath);
           console.log(`[newBlankPage] Universe refreshed, selecting path`);
-          await selectPathAfterRefresh(filePath);
+          selectPathAfterRefresh(filePath, nextIndex);
           showToast(`Created blank page: ${fileName}`);
         } catch (error) {
           console.error(`[newBlankPage] Error:`, error);
@@ -983,9 +1099,9 @@ function App() {
           }
 
           console.log(`[newPageFromTemplate] Refreshing universe with path: ${filePath}`);
-          await refreshUniverse(filePath);
+          const nextIndex = await refreshUniverse(filePath);
           console.log(`[newPageFromTemplate] Universe refreshed, selecting path`);
-          await selectPathAfterRefresh(filePath);
+          selectPathAfterRefresh(filePath, nextIndex);
           showToast(`Created ${templateType}: ${name}`);
         } catch (error) {
           console.error(`[newPageFromTemplate] Error:`, error);
@@ -1003,7 +1119,7 @@ function App() {
         try {
           const folderPath = parentPath ? `${parentPath}/${name}` : name;
           const descriptionPath = parentPath ? `${parentPath}/${name}.md` : `${name}.md`;
-          const descriptionContent = `---\nid: ${slugify(name)}-folder\ntype: folder-description\nname: ${name}\nstatus: draft\nfolder: ${name}\n---\n\n# ${name}\n\nDescription of this folder's contents.\n`;
+          const descriptionContent = folderDescriptionContent(name);
 
           console.log(`[newFolder] Creating folder: ${folderPath}`);
 
@@ -1034,10 +1150,10 @@ function App() {
           }
           
           console.log(`[newFolder] Refreshing universe with path: ${descriptionPath}`);
-          await refreshUniverse(descriptionPath);
+          const nextIndex = await refreshUniverse(descriptionPath);
           setExpandedPaths((prev) => new Set(prev).add(folderPath));
           console.log(`[newFolder] Universe refreshed, selecting path`);
-          await selectPathAfterRefresh(descriptionPath);
+          selectPathAfterRefresh(descriptionPath, nextIndex);
           showToast(`Created folder: ${name}`);
         } catch (error) {
           console.error(`[newFolder] Error:`, error);
@@ -1063,11 +1179,9 @@ function App() {
           });
           if (!result.ok) throw new Error(result.message ?? "Could not rename item.");
         }
-        updateTabsForPathChange(targetPath, nextPath, targetKind === "folder" ? "tree" : "single");
-        await refreshUniverse(nextPath);
-        if (targetKind === "file") {
-          selectPath(nextPath);
-        }
+        const change: PathChange = { fromPath: targetPath, toPath: nextPath, mode: targetKind === "folder" ? "tree" : "single" };
+        updateTabsForPathChange(change);
+        await refreshUniverse(undefined, change);
         showToast(`Renamed ${currentName}.`);
       } else if (action === "duplicate" && targetKind !== "empty") {
         let nextPath: string;
@@ -1117,6 +1231,13 @@ function App() {
   async function moveExplorerPath(fromPath: string, toFolderPath: string, kind?: "file" | "folder") {
     if (!index) return;
     const itemKind = kind ?? (index.files.some((file) => file.relativePath === fromPath) ? "file" : "folder");
+    if (itemKind === "folder" && (toFolderPath === fromPath || toFolderPath.startsWith(`${fromPath}/`))) {
+      showToast("Cannot move a folder into itself.");
+      return;
+    }
+    if (dirname(fromPath) === toFolderPath) {
+      return;
+    }
     const confirmed = settings.explorer.confirmDragMove
       ? window.confirm(`Move ${pathName(fromPath)} to ${toFolderPath || "root"}?`)
       : true;
@@ -1133,15 +1254,16 @@ function App() {
       if (!result.ok) throw new Error(result.message ?? "Could not move item.");
       movedPath = relativeFromAbsolute(index.rootPath, result.path);
     }
-    updateTabsForPathChange(fromPath, movedPath, "tree");
-    await refreshUniverse(movedPath);
-    setMessage(`Moved ${pathName(fromPath)}.`);
+    const change: PathChange = { fromPath, toPath: movedPath, mode: "tree" };
+    updateTabsForPathChange(change);
+    await refreshUniverse(undefined, change);
+    showToast(`Moved ${pathName(fromPath)}.`);
   }
 
   async function revealExplorerPath(path?: string) {
     if (!index) return;
     if (browserRoot) {
-      throw new Error("Reveal in Finder is only available in the desktop app.");
+      throw new Error(`${labels.revealItem} is only available in the desktop app.`);
     }
     const absolutePath = path ? selectedAbsolutePath(path) : index.rootPath;
     if (!path) {
@@ -1155,13 +1277,13 @@ function App() {
     if (!index) return;
     const affectedDirtyTabs = tabs.filter((tab) => tab.dirty && (tab.path === path || tab.path.startsWith(`${path}/`)));
     if (affectedDirtyTabs.length) {
-      const confirmed = window.confirm(`${affectedDirtyTabs.length} open tab(s) have unsaved changes. Move to Trash anyway?`);
+      const confirmed = window.confirm(`${affectedDirtyTabs.length} open tab(s) have unsaved changes. ${labels.trashAction} anyway?`);
       if (!confirmed) return;
     }
     const confirmed = window.confirm(
       browserRoot
         ? `Delete ${pathName(path)} from this browser-opened universe?`
-        : `Move ${pathName(path)} to Trash?`,
+        : `${labels.trashAction} ${pathName(path)}?`,
     );
     if (!confirmed) return;
     if (browserRoot) {
@@ -1182,7 +1304,7 @@ function App() {
       favorites: settings.explorer.favorites.filter((favorite) => !(favorite.path === path || favorite.path.startsWith(`${path}/`))),
     });
     await refreshUniverse();
-    setMessage(`Moved ${kind} to Trash.`);
+    showToast(`${kind === "folder" ? "Folder" : "File"} ${labels.trashDone.toLowerCase()}`);
   }
 
   async function createFolderDescription(folderPath: string) {
@@ -1192,7 +1314,7 @@ function App() {
     const parentPath = dirname(folderPath);
     const descriptionPath = parentPath ? `${parentPath}/${folderName}.md` : `${folderName}.md`;
     const fullPath = `${index.rootPath}/${descriptionPath}`;
-    const content = `---\nid: ${slugify(folderName)}-folder\ntype: folder-description\nname: ${folderName}\nstatus: draft\nfolder: ${folderName}\n---\n\n# ${folderName}\n\nDescription of this folder's contents.\n`;
+    const content = folderDescriptionContent(folderName);
     
     try {
       if (browserRoot) {
@@ -1206,9 +1328,38 @@ function App() {
         if (!result.ok) throw new Error(result.message ?? "Could not create folder description.");
       }
       
-      await refreshUniverse(descriptionPath);
-      selectPath(descriptionPath);
-      setMessage(`Created folder description: ${folderName}.md`);
+      const nextIndex = await refreshUniverse(descriptionPath);
+      selectPathAfterRefresh(descriptionPath, nextIndex);
+      showToast(`Created folder description: ${folderName}.md`);
+    } catch (error) {
+      setLoadState("error");
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function openUniverseNote() {
+    if (!index) return;
+    const universeName = pathName(index.rootPath);
+    const relativePath = `${universeName}.md`;
+    try {
+      if (!index.files.some((file) => file.relativePath === relativePath)) {
+        const content = universeNoteContent(universeName);
+        if (browserRoot) {
+          await writeBrowserFile(browserRoot, relativePath, content);
+        } else {
+          const result = await invoke<WriteResult>("save_file", {
+            path: `${index.rootPath}/${relativePath}`,
+            content,
+            expectedModifiedMs: null,
+          });
+          if (!result.ok) throw new Error(result.message ?? "Could not create universe note.");
+        }
+      }
+
+      const nextIndex = await refreshUniverse(relativePath);
+      selectPathAfterRefresh(relativePath, nextIndex);
+      setShowSettings(false);
+      showToast(`Opened universe note: ${relativePath}`);
     } catch (error) {
       setLoadState("error");
       setErrorMessage(error instanceof Error ? error.message : String(error));
@@ -1219,12 +1370,19 @@ function App() {
     setSettings((current) => ({ ...current, ...next }));
   }
 
-  function applyUniverse(readResult: VaultReadResult, preferredPath?: string) {
+  function applyUniverse(readResult: VaultReadResult, preferredPath?: string, pathChange?: PathChange) {
     const nextIndex = indexVault(readResult);
+    const activePathAfterChange =
+      activeTabPath && pathChange && pathIsAffectedByChange(activeTabPath, pathChange)
+        ? pathAfterChange(activeTabPath, pathChange)
+        : activeTabPath;
+    const selectedPathAfterChange =
+      selectedPath && pathChange && pathIsAffectedByChange(selectedPath, pathChange)
+        ? pathAfterChange(selectedPath, pathChange)
+        : selectedPath;
     setIndex(nextIndex);
     setView("workspace");
     setLoadState("ready");
-    setMessage("");
     setErrorMessage("");
     setSettings((current) => rememberUniverse(current, readResult.rootPath));
 
@@ -1232,10 +1390,13 @@ function App() {
       index?.rootPath === readResult.rootPath && tabs.length
         ? tabs
             .map((tab) => {
-              const file = nextIndex.files.find((candidate) => candidate.relativePath === tab.path);
+              const nextTabPath = pathChange && pathIsAffectedByChange(tab.path, pathChange)
+                ? pathAfterChange(tab.path, pathChange)
+                : tab.path;
+              const file = nextIndex.files.find((candidate) => candidate.relativePath === nextTabPath);
               if (!file) return undefined;
               return tab.dirty
-                ? { ...tab, absolutePath: file.absolutePath, modifiedMs: file.modifiedMs }
+                ? { ...tab, path: nextTabPath, title: fileTitle(nextTabPath), absolutePath: file.absolutePath, modifiedMs: file.modifiedMs }
                 : createTabFromFile(file, tab.mode);
             })
             .filter((tab): tab is OpenTab => Boolean(tab))
@@ -1255,7 +1416,11 @@ function App() {
     const nextPath =
       preferredPath && nextIndex.files.some((file) => file.relativePath === preferredPath)
         ? preferredPath
-        : restoredSession?.activePath && nextIndex.files.some((file) => file.relativePath === restoredSession.activePath)
+        : activePathAfterChange && nextIndex.files.some((file) => file.relativePath === activePathAfterChange)
+          ? activePathAfterChange
+          : selectedPathAfterChange && nextIndex.files.some((file) => file.relativePath === selectedPathAfterChange)
+            ? selectedPathAfterChange
+            : restoredSession?.activePath && nextIndex.files.some((file) => file.relativePath === restoredSession.activePath)
           ? restoredSession.activePath
           : restoredTabs[0]?.path ?? nextIndex.entities[0]?.path ?? nextIndex.templates[0]?.path;
 
@@ -1270,6 +1435,7 @@ function App() {
       setActiveTabPath(undefined);
       setTabs([]);
     }
+    return nextIndex;
   }
 
   async function readCurrentUniverse() {
@@ -1278,10 +1444,10 @@ function App() {
     return invoke<VaultReadResult>("index_vault", { path: index.rootPath });
   }
 
-  async function refreshUniverse(preferredPath = selectedPath) {
+  async function refreshUniverse(preferredPath?: string, pathChange?: PathChange) {
     const readResult = await readCurrentUniverse();
-    if (!readResult) return;
-    applyUniverse(readResult, preferredPath);
+    if (!readResult) return undefined;
+    return applyUniverse(readResult, preferredPath, pathChange);
   }
 
   async function reindexUniverseMetadata() {
@@ -1321,73 +1487,9 @@ function App() {
     });
   }
 
-  async function createExplorerNote(parentPath = activeCreationFolder()) {
-    if (!index) return;
-    const name = window.prompt("Note name");
-    if (!name) return;
-    try {
-      const slug = slugify(name);
-      const filePath = parentPath ? `${parentPath}/${slug}.md` : `${slug}.md`;
-      const content = `---\nid: ${slug}\ntype: concept\nname: ${name}\nstatus: draft\n---\n\n# ${name}\n`;
-      if (browserRoot) {
-        await writeBrowserFile(browserRoot, filePath, content);
-      } else {
-        const result = await invoke<WriteResult>("save_file", {
-          path: `${index.rootPath}/${filePath}`,
-          content,
-          expectedModifiedMs: null,
-        });
-        if (!result.ok) throw new Error(result.message ?? "Could not create note.");
-      }
-      await refreshUniverse(filePath);
-      selectPath(filePath);
-      setMessage(`Created ${name}.`);
-    } catch (error) {
-      setLoadState("error");
-      setErrorMessage(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  async function createExplorerFolder(parentPath = activeCreationFolder()) {
-    if (!index) return;
-    const name = window.prompt("Folder name");
-    if (!name) return;
-    try {
-      const folderPath = parentPath ? `${parentPath}/${name}` : name;
-      const descriptionPath = parentPath ? `${parentPath}/${name}.md` : `${name}.md`;
-      const descriptionContent = `---\nid: ${slugify(name)}-folder\ntype: folder-description\nname: ${name}\nstatus: draft\nfolder: ${name}\n---\n\n# ${name}\n\nDescription of this folder's contents.\n`;
-
-      if (browserRoot) {
-        await ensureBrowserWritePermission(browserRoot);
-        await getBrowserDirectory(browserRoot, folderPath, true);
-        await writeBrowserFile(browserRoot, descriptionPath, descriptionContent);
-      } else {
-        const folderResult = await invoke<WriteResult>("create_folder", {
-          vaultPath: index.rootPath,
-          relativePath: folderPath,
-        });
-        if (!folderResult.ok) throw new Error(folderResult.message ?? "Could not create folder.");
-        const descriptionResult = await invoke<WriteResult>("save_file", {
-          path: `${index.rootPath}/${descriptionPath}`,
-          content: descriptionContent,
-          expectedModifiedMs: null,
-        });
-        if (!descriptionResult.ok) throw new Error(descriptionResult.message ?? "Could not create folder description.");
-      }
-      
-      setExpandedPaths((current) => new Set(current).add(folderPath));
-      await refreshUniverse(descriptionPath);
-      selectPath(descriptionPath);
-      setMessage(`Created folder ${name}.`);
-    } catch (error) {
-      setLoadState("error");
-      setErrorMessage(error instanceof Error ? error.message : String(error));
-    }
-  }
-
   async function createTemplate() {
     if (!index) return;
-    const type = window.prompt("Template type");
+    const type = await promptUser("New template type", "Template type");
     if (!type) return;
     const templateType = slugify(type);
     if (!templateType) return;
@@ -1404,10 +1506,10 @@ function App() {
         });
         if (!result.ok) throw new Error(result.message ?? "Could not create template.");
       }
-      await refreshUniverse(relativePath);
-      selectPath(relativePath);
+      const nextIndex = await refreshUniverse(relativePath);
+      selectPathAfterRefresh(relativePath, nextIndex);
       setTemplatesExpanded(true);
-      setMessage(`Created template: ${templateType}.`);
+      showToast(`Created template: ${templateType}.`);
     } catch (error) {
       setLoadState("error");
       setErrorMessage(error instanceof Error ? error.message : String(error));
@@ -1441,26 +1543,19 @@ function App() {
     });
   }
 
-  function closeInputDialog(value: string | null) {
-    console.log(`[closeInputDialog] Closing with value: ${value}`);
-    setInputDialog({ isOpen: false, title: "" });
-  }
-
-  async function selectPathAfterRefresh(path: string) {
-    // Wait longer to ensure state has been updated and filesystem reflects changes
-    await new Promise(resolve => setTimeout(resolve, 500));
-    if (!index) {
+  function selectPathAfterRefresh(path: string, nextIndex = index) {
+    if (!nextIndex) {
       console.warn(`[selectPathAfterRefresh] No index available`);
       return;
     }
-    const file = index.files.find((f) => f.relativePath === path);
+    const file = nextIndex.files.find((f) => f.relativePath === path);
     if (!file) {
-      console.warn(`[selectPathAfterRefresh] File not found after refresh: ${path}. Available files: ${index.files.map(f => f.relativePath).join(", ")}`);
+      console.warn(`[selectPathAfterRefresh] File not found after refresh: ${path}. Available files: ${nextIndex.files.map(f => f.relativePath).join(", ")}`);
       return;
     }
     console.log(`[selectPathAfterRefresh] Opening file: ${path}`);
     setSelectedExplorerTarget({ path, kind: "file" });
-    openDocument(index, path);
+    openDocument(nextIndex, path);
   }
 
   function selectFolder(path: string) {
@@ -1471,7 +1566,6 @@ function App() {
   async function openUniverse() {
     setLoadState("loading");
     setErrorMessage("");
-    setMessage("");
     try {
       if (isTauriRuntime()) {
         const path = await invoke<string | null>("open_vault_dialog");
@@ -1504,7 +1598,6 @@ function App() {
   async function createUniverseFromHome() {
     setLoadState("loading");
     setErrorMessage("");
-    setMessage("");
     try {
       if (!isTauriRuntime()) {
         await openUniverse();
@@ -1558,7 +1651,6 @@ function App() {
 
   async function saveEditor() {
     if (!activeTab) return;
-    setMessage("");
     setErrorMessage("");
     try {
       if (browserRoot) {
@@ -1566,7 +1658,7 @@ function App() {
           const handle = await getBrowserFile(browserRoot, activeTab.path);
           const currentFile = await handle.getFile();
           if (currentFile.lastModified !== activeTab.modifiedMs) {
-            setMessage("File changed externally. Reload before saving.");
+            showToast("File changed externally. Reload before saving.");
             return;
           }
         }
@@ -1578,7 +1670,7 @@ function App() {
               : tab,
           ),
         );
-        setMessage("Saved.");
+        showToast("Saved.");
         await reindexUniverseMetadata();
         return;
       }
@@ -1590,7 +1682,7 @@ function App() {
         expectedModifiedMs: activeTab.modifiedMs ?? null,
       });
       if (!result.ok) {
-        setMessage(result.message ?? "Save failed.");
+        showToast(result.message ?? "Save failed.");
         return;
       }
       setTabs((current) =>
@@ -1605,7 +1697,7 @@ function App() {
             : tab,
         ),
       );
-      setMessage("Saved.");
+      showToast("Saved.");
       await reindexUniverseMetadata();
     } catch (error) {
       setLoadState("error");
@@ -1705,8 +1797,9 @@ function App() {
         });
         if (!result.ok) throw new Error(result.message ?? "Could not create note.");
       }
-      await refreshUniverse(relativePath);
-      setMessage(`Created ${name}.`);
+      const nextIndex = await refreshUniverse(relativePath);
+      selectPathAfterRefresh(relativePath, nextIndex);
+      showToast(`Created ${name}.`);
     } catch (error) {
       setLoadState("error");
       setErrorMessage(error instanceof Error ? error.message : String(error));
@@ -1900,12 +1993,6 @@ function App() {
         </div>
 
         <div className="explorer-toolbar" onContextMenu={(event) => handleContextMenu(event, "", "empty")}>
-          <button type="button" onClick={() => createExplorerNote()} title="New note">
-            <FileText size={14} />
-          </button>
-          <button type="button" onClick={() => createExplorerFolder()} title="New folder">
-            <FolderPlus size={14} />
-          </button>
           <button type="button" onClick={() => setExpandedPaths(new Set())} title="Collapse all">
             <ChevronsDownUp size={14} />
           </button>
@@ -1915,7 +2002,7 @@ function App() {
           <button
             type="button"
             onClick={() => revealExplorerPath(selectedPath)}
-            title={browserRoot ? "Reveal is available in the desktop app" : "Reveal in Finder"}
+            title={browserRoot ? "Reveal is available in the desktop app" : labels.revealItem}
             disabled={Boolean(browserRoot)}
           >
             <ExternalLink size={14} />
@@ -1966,7 +2053,23 @@ function App() {
           ) : (
             <section className="sidebar-section">
               <h2>All Files</h2>
-              <div className="tree-list" onContextMenu={(event) => handleContextMenu(event, "", "empty")}>
+              <div
+                className={`tree-list ${pointerDragItem?.active ? "is-pointer-dragging" : ""}`}
+                data-tree-root-drop="true"
+                onContextMenu={(event) => handleContextMenu(event, "", "empty")}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const fromPath = event.dataTransfer.getData("text/plain");
+                  const fromKind = event.dataTransfer.getData("application/worldnotion-kind") as "file" | "folder" | "";
+                  if (fromPath) {
+                    void moveExplorerPath(fromPath, "", fromKind || undefined);
+                  }
+                }}
+              >
                 {visibleTree.length ? (
                   visibleTree.map((node) => (
                     <TreeNode
@@ -1983,6 +2086,10 @@ function App() {
                       onContextMenu={handleContextMenu}
                       onToggleFavorite={toggleFavorite}
                       onDragMove={moveExplorerPath}
+                      onPointerDragStart={(path, kind, startX, startY) =>
+                        setPointerDragItem({ path, kind, startX, startY, active: false })
+                      }
+                      isPointerClickSuppressed={() => suppressTreeClickRef.current}
                     />
                   ))
                 ) : (
@@ -2183,8 +2290,6 @@ function App() {
 
         {loadState === "error" ? <div className="error-banner">{errorMessage}</div> : null}
         {loadState === "loading" ? <div className="loading-banner">Loading universe...</div> : null}
-        {message ? <div className="message-banner">{message}</div> : null}
-
         {activeTab ? (
           <div className="editor-surface">
             <CodeMirrorEditor
@@ -2216,26 +2321,11 @@ function App() {
           universe={universeSettings}
           onChange={setSettings}
           onClose={() => setShowSettings(false)}
-          onOpenHome={() => {
-            setShowSettings(false);
-            setView("home");
-          }}
           onRevealUniverse={() => {
             void revealExplorerPath();
           }}
-          onCreateSpace={() => {
-            setShowSettings(false);
-            void createExplorerFolder("");
-          }}
-          onOpenSpace={(path) => {
-            setShowSettings(false);
-            updateExplorer({ activeSection: "allFiles" });
-            setExpandedPaths((current) => new Set(current).add(path));
-            const descriptionPath = `${path}.md`;
-            if (index.files.some((file) => file.relativePath === descriptionPath)) {
-              selectPath(descriptionPath);
-            }
-          }}
+          onOpenUniverseNote={openUniverseNote}
+          revealUniverseLabel={labels.revealUniverse}
         />
       ) : null}
 
@@ -2279,7 +2369,9 @@ function App() {
           templates={index?.templates.map((t) => t.type) || []}
           isFavorite={favoritePaths.has(contextMenu.targetPath)}
           canReveal={!browserRoot}
-          trashLabel={browserRoot ? "Delete" : "Move to Trash"}
+          revealLabel={labels.revealItem}
+          revealUniverseLabel={labels.revealUniverse}
+          trashLabel={browserRoot ? "Delete" : labels.trashAction}
           onAction={handleContextMenuAction}
           onClose={() => setContextMenu(null)}
         />
@@ -2298,13 +2390,8 @@ function App() {
       />
 
       <Toast
-        message={toastMessage}
-        isVisible={toastVisible}
-        duration={3000}
-        onDismiss={() => {
-          console.log(`[App] Toast dismissed`);
-          setToastVisible(false);
-        }}
+        message={activeToast}
+        isVisible={Boolean(activeToast)}
       />
     </main>
   );

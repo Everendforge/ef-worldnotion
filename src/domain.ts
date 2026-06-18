@@ -15,6 +15,7 @@ export type VaultReadError = {
 export type VaultReadResult = {
   rootPath: string;
   files: VaultFile[];
+  directories: string[];
   errors: VaultReadError[];
 };
 
@@ -76,6 +77,7 @@ export type Entity = {
 export type VaultIndex = {
   rootPath: string;
   files: VaultFile[];
+  directories: string[];
   markdownFiles: VaultFile[];
   taxonomy?: Taxonomy;
   templates: EntityTemplate[];
@@ -212,6 +214,10 @@ function basenameWithoutExtension(path: string): string {
   return filename.replace(/\.[^.]+$/, "");
 }
 
+function pathName(path: string): string {
+  return path.replace(/^browser:/, "").split(/[\\/]/).pop() ?? path;
+}
+
 export function dirname(path: string): string {
   const parts = path.split("/");
   parts.pop();
@@ -315,21 +321,36 @@ function parseTemplates(files: VaultFile[]): EntityTemplate[] {
     .sort((a, b) => a.type.localeCompare(b.type));
 }
 
-export function buildTree(files: VaultFile[], includeHiddenMetadata = false): VaultTreeNode[] {
+export function buildTree(
+  files: VaultFile[],
+  directories: string[] = [],
+  includeHiddenMetadata = false,
+  hiddenRootFile?: string,
+): VaultTreeNode[] {
   const roots: VaultTreeNode[] = [];
   const folders = new Map<string, VaultTreeNode>();
-  
-  // Build set of folder description file paths to exclude from tree
-  // A folder description is {FolderName}.md at the same level as {FolderName}/ folder
   const descriptionFiles = new Set<string>();
   const folderPaths = new Set<string>();
-  
-  // First pass: collect all folder paths
+
+  directories
+    .filter((directory) => includeHiddenMetadata || !isHiddenMetadata(`${directory}/`))
+    .forEach((directory) => {
+      if (!directory) return;
+      folderPaths.add(directory);
+      let current = dirname(directory);
+      while (current) {
+        folderPaths.add(current);
+        const parent = dirname(current);
+        if (parent === current) break;
+        current = parent;
+      }
+    });
+
   files.forEach((file) => {
+    if (!includeHiddenMetadata && isHiddenMetadata(file.relativePath)) return;
     const parentPath = dirname(file.relativePath);
     if (parentPath) {
       folderPaths.add(parentPath);
-      // Also add all ancestor folders
       let current = parentPath;
       while (current) {
         folderPaths.add(current);
@@ -339,20 +360,16 @@ export function buildTree(files: VaultFile[], includeHiddenMetadata = false): Va
       }
     }
   });
-  
-  // Second pass: identify description files
+
   files.forEach((file) => {
     if (!includeHiddenMetadata && isHiddenMetadata(file.relativePath)) return;
-    
+
     const parentPath = dirname(file.relativePath);
     const fileName = file.relativePath.split("/").pop() ?? "";
-    
-    // Check if this is a folder description file
-    // Example: Characters.md is a description for Characters/ folder
     if (fileName.endsWith(".md")) {
       const folderName = fileName.replace(/\.md$/, "");
       const potentialFolderPath = parentPath ? `${parentPath}/${folderName}` : folderName;
-      
+
       if (folderPaths.has(potentialFolderPath)) {
         descriptionFiles.add(file.relativePath);
       }
@@ -377,8 +394,16 @@ export function buildTree(files: VaultFile[], includeHiddenMetadata = false): Va
     return node;
   }
 
+  Array.from(folderPaths)
+    .sort((a, b) => a.localeCompare(b))
+    .forEach((folderPath) => ensureFolder(folderPath));
+
   files
-    .filter((file) => (includeHiddenMetadata || !isHiddenMetadata(file.relativePath)) && !descriptionFiles.has(file.relativePath))
+    .filter((file) =>
+      (includeHiddenMetadata || !isHiddenMetadata(file.relativePath)) &&
+      file.relativePath !== hiddenRootFile &&
+      !descriptionFiles.has(file.relativePath)
+    )
     .forEach((file) => {
       const parentPath = dirname(file.relativePath);
       const node: VaultTreeNode = {
@@ -393,8 +418,7 @@ export function buildTree(files: VaultFile[], includeHiddenMetadata = false): Va
         roots.push(node);
       }
     });
-  
-  // Mark folders that have description files
+
   folders.forEach((folder) => {
     const folderName = folder.name;
     const parentPath = dirname(folder.path);
@@ -417,8 +441,17 @@ export function buildTree(files: VaultFile[], includeHiddenMetadata = false): Va
   return roots;
 }
 
-function detectUniverses(files: VaultFile[], entities: Entity[]): Universe[] {
+function detectUniverses(files: VaultFile[], directories: string[], entities: Entity[]): Universe[] {
   const rootFolders = new Set<string>();
+  directories
+    .filter((directory) => !isHiddenMetadata(`${directory}/`))
+    .forEach((directory) => {
+      const [first] = directory.split("/");
+      if (first) {
+        rootFolders.add(first);
+      }
+    });
+
   files
     .filter((file) => !isHiddenMetadata(file.relativePath))
     .forEach((file) => {
@@ -701,16 +734,19 @@ export function indexVault(readResult: VaultReadResult): VaultIndex {
   );
 
   entities.sort((a, b) => a.name.localeCompare(b.name));
-  const universes = detectUniverses(readResult.files, entities);
+  const directories = readResult.directories ?? [];
+  const universes = detectUniverses(readResult.files, directories, entities);
+  const hiddenRootFile = `${pathName(readResult.rootPath)}.md`;
 
   return {
     rootPath: readResult.rootPath,
     files: readResult.files,
+    directories,
     markdownFiles,
     taxonomy,
     templates,
     universes,
-    tree: buildTree(readResult.files),
+    tree: buildTree(readResult.files, directories, false, hiddenRootFile),
     entities,
     findings,
     readErrors: readResult.errors,

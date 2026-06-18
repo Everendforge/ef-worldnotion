@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  ChevronRight,
   Copy,
   Edit3,
   ExternalLink,
@@ -38,6 +39,8 @@ export interface ContextMenuProps {
   templates: string[];
   isFavorite?: boolean;
   canReveal?: boolean;
+  revealLabel?: string;
+  revealUniverseLabel?: string;
   trashLabel?: string;
   onAction: (
     action: ContextMenuAction,
@@ -56,12 +59,15 @@ export function ContextMenu({
   templates,
   isFavorite = false,
   canReveal = true,
+  revealLabel = "Reveal in Finder",
+  revealUniverseLabel = "Reveal Universe",
   trashLabel = "Move to Trash",
   onAction,
   onClose,
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [adjustedPos, setAdjustedPos] = useState({ x, y });
+  const [templatesOpen, setTemplatesOpen] = useState(false);
 
   useEffect(() => {
     if (!menuRef.current) return;
@@ -135,19 +141,41 @@ export function ContextMenu({
       {templates.length > 0 ? (
         <>
           <div className="context-menu-separator" />
-          <div className="context-menu-group">
-            <span className="context-menu-label">New Page from Template</span>
-            {templates.map((templateType) => (
-              <button
-                key={templateType}
-                type="button"
-                onClick={() => run("newPageFromTemplate", templateType)}
-                className="context-menu-item context-menu-subitem"
-              >
-                <FileText size={14} />
-                <span>{templateType}</span>
-              </button>
-            ))}
+          <div
+            className={`context-menu-submenu ${templatesOpen ? "open" : ""} ${
+              adjustedPos.x + 420 > window.innerWidth ? "align-left" : ""
+            }`}
+            onMouseEnter={() => setTemplatesOpen(true)}
+            onMouseLeave={() => setTemplatesOpen(false)}
+          >
+            <button
+              type="button"
+              className="context-menu-item context-menu-submenu-trigger"
+              aria-haspopup="menu"
+              aria-expanded={templatesOpen}
+              onClick={(event) => {
+                event.preventDefault();
+                setTemplatesOpen((current) => !current);
+              }}
+            >
+              <FileText size={16} />
+              <span>New Page from Template</span>
+              <ChevronRight size={14} className="context-menu-submenu-icon" />
+            </button>
+            <div className="context-menu-submenu-panel" role="menu">
+              {templates.map((templateType) => (
+                <button
+                  key={templateType}
+                  type="button"
+                  onClick={() => run("newPageFromTemplate", templateType)}
+                  className="context-menu-item"
+                  role="menuitem"
+                >
+                  <FileText size={14} />
+                  <span>{templateType}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </>
       ) : null}
@@ -186,7 +214,7 @@ export function ContextMenu({
           </button>
           <button type="button" onClick={() => run("reveal")} className="context-menu-item" disabled={!canReveal}>
             <ExternalLink size={16} />
-            <span>Reveal in Finder</span>
+            <span>{revealLabel}</span>
           </button>
           <button type="button" onClick={() => run("trash")} className="context-menu-item danger">
             <Trash2 size={16} />
@@ -198,7 +226,7 @@ export function ContextMenu({
           <div className="context-menu-separator" />
           <button type="button" onClick={() => run("reveal")} className="context-menu-item" disabled={!canReveal}>
             <ExternalLink size={16} />
-            <span>Reveal Universe</span>
+            <span>{revealUniverseLabel}</span>
           </button>
           <button type="button" onClick={() => run("refresh")} className="context-menu-item">
             <FileText size={16} />

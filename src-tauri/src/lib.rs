@@ -27,6 +27,7 @@ struct VaultReadError {
 struct VaultReadResult {
     root_path: String,
     files: Vec<VaultFile>,
+    directories: Vec<String>,
     errors: Vec<VaultReadError>,
 }
 
@@ -330,7 +331,13 @@ fn should_read_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-fn walk_vault(root: &Path, current: &Path, files: &mut Vec<VaultFile>, errors: &mut Vec<VaultReadError>) {
+fn walk_vault(
+    root: &Path,
+    current: &Path,
+    files: &mut Vec<VaultFile>,
+    directories: &mut Vec<String>,
+    errors: &mut Vec<VaultReadError>,
+) {
     let entries = match fs::read_dir(current) {
         Ok(entries) => entries,
         Err(error) => {
@@ -357,7 +364,15 @@ fn walk_vault(root: &Path, current: &Path, files: &mut Vec<VaultFile>, errors: &
                 }
 
                 if path.is_dir() {
-                    walk_vault(root, &path, files, errors);
+                    let relative_path = path
+                        .strip_prefix(root)
+                        .unwrap_or(&path)
+                        .to_string_lossy()
+                        .replace('\\', "/");
+                    if !relative_path.is_empty() {
+                        directories.push(relative_path);
+                    }
+                    walk_vault(root, &path, files, directories, errors);
                 } else if should_read_file(&path) {
                     let relative_path = path
                         .strip_prefix(root)
@@ -401,13 +416,16 @@ fn read_vault(root: PathBuf) -> Result<VaultReadResult, String> {
     }
 
     let mut files = Vec::new();
+    let mut directories = Vec::new();
     let mut errors = Vec::new();
-    walk_vault(&root, &root, &mut files, &mut errors);
+    walk_vault(&root, &root, &mut files, &mut directories, &mut errors);
     files.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
+    directories.sort();
 
     Ok(VaultReadResult {
         root_path: root.to_string_lossy().to_string(),
         files,
+        directories,
         errors,
     })
 }

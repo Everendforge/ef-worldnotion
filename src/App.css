@@ -302,7 +302,7 @@ button:disabled {
 
 .explorer-toolbar {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 5px;
   margin-top: 10px;
 }
@@ -311,6 +311,7 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
   min-height: 30px;
   padding: 4px;
 }
@@ -378,6 +379,29 @@ button:hover:not(:disabled),
   min-height: 0;
   overflow: auto;
   padding-right: 2px;
+  scrollbar-color: color-mix(in srgb, var(--wn-muted) 35%, transparent) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.sidebar-main::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar-main::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-main::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--wn-muted) 35%, transparent);
+  background-clip: content-box;
+}
+
+.sidebar-main::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--wn-muted) 55%, transparent);
+  background-clip: content-box;
 }
 
 .sidebar-section h2 {
@@ -398,6 +422,7 @@ button:hover:not(:disabled),
   flex: 1;
   align-content: start;
   min-height: 100%;
+  padding-bottom: 24px;
 }
 
 .tree-button,
@@ -413,6 +438,20 @@ button:hover:not(:disabled),
   text-align: left;
   cursor: pointer;
   user-select: none;
+}
+
+.tree-button {
+  cursor: grab;
+}
+
+.tree-button:active,
+.tree-list.is-pointer-dragging .tree-button {
+  cursor: grabbing;
+}
+
+.tree-list.is-pointer-dragging {
+  outline: 1px dashed color-mix(in srgb, var(--wn-accent) 45%, transparent);
+  outline-offset: 4px;
 }
 
 .tree-button:focus-visible {
@@ -731,8 +770,7 @@ button:hover:not(:disabled),
 }
 
 .error-banner,
-.loading-banner,
-.message-banner {
+.loading-banner {
   margin: 12px 20px 0;
   padding: 8px 10px;
   border-radius: 6px;
@@ -744,8 +782,7 @@ button:hover:not(:disabled),
   color: var(--wn-danger);
 }
 
-.loading-banner,
-.message-banner {
+.loading-banner {
   border: 1px solid var(--wn-warning);
   color: var(--wn-warning);
 }
@@ -959,29 +996,53 @@ button:hover:not(:disabled),
   background: color-mix(in srgb, var(--wn-danger) 13%, transparent);
 }
 
-.context-menu-subitem {
-  padding-left: 20px;
-  font-size: 0.9em;
-}
-
 .context-menu-separator {
   height: 1px;
   background: var(--wn-border);
   margin: 4px 0;
 }
 
-.context-menu-group {
-  display: flex;
-  flex-direction: column;
+.context-menu-submenu {
+  position: relative;
 }
 
-.context-menu-label {
-  font-size: 0.75em;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--wn-text-muted);
-  padding: 6px 12px 4px 12px;
-  letter-spacing: 0.05em;
+.context-menu-submenu-trigger {
+  padding-right: 8px;
+}
+
+.context-menu-submenu-trigger span {
+  flex: 1;
+}
+
+.context-menu-submenu-icon {
+  color: var(--wn-muted);
+}
+
+.context-menu-submenu-panel {
+  position: absolute;
+  top: -4px;
+  left: calc(100% + 6px);
+  display: none;
+  min-width: 180px;
+  max-height: min(320px, calc(100vh - 24px));
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--wn-border);
+  border-radius: 6px;
+  background: var(--wn-card);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.context-menu-submenu.align-left .context-menu-submenu-panel {
+  right: calc(100% + 6px);
+  left: auto;
+}
+
+.context-menu-submenu:hover .context-menu-submenu-panel,
+.context-menu-submenu:focus-within .context-menu-submenu-panel,
+.context-menu-submenu.open .context-menu-submenu-panel {
+  display: grid;
+  gap: 2px;
 }
 
 /* CodeMirror Wikilinks */

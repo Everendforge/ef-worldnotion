@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { ExternalLink, Files, Folder, Home, Keyboard, PanelLeft, Plus, Settings, TextCursorInput, X } from "lucide-react";
+import { ExternalLink, FileText, Folder, Keyboard, PanelLeft, Settings, TextCursorInput, X } from "lucide-react";
 import {
   AppSettingsV4,
   DEFAULT_KEYBINDINGS,
@@ -20,19 +20,12 @@ type SettingsModalProps = {
     entityCount: number;
     templateCount: number;
     findingCount: number;
-    spaces: Array<{
-      name: string;
-      path: string;
-      fileCount: number;
-      hasDescription?: boolean;
-    }>;
   };
   onChange: (settings: AppSettingsV4) => void;
   onClose: () => void;
-  onOpenHome?: () => void;
   onRevealUniverse?: () => void;
-  onCreateSpace?: () => void;
-  onOpenSpace?: (path: string) => void;
+  onOpenUniverseNote?: () => void;
+  revealUniverseLabel?: string;
 };
 
 function eventToShortcut(event: KeyboardEvent) {
@@ -57,17 +50,16 @@ function duplicateShortcut(shortcut: string, commandId: EditorCommandId, keybind
   return duplicate ? EDITOR_COMMANDS.find((command) => command.id === duplicate.commandId)?.label : undefined;
 }
 
-type SettingsSection = "overview" | "spaces" | "editor" | "shortcuts" | "tabs" | "explorer";
+type SettingsSection = "overview" | "editor" | "shortcuts" | "tabs" | "explorer";
 
 export function SettingsModal({
   settings,
   universe,
   onChange,
   onClose,
-  onOpenHome,
   onRevealUniverse,
-  onCreateSpace,
-  onOpenSpace,
+  onOpenUniverseNote,
+  revealUniverseLabel = "Reveal universe folder",
 }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>(universe ? "overview" : "editor");
   const [conflictMessage, setConflictMessage] = useState("");
@@ -119,10 +111,6 @@ export function SettingsModal({
                 <button className={activeSection === "overview" ? "active" : ""} onClick={() => setActiveSection("overview")} type="button">
                   <Settings size={14} />
                   Overview
-                </button>
-                <button className={activeSection === "spaces" ? "active" : ""} onClick={() => setActiveSection("spaces")} type="button">
-                  <Files size={14} />
-                  Spaces
                 </button>
               </div>
             ) : null}
@@ -176,43 +164,14 @@ export function SettingsModal({
                 </div>
 
                 <div className="settings-action-list">
-                  <button type="button" onClick={onCreateSpace}>
-                    <Plus size={15} />
-                    New space
+                  <button type="button" onClick={onOpenUniverseNote}>
+                    <FileText size={15} />
+                    Open universe note
                   </button>
                   <button type="button" onClick={onRevealUniverse}>
                     <ExternalLink size={15} />
-                    Reveal universe folder
+                    {revealUniverseLabel}
                   </button>
-                  <button type="button" onClick={onOpenHome}>
-                    <Home size={15} />
-                    Go to home
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {activeSection === "spaces" && universe ? (
-              <div className="settings-panel">
-                <div className="settings-page-title">
-                  <h3>Spaces</h3>
-                  <p>Top-level folders in this universe.</p>
-                </div>
-                <div className="space-list">
-                  {universe.spaces.length ? (
-                    universe.spaces.map((space) => (
-                      <button key={space.path} type="button" onClick={() => onOpenSpace?.(space.path)}>
-                        <Folder size={15} />
-                        <span>{space.name}</span>
-                        <small>
-                          {space.fileCount} file{space.fileCount === 1 ? "" : "s"}
-                          {space.hasDescription ? " · description" : ""}
-                        </small>
-                      </button>
-                    ))
-                  ) : (
-                    <p className="muted">No spaces yet. Create a top-level folder to start organizing this universe.</p>
-                  )}
                 </div>
               </div>
             ) : null}
