@@ -422,6 +422,36 @@ export function CodeMirrorEditor({
     return { indent, prefix: "- " };
   }
 
+  // Smart markdown helpers for bold/italic toggling
+  function toggleMarkdownFormat(view: EditorView, marker: string): boolean {
+    if (mode !== "write") return false;
+    
+    const selection = view.state.selection.main;
+    if (selection.empty) return false; // No selection, do nothing
+    
+    const selectedText = view.state.doc.sliceString(selection.from, selection.to);
+    const doubleMarker = marker + marker;
+    
+    // Check if text is already wrapped in markers
+    if (selectedText.startsWith(doubleMarker) && selectedText.endsWith(doubleMarker)) {
+      // Remove markers
+      const unwrapped = selectedText.slice(doubleMarker.length, -doubleMarker.length);
+      view.dispatch({
+        changes: { from: selection.from, to: selection.to, insert: unwrapped },
+        selection: { anchor: selection.from, head: selection.from + unwrapped.length },
+      });
+      return true;
+    } else {
+      // Add markers
+      const wrapped = doubleMarker + selectedText + doubleMarker;
+      view.dispatch({
+        changes: { from: selection.from, to: selection.to, insert: wrapped },
+        selection: { anchor: selection.from + doubleMarker.length, head: selection.from + doubleMarker.length + selectedText.length },
+      });
+      return true;
+    }
+  }
+
   // Cache for selection change calculations to avoid redundant DOM measurements
   const selectionCacheRef = useRef<{ prev: string; rect?: DOMRect }>({ prev: "" });
 
@@ -560,6 +590,24 @@ export function CodeMirrorEditor({
               key: "Alt-Shift-ArrowRight",
               mac: "Alt-Shift-ArrowRight",
               run: selectSubwordForward,
+            },
+            {
+              key: "Cmd-b",
+              mac: "Cmd-b",
+              run: (view) => toggleMarkdownFormat(view, "*"),
+            },
+            {
+              key: "Ctrl-b",
+              run: (view) => toggleMarkdownFormat(view, "*"),
+            },
+            {
+              key: "Cmd-i",
+              mac: "Cmd-i",
+              run: (view) => toggleMarkdownFormat(view, "_"),
+            },
+            {
+              key: "Ctrl-i",
+              run: (view) => toggleMarkdownFormat(view, "_"),
             },
           ])),
           EditorView.domEventHandlers({
