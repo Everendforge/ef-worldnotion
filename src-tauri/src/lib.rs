@@ -4,6 +4,10 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::UNIX_EPOCH;
+use tauri::menu::{
+    Menu, MenuItem, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID, WINDOW_SUBMENU_ID,
+};
+use tauri::Emitter;
 use tauri_plugin_dialog::DialogExt;
 
 #[derive(Serialize)]
@@ -50,6 +54,165 @@ struct ThemeManifest {
     kind: String,
 }
 
+fn menu_item(
+    app: &tauri::AppHandle,
+    id: &str,
+    label: &str,
+    accelerator: Option<&str>,
+) -> tauri::Result<MenuItem<tauri::Wry>> {
+    MenuItem::with_id(app, id, label, true, accelerator)
+}
+
+fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+    let style_menu = Submenu::with_items(
+        app,
+        "Style",
+        true,
+        &[
+            &menu_item(app, "wn:window:style:github", "GitHub", None)?,
+            &menu_item(app, "wn:window:style:one-dark-pro", "One Dark Pro", None)?,
+            &menu_item(app, "wn:window:style:dracula", "Dracula", None)?,
+            &menu_item(app, "wn:window:style:night-owl", "Night Owl", None)?,
+            &menu_item(
+                app,
+                "wn:window:style:material-palenight",
+                "Material Palenight",
+                None,
+            )?,
+        ],
+    )?;
+
+    let file_menu = Submenu::with_items(
+        app,
+        "File",
+        true,
+        &[
+            &menu_item(app, "wn:file:new-note", "New Note", Some("CmdOrCtrl+N"))?,
+            &menu_item(
+                app,
+                "wn:file:new-folder",
+                "New Folder",
+                Some("CmdOrCtrl+Shift+N"),
+            )?,
+            &PredefinedMenuItem::separator(app)?,
+            &menu_item(
+                app,
+                "wn:file:open-universe",
+                "Open Universe...",
+                Some("CmdOrCtrl+O"),
+            )?,
+            &menu_item(app, "wn:file:open-recent", "Open Recent", None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &menu_item(app, "wn:file:save", "Save", Some("CmdOrCtrl+S"))?,
+            &menu_item(app, "wn:file:reveal-universe", "Reveal Universe", None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &menu_item(app, "wn:file:close-tab", "Close Tab", Some("CmdOrCtrl+W"))?,
+            &PredefinedMenuItem::quit(app, None)?,
+        ],
+    )?;
+
+    let edit_menu = Submenu::with_items(
+        app,
+        "Edit",
+        true,
+        &[
+            &PredefinedMenuItem::undo(app, None)?,
+            &PredefinedMenuItem::redo(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::cut(app, None)?,
+            &PredefinedMenuItem::copy(app, None)?,
+            &PredefinedMenuItem::paste(app, None)?,
+            &PredefinedMenuItem::select_all(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &menu_item(app, "wn:edit:find", "Find", Some("CmdOrCtrl+F"))?,
+            &menu_item(app, "wn:edit:bold", "Bold", Some("CmdOrCtrl+B"))?,
+            &menu_item(app, "wn:edit:italic", "Italic", Some("CmdOrCtrl+I"))?,
+            &menu_item(app, "wn:edit:link", "Insert Link", Some("CmdOrCtrl+K"))?,
+            &menu_item(
+                app,
+                "wn:edit:wikilink",
+                "Insert Wikilink",
+                Some("CmdOrCtrl+Shift+K"),
+            )?,
+        ],
+    )?;
+
+    let view_menu = Submenu::with_items(
+        app,
+        "View",
+        true,
+        &[
+            &menu_item(
+                app,
+                "wn:view:toggle-sidebar",
+                "Toggle Sidebar",
+                Some("CmdOrCtrl+\\"),
+            )?,
+            &menu_item(
+                app,
+                "wn:view:toggle-inspector",
+                "Toggle Inspector",
+                Some("CmdOrCtrl+Shift+\\"),
+            )?,
+            &menu_item(
+                app,
+                "wn:view:toggle-light-dark",
+                "Toggle Light/Dark",
+                Some("CmdOrCtrl+Shift+L"),
+            )?,
+            &PredefinedMenuItem::separator(app)?,
+            &menu_item(
+                app,
+                "wn:view:command-palette",
+                "Command Palette",
+                Some("CmdOrCtrl+P"),
+            )?,
+            &menu_item(app, "wn:view:reload", "Reload Window", Some("CmdOrCtrl+R"))?,
+            &PredefinedMenuItem::separator(app)?,
+            &menu_item(app, "wn:view:zoom-in", "Zoom In", Some("CmdOrCtrl+="))?,
+            &menu_item(app, "wn:view:zoom-out", "Zoom Out", Some("CmdOrCtrl+-"))?,
+            &menu_item(app, "wn:view:zoom-reset", "Reset Zoom", Some("CmdOrCtrl+0"))?,
+        ],
+    )?;
+
+    let window_menu = Submenu::with_id_and_items(
+        app,
+        WINDOW_SUBMENU_ID,
+        "Window",
+        true,
+        &[
+            &PredefinedMenuItem::minimize(app, None)?,
+            &PredefinedMenuItem::close_window(app, None)?,
+            #[cfg(target_os = "macos")]
+            &PredefinedMenuItem::bring_all_to_front(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &style_menu,
+        ],
+    )?;
+
+    let help_menu = Submenu::with_id_and_items(
+        app,
+        HELP_SUBMENU_ID,
+        "Help",
+        true,
+        &[
+            &menu_item(app, "wn:help:about", "About WorldNotion", None)?,
+            &menu_item(
+                app,
+                "wn:help:open-project-folder",
+                "Open Project Folder",
+                None,
+            )?,
+            &menu_item(app, "wn:help:docs", "Documentation", None)?,
+        ],
+    )?;
+
+    Menu::with_items(
+        app,
+        &[&file_menu, &edit_menu, &view_menu, &window_menu, &help_menu],
+    )
+}
+
 fn modified_ms(path: &Path) -> Option<u128> {
     fs::metadata(path)
         .ok()
@@ -63,10 +226,7 @@ fn normalize_relative_path(relative_path: &str) -> Result<PathBuf, String> {
         return Ok(PathBuf::new());
     }
     let path = PathBuf::from(relative_path);
-    if path.is_absolute()
-        || relative_path.contains("..")
-        || relative_path.contains('\\')
-    {
+    if path.is_absolute() || relative_path.contains("..") || relative_path.contains('\\') {
         return Err("Path must be a safe relative path inside the vault.".to_string());
     }
     Ok(path)
@@ -80,7 +240,10 @@ fn sanitize_segment(name: &str) -> Result<String, String> {
         || trimmed.contains("..")
         || trimmed.starts_with('.')
     {
-        return Err("Name must be a non-empty path segment without slashes, dots, or traversal.".to_string());
+        return Err(
+            "Name must be a non-empty path segment without slashes, dots, or traversal."
+                .to_string(),
+        );
     }
     Ok(trimmed.to_string())
 }
@@ -100,6 +263,30 @@ fn slugify(value: &str) -> String {
     }
 
     slug.trim_matches('-').to_string()
+}
+
+fn escape_json(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+}
+
+fn escape_yaml_double_quoted(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+fn write_text_if_missing(path: &Path, content: &str) -> Result<(), String> {
+    if path.exists() {
+        return Ok(());
+    }
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+
+    fs::write(path, content).map_err(|error| error.to_string())
 }
 
 fn ensure_inside(root: &Path, path: &Path) -> Result<(), String> {
@@ -159,7 +346,9 @@ fn duplicate_target(path: &Path, target_name: Option<String>) -> Result<PathBuf,
         .file_stem()
         .map(|value| value.to_string_lossy().to_string())
         .unwrap_or_else(|| "Copy".to_string());
-    let extension = path.extension().map(|value| value.to_string_lossy().to_string());
+    let extension = path
+        .extension()
+        .map(|value| value.to_string_lossy().to_string());
 
     for index in 1..1000 {
         let candidate_name = if let Some(extension) = &extension {
@@ -261,7 +450,11 @@ fn move_to_system_trash(path: &Path) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        let method = if path.is_dir() { "DeleteDirectory" } else { "DeleteFile" };
+        let method = if path.is_dir() {
+            "DeleteDirectory"
+        } else {
+            "DeleteFile"
+        };
         let script = format!(
             "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::{method}('{}','OnlyErrorDialogs','SendToRecycleBin')",
             path.to_string_lossy().replace('\'', "''")
@@ -294,7 +487,11 @@ fn move_to_system_trash(path: &Path) -> Result<(), String> {
     }
 }
 
-fn write_file_checked(path: &Path, content: &str, expected_modified_ms: Option<u128>) -> Result<WriteResult, String> {
+fn write_file_checked(
+    path: &Path,
+    content: &str,
+    expected_modified_ms: Option<u128>,
+) -> Result<WriteResult, String> {
     if let Some(expected) = expected_modified_ms {
         if let Some(current) = modified_ms(path) {
             if current != expected {
@@ -327,7 +524,11 @@ fn write_file_checked(path: &Path, content: &str, expected_modified_ms: Option<u
 fn should_read_file(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
-        .map(|extension| extension.eq_ignore_ascii_case("md") || extension.eq_ignore_ascii_case("yaml"))
+        .map(|extension| {
+            extension.eq_ignore_ascii_case("md")
+                || extension.eq_ignore_ascii_case("yaml")
+                || extension.eq_ignore_ascii_case("json")
+        })
         .unwrap_or(false)
 }
 
@@ -445,6 +646,11 @@ fn index_vault(path: String) -> Result<VaultReadResult, String> {
 }
 
 #[tauri::command]
+fn path_exists(path: String) -> bool {
+    PathBuf::from(path).exists()
+}
+
+#[tauri::command]
 fn read_file(path: String) -> Result<VaultFile, String> {
     let path = PathBuf::from(path);
     let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
@@ -463,9 +669,50 @@ fn read_file(path: String) -> Result<VaultFile, String> {
 fn create_universe(vault_path: String, name: String) -> Result<WriteResult, String> {
     let root = PathBuf::from(vault_path);
     let segment = sanitize_segment(&name)?;
-    let path = root.join(segment);
+    let path = root.join(&segment);
     ensure_inside(&root, &path)?;
+
+    if path.exists() {
+        let mut entries = fs::read_dir(&path).map_err(|error| error.to_string())?;
+        if entries.next().is_some() {
+            return Ok(WriteResult {
+                ok: false,
+                path: path.to_string_lossy().to_string(),
+                modified_ms: modified_ms(&path),
+                message: Some("Universe folder already exists and is not empty.".to_string()),
+            });
+        }
+    }
+
     fs::create_dir_all(&path).map_err(|error| error.to_string())?;
+
+    let universe_slug = {
+        let slug = slugify(&segment);
+        if slug.is_empty() {
+            "universe".to_string()
+        } else {
+            slug
+        }
+    };
+    let escaped_name = escape_yaml_double_quoted(&segment);
+    let root_note = format!(
+        "---\nid: {universe_slug}\ntype: universe\nname: \"{escaped_name}\"\nstatus: draft\ntags: []\naliases: []\n---\n\n# {segment}\n\nStart shaping this universe here.\n\n- [[First Concept]]\n"
+    );
+    let profile = format!(
+        "{{\n  \"name\": \"{}\",\n  \"icon\": {{\n    \"type\": \"preset\",\n    \"value\": \"book\"\n  }}\n}}\n",
+        escape_json(&segment)
+    );
+    let taxonomy = "specVersion: \"0.1\"\ntypes:\n  universe:\n    label: Universe\n    description: Top-level world or project folder opened by WorldNotion.\n  concept:\n    label: Concept\n    description: Flexible note for lore, ideas, rules, or planning.\n    properties:\n      related:\n        type: entityRefList\n  character:\n    label: Character\n    description: Person, creature, or actor in the universe.\n  location:\n    label: Location\n    description: Place, region, settlement, room, or landmark.\n  item:\n    label: Item\n    description: Portable object, relic, tool, artifact, or inventory-relevant entity.\n";
+    let concept_template = "---\nid: {{id}}\ntype: concept\nname: \"{{name}}\"\nstatus: {{status}}\ntags: []\naliases: []\n---\n\n# {{name}}\n\n";
+
+    write_text_if_missing(&path.join(".everend").join("universe.json"), &profile)?;
+    write_text_if_missing(&path.join(".everend").join("taxonomy.yaml"), taxonomy)?;
+    write_text_if_missing(
+        &path.join(".everend").join("templates").join("concept.md"),
+        concept_template,
+    )?;
+    write_text_if_missing(&path.join(format!("{segment}.md")), &root_note)?;
+
     Ok(WriteResult {
         ok: true,
         path: path.to_string_lossy().to_string(),
@@ -549,7 +796,11 @@ fn create_entity(
 }
 
 #[tauri::command]
-fn save_file(path: String, content: String, expected_modified_ms: Option<u128>) -> Result<WriteResult, String> {
+fn save_file(
+    path: String,
+    content: String,
+    expected_modified_ms: Option<u128>,
+) -> Result<WriteResult, String> {
     write_file_checked(&PathBuf::from(path), &content, expected_modified_ms)
 }
 
@@ -574,13 +825,20 @@ fn save_template(
 ) -> Result<WriteResult, String> {
     let root = PathBuf::from(&vault_path);
     let safe_type = sanitize_segment(&entity_type)?;
-    let path = root.join(".everend").join("templates").join(format!("{safe_type}.md"));
+    let path = root
+        .join(".everend")
+        .join("templates")
+        .join(format!("{safe_type}.md"));
     ensure_inside(&root, &path)?;
     write_file_checked(&path, &content, expected_modified_ms)
 }
 
 #[tauri::command]
-fn rename_path(vault_path: String, relative_path: String, new_name: String) -> Result<WriteResult, String> {
+fn rename_path(
+    vault_path: String,
+    relative_path: String,
+    new_name: String,
+) -> Result<WriteResult, String> {
     let (root, path) = resolve_vault_path(&vault_path, &relative_path)?;
     if !path.exists() {
         return Err("Path does not exist.".to_string());
@@ -745,7 +1003,10 @@ fn list_theme_files(vault_path: String) -> Result<Vec<ThemeManifest>, String> {
     for entry in fs::read_dir(theme_dir).map_err(|error| error.to_string())? {
         let entry = entry.map_err(|error| error.to_string())?;
         let path = entry.path();
-        let extension = path.extension().and_then(|value| value.to_str()).unwrap_or("");
+        let extension = path
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or("");
         if extension != "css" && extension != "json" {
             continue;
         }
@@ -775,12 +1036,20 @@ fn list_theme_files(vault_path: String) -> Result<Vec<ThemeManifest>, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .menu(build_app_menu)
+        .on_menu_event(|app, event| {
+            let id = event.id().as_ref();
+            if id.starts_with("wn:") {
+                let _ = app.emit("worldnotion-menu", id);
+            }
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             open_vault_dialog,
             index_vault,
+            path_exists,
             read_file,
             create_universe,
             create_folder,

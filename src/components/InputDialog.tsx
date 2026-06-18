@@ -29,12 +29,10 @@ export function InputDialog({
 
   function handleConfirm() {
     const value = inputRef.current?.value || "";
-    console.log(`[InputDialog] Confirming with value: "${value}"`);
     onConfirm(value);
   }
 
   function handleCancel() {
-    console.log(`[InputDialog] Cancelling`);
     onCancel?.();
   }
 

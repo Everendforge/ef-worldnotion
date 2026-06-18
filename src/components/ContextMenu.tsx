@@ -112,7 +112,6 @@ export function ContextMenu({
   }, [onClose]);
 
   function run(action: ContextMenuAction, templateType?: string) {
-    console.log(`[ContextMenu] Button clicked - action: ${action}, targetPath: ${targetPath}, targetKind: ${targetKind}, templateType: ${templateType}`);
     onAction(action, targetPath, targetKind, templateType);
     onClose();
   }

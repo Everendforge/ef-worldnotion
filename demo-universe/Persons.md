@@ -1,11 +1,11 @@
 ---
-id: cara-folder
+id: persons-folder
 type: folder-description
-name: Cara
+name: Persons
 status: draft
-folder: Cara
+folder: Persons
 ---
 
-# Cara
+# Persons
 
 Description of this folder's contents.

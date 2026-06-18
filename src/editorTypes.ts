@@ -1,4 +1,18 @@
 export type EditorMode = "write" | "source";
+export type EditorPageStyle = "theme" | "white" | "warm-paper" | "system" | "custom";
+export type ThemeId =
+  | "worldnotion-light"
+  | "worldnotion-dark"
+  | "github"
+  | "github-dark"
+  | "one-light-pro"
+  | "one-dark-pro"
+  | "dracula-light"
+  | "dracula"
+  | "light-owl"
+  | "night-owl"
+  | "material-lighter"
+  | "material-palenight";
 
 export type EditorCommandId =
   | "save"
@@ -10,6 +24,9 @@ export type EditorCommandId =
   | "heading1"
   | "heading2"
   | "heading3"
+  | "heading4"
+  | "heading5"
+  | "heading6"
   | "blockquote"
   | "unorderedList"
   | "orderedList"
@@ -43,9 +60,44 @@ export type EditorSettings = {
   fontSize: number;
   tabSize: number;
   defaultMode: EditorMode;
+  pageStyle: EditorPageStyle;
+  customPageColor: string;
+  writeFontFamily: string;
+  sourceFontFamily: string;
+  hideMarkdownSyntaxInWrite: boolean;
   persistTabs: boolean;
   reuseOpenTabs: boolean;
   confirmCloseDirtyTab: boolean;
+};
+
+export type EditorDocumentParts = {
+  frontmatterRaw: string;
+  bodyMarkdown: string;
+};
+
+export type SlashCommandDefinition = {
+  id: string;
+  label: string;
+  keywords: string[];
+  group: "block" | "format" | "insert";
+};
+
+export type FloatingFormatCommand = {
+  id: EditorCommandId;
+  label: string;
+};
+
+export type ResolvedWikilink = {
+  label: string;
+  targetPath?: string;
+  status: "resolved" | "missing";
+};
+
+export type NoteSuggestion = {
+  label: string;
+  path: string;
+  aliases: string[];
+  id?: string;
 };
 
 export type OpenTab = {
@@ -76,6 +128,14 @@ export type ExplorerFavorite = {
 
 export type ExplorerSection = "allFiles" | "favorites";
 
+export type RecentUniverseProfile = {
+  name?: string;
+  icon?: {
+    type: "preset" | "image";
+    value: string;
+  };
+};
+
 export type ExplorerSettings = {
   favorites: ExplorerFavorite[];
   recentFiles: string[];
@@ -85,9 +145,10 @@ export type ExplorerSettings = {
 };
 
 export type AppSettingsV4 = {
-  theme: "light" | "dark";
+  theme: ThemeId;
   recentUniverse?: string;
   recentUniverses: string[];
+  recentUniverseProfiles: Record<string, RecentUniverseProfile>;
   editor: EditorSettings;
   explorer: ExplorerSettings;
   keybindings: Keybinding[];
@@ -101,6 +162,11 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   fontSize: 14,
   tabSize: 2,
   defaultMode: "write",
+  pageStyle: "theme",
+  customPageColor: "#ffffff",
+  writeFontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  sourceFontFamily: '"SFMono-Regular", Consolas, monospace',
+  hideMarkdownSyntaxInWrite: true,
   persistTabs: true,
   reuseOpenTabs: true,
   confirmCloseDirtyTab: true,
@@ -124,6 +190,9 @@ export const EDITOR_COMMANDS: EditorCommand[] = [
   { id: "heading1", label: "Heading 1", group: "format", defaultShortcut: "Mod+Alt+1" },
   { id: "heading2", label: "Heading 2", group: "format", defaultShortcut: "Mod+Alt+2" },
   { id: "heading3", label: "Heading 3", group: "format", defaultShortcut: "Mod+Alt+3" },
+  { id: "heading4", label: "Heading 4", group: "format" },
+  { id: "heading5", label: "Heading 5", group: "format" },
+  { id: "heading6", label: "Heading 6", group: "format" },
   { id: "blockquote", label: "Blockquote", group: "format", defaultShortcut: "Mod+Shift+." },
   { id: "unorderedList", label: "Unordered List", group: "format", defaultShortcut: "Mod+Shift+8" },
   { id: "orderedList", label: "Ordered List", group: "format", defaultShortcut: "Mod+Shift+7" },

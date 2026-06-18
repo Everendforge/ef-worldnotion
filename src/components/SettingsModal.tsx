@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { ExternalLink, FileText, Folder, Keyboard, PanelLeft, Settings, TextCursorInput, X } from "lucide-react";
+import { BookOpen, Castle, ExternalLink, FileText, Folder, Globe2, Keyboard, PanelLeft, Settings, Sparkles, TextCursorInput, Upload, X } from "lucide-react";
 import {
   AppSettingsV4,
   DEFAULT_KEYBINDINGS,
@@ -9,6 +9,8 @@ import {
   EditorSettings,
   Keybinding,
 } from "../editorTypes";
+import type { UniverseProfile } from "../domain";
+import { themeById } from "../themes";
 import "../App.css";
 
 type SettingsModalProps = {
@@ -20,8 +22,10 @@ type SettingsModalProps = {
     entityCount: number;
     templateCount: number;
     findingCount: number;
+    profile?: UniverseProfile;
   };
   onChange: (settings: AppSettingsV4) => void;
+  onSaveUniverseProfile?: (profile: UniverseProfile) => Promise<void>;
   onClose: () => void;
   onRevealUniverse?: () => void;
   onOpenUniverseNote?: () => void;
@@ -50,12 +54,40 @@ function duplicateShortcut(shortcut: string, commandId: EditorCommandId, keybind
   return duplicate ? EDITOR_COMMANDS.find((command) => command.id === duplicate.commandId)?.label : undefined;
 }
 
+function UniverseIconPreview({ profile }: { profile: UniverseProfile }) {
+  const icon = profile.icon;
+  if (icon?.type === "image" && icon.value) {
+    return (
+      <span className="universe-icon-frame large">
+        <img src={icon.value} alt="" />
+      </span>
+    );
+  }
+  const preset = icon?.value ?? "book";
+  const Icon = preset === "globe" ? Globe2 : preset === "castle" ? Castle : preset === "sparkles" ? Sparkles : BookOpen;
+  return (
+    <span className="universe-icon-frame large">
+      <Icon size={28} />
+    </span>
+  );
+}
+
+function readImageFile(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("Could not read image file."));
+    reader.readAsDataURL(file);
+  });
+}
+
 type SettingsSection = "overview" | "editor" | "shortcuts" | "tabs" | "explorer";
 
 export function SettingsModal({
   settings,
   universe,
   onChange,
+  onSaveUniverseProfile,
   onClose,
   onRevealUniverse,
   onOpenUniverseNote,
@@ -63,6 +95,19 @@ export function SettingsModal({
 }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>(universe ? "overview" : "editor");
   const [conflictMessage, setConflictMessage] = useState("");
+  const [profileDraft, setProfileDraft] = useState<UniverseProfile>(() => ({
+    name: universe?.profile?.name ?? universe?.name,
+    icon: universe?.profile?.icon ?? { type: "preset", value: "book" },
+  }));
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  useEffect(() => {
+    if (!universe) return;
+    setProfileDraft({
+      name: universe.profile?.name ?? universe.name,
+      icon: universe.profile?.icon ?? { type: "preset", value: "book" },
+    });
+  }, [universe?.name, universe?.profile?.name, universe?.profile?.icon?.type, universe?.profile?.icon?.value]);
 
   const keybindingMap = useMemo(
     () => new Map(settings.keybindings.map((binding) => [binding.commandId, binding.shortcut])),
@@ -139,6 +184,68 @@ export function SettingsModal({
           <section className="settings-section">
             {activeSection === "overview" && universe ? (
               <div className="settings-panel">
+                <div className="universe-profile-editor">
+                  <UniverseIconPreview profile={profileDraft} />
+                  <div className="universe-profile-fields">
+                    <label>
+                      <span>Universe name</span>
+                      <input
+                        value={profileDraft.name ?? ""}
+                        onChange={(event) => setProfileDraft((current) => ({ ...current, name: event.target.value }))}
+                        placeholder={universe.name}
+                      />
+                    </label>
+                    <div className="icon-preset-row">
+                      {[
+                        ["book", BookOpen],
+                        ["globe", Globe2],
+                        ["castle", Castle],
+                        ["sparkles", Sparkles],
+                      ].map(([value, Icon]) => (
+                        <button
+                          key={value as string}
+                          type="button"
+                          className={profileDraft.icon?.type === "preset" && profileDraft.icon.value === value ? "active" : ""}
+                          onClick={() =>
+                            setProfileDraft((current) => ({ ...current, icon: { type: "preset", value: value as string } }))
+                          }
+                          title={`Use ${value} icon`}
+                        >
+                          <Icon size={16} />
+                        </button>
+                      ))}
+                      <label className="image-upload-button" title="Use PNG or JPG">
+                        <Upload size={16} />
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg"
+                          onChange={async (event) => {
+                            const file = event.target.files?.[0];
+                            if (!file) return;
+                            const value = await readImageFile(file);
+                            setProfileDraft((current) => ({ ...current, icon: { type: "image", value } }));
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!onSaveUniverseProfile) return;
+                        setProfileSaving(true);
+                        try {
+                          await onSaveUniverseProfile(profileDraft);
+                        } finally {
+                          setProfileSaving(false);
+                        }
+                      }}
+                      disabled={profileSaving}
+                    >
+                      Save customization
+                    </button>
+                  </div>
+                </div>
+
                 <div className="settings-page-title">
                   <h3>Universe</h3>
                   <p>{universe.rootPath}</p>
@@ -179,6 +286,29 @@ export function SettingsModal({
             {activeSection === "editor" ? (
               <div className="settings-grid">
                 <label>
+                  <span>Active style</span>
+                  <input value={themeById(settings.theme).label} readOnly />
+                </label>
+                <label>
+                  <span>Page style</span>
+                  <select value={settings.editor.pageStyle} onChange={(event) => updateEditor({ pageStyle: event.target.value as EditorSettings["pageStyle"] })}>
+                    <option value="theme">Theme</option>
+                    <option value="white">White page</option>
+                    <option value="warm-paper">Warm paper</option>
+                    <option value="system">System surface</option>
+                    <option value="custom">Custom color</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Custom page color</span>
+                  <input
+                    type="color"
+                    value={settings.editor.customPageColor}
+                    onChange={(event) => updateEditor({ customPageColor: event.target.value })}
+                    disabled={settings.editor.pageStyle !== "custom"}
+                  />
+                </label>
+                <label>
                   <span>Line numbers</span>
                   <input type="checkbox" checked={settings.editor.lineNumbers} onChange={(event) => updateEditor({ lineNumbers: event.target.checked })} />
                 </label>
@@ -191,8 +321,20 @@ export function SettingsModal({
                   <input type="checkbox" checked={settings.editor.activeLine} onChange={(event) => updateEditor({ activeLine: event.target.checked })} />
                 </label>
                 <label>
+                  <span>Hide Markdown syntax in Write</span>
+                  <input type="checkbox" checked={settings.editor.hideMarkdownSyntaxInWrite} onChange={(event) => updateEditor({ hideMarkdownSyntaxInWrite: event.target.checked })} />
+                </label>
+                <label>
                   <span>Font size</span>
                   <input type="number" min={11} max={22} value={settings.editor.fontSize} onChange={(event) => updateEditor({ fontSize: Number(event.target.value) })} />
+                </label>
+                <label>
+                  <span>Write font</span>
+                  <input value={settings.editor.writeFontFamily} onChange={(event) => updateEditor({ writeFontFamily: event.target.value })} />
+                </label>
+                <label>
+                  <span>Source font</span>
+                  <input value={settings.editor.sourceFontFamily} onChange={(event) => updateEditor({ sourceFontFamily: event.target.value })} />
                 </label>
                 <label>
                   <span>Tab size</span>

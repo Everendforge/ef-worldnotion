@@ -1,9 +1,8 @@
 ---
-id: a
+id: alo
 type: concept
-name: a
+name: Alo
 status: draft
 ---
 
-# a
-aa
+# Alo

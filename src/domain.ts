@@ -39,6 +39,16 @@ export type Taxonomy = {
   types: Record<string, TaxonomyType>;
 };
 
+export type UniverseIcon = {
+  type: "preset" | "image";
+  value: string;
+};
+
+export type UniverseProfile = {
+  name?: string;
+  icon?: UniverseIcon;
+};
+
 export type ValidationFinding = {
   code:
     | "missing_frontmatter"
@@ -81,6 +91,7 @@ export type VaultIndex = {
   markdownFiles: VaultFile[];
   taxonomy?: Taxonomy;
   templates: EntityTemplate[];
+  universeProfile?: UniverseProfile;
   universes: Universe[];
   tree: VaultTreeNode[];
   entities: Entity[];
@@ -101,6 +112,7 @@ export type VaultTreeNode = {
   kind: "folder" | "file";
   children: VaultTreeNode[];
   hasDescription?: boolean;
+  descriptionPath?: string;
 };
 
 export type EntityTemplate = {
@@ -321,6 +333,46 @@ function parseTemplates(files: VaultFile[]): EntityTemplate[] {
     .sort((a, b) => a.type.localeCompare(b.type));
 }
 
+function parseUniverseProfile(files: VaultFile[], findings: ValidationFinding[]): UniverseProfile | undefined {
+  const profileFile = files.find((file) => file.relativePath === ".everend/universe.json");
+  if (!profileFile) return undefined;
+
+  try {
+    const parsed = JSON.parse(profileFile.content) as UniverseProfile | null;
+    if (!parsed || typeof parsed !== "object") return undefined;
+    const icon: UniverseIcon | undefined =
+      parsed.icon?.type && parsed.icon.value
+        ? {
+            type: parsed.icon.type === "image" ? "image" : "preset",
+            value: String(parsed.icon.value),
+          }
+        : undefined;
+    return {
+      name: typeof parsed.name === "string" && parsed.name.trim() ? parsed.name.trim() : undefined,
+      icon,
+    };
+  } catch {
+    findings.push(
+      createFinding(
+        "missing_runtime_asset",
+        "warning",
+        "Universe profile must be valid JSON.",
+        ".everend/universe.json",
+      ),
+    );
+    return undefined;
+  }
+}
+
+function isFolderDescriptionFile(file: VaultFile, folderName: string) {
+  try {
+    const parsed = parseMarkdownFrontmatter(file.content);
+    return parsed.data.type === "folder-description" || parsed.data.folder === folderName;
+  } catch {
+    return false;
+  }
+}
+
 export function buildTree(
   files: VaultFile[],
   directories: string[] = [],
@@ -370,7 +422,7 @@ export function buildTree(
       const folderName = fileName.replace(/\.md$/, "");
       const potentialFolderPath = parentPath ? `${parentPath}/${folderName}` : folderName;
 
-      if (folderPaths.has(potentialFolderPath)) {
+      if (folderPaths.has(potentialFolderPath) && isFolderDescriptionFile(file, folderName)) {
         descriptionFiles.add(file.relativePath);
       }
     }
@@ -425,6 +477,7 @@ export function buildTree(
     const expectedDescPath = parentPath ? `${parentPath}/${folderName}.md` : `${folderName}.md`;
     if (descriptionFiles.has(expectedDescPath)) {
       folder.hasDescription = true;
+      folder.descriptionPath = expectedDescPath;
     }
   });
 
@@ -578,6 +631,7 @@ export function indexVault(readResult: VaultReadResult): VaultIndex {
   const markdownFiles = readResult.files.filter((file) => file.relativePath.endsWith(".md"));
   const taxonomy = mergeWithStarterTaxonomy(parseTaxonomy(readResult.files, findings));
   const templates = parseTemplates(readResult.files);
+  const universeProfile = parseUniverseProfile(readResult.files, findings);
   const entities: Entity[] = [];
   const ids = new Map<string, Entity[]>();
 
@@ -745,6 +799,7 @@ export function indexVault(readResult: VaultReadResult): VaultIndex {
     markdownFiles,
     taxonomy,
     templates,
+    universeProfile,
     universes,
     tree: buildTree(readResult.files, directories, false, hiddenRootFile),
     entities,
