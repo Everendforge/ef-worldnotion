@@ -422,6 +422,9 @@ export function CodeMirrorEditor({
     return { indent, prefix: "- " };
   }
 
+  // Cache for selection change calculations to avoid redundant DOM measurements
+  const selectionCacheRef = useRef<{ prev: string; rect?: DOMRect }>({ prev: "" });
+
   return (
     <div className="codemirror-wrap">
       <CodeMirror
@@ -568,31 +571,48 @@ export function CodeMirrorEditor({
             },
           }),
           EditorView.updateListener.of((update) => {
+            // Debounced menu detection
             if (update.docChanged || update.selectionSet) {
               detectSlashMenu(update.view);
               detectWikilinkMenu(update.view);
             }
+            
+            // Optimized selection change with caching
             if (update.selectionSet || update.docChanged) {
               const selection = update.state.selection.main;
-              if (!selection.empty) {
-                const from = update.view.coordsAtPos(selection.from);
-                const to = update.view.coordsAtPos(selection.to);
-                if (from && to && from.left !== undefined && from.top !== undefined && to.left !== undefined && to.top !== undefined) {
-                  const minLeft = Math.min(from.left, to.left);
-                  const minTop = Math.min(from.top, to.top);
-                  const width = Math.max(1, Math.abs(to.left - from.left));
-                  const height = Math.max(from.bottom - from.top, to.bottom - to.top);
-                  
-                  // Validate coordinates are numbers and not NaN
-                  if (Number.isFinite(minLeft) && Number.isFinite(minTop) && Number.isFinite(width) && Number.isFinite(height)) {
-                    onSelectionChange?.(
-                      new DOMRect(minLeft, minTop, width, height),
-                    );
-                    return;
+              // Create a unique key for this selection state
+              const selectionKey = `${selection.from},${selection.to}`;
+              
+              // Only recalculate if selection actually changed
+              if (selectionCacheRef.current.prev !== selectionKey) {
+                selectionCacheRef.current.prev = selectionKey;
+                
+                if (!selection.empty) {
+                  const from = update.view.coordsAtPos(selection.from);
+                  const to = update.view.coordsAtPos(selection.to);
+                  if (from && to && from.left !== undefined && from.top !== undefined && to.left !== undefined && to.top !== undefined) {
+                    const minLeft = Math.min(from.left, to.left);
+                    const minTop = Math.min(from.top, to.top);
+                    const width = Math.max(1, Math.abs(to.left - from.left));
+                    const height = Math.max(from.bottom - from.top, to.bottom - to.top);
+                    
+                    // Validate coordinates are numbers and not NaN
+                    if (Number.isFinite(minLeft) && Number.isFinite(minTop) && Number.isFinite(width) && Number.isFinite(height)) {
+                      selectionCacheRef.current.rect = new DOMRect(minLeft, minTop, width, height);
+                      onSelectionChange?.(selectionCacheRef.current.rect);
+                      return;
+                    }
                   }
+                } else if (selectionCacheRef.current.rect) {
+                  // Selection was empty, clear cache
+                  selectionCacheRef.current.rect = undefined;
+                  onSelectionChange?.(undefined);
                 }
+              } else if (selectionCacheRef.current.rect && selection.empty) {
+                // Selection is empty and we had a cached rect, clear it
+                selectionCacheRef.current.rect = undefined;
+                onSelectionChange?.(undefined);
               }
-              onSelectionChange?.(undefined);
             }
           }),
           EditorView.theme({
