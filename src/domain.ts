@@ -292,15 +292,15 @@ export function parseMarkdownFrontmatter(content: string): ParsedMarkdown {
 export function splitMarkdown(content: string): SplitMarkdown {
   const normalized = content.replace(/\r\n/g, "\n");
   if (!normalized.startsWith("---\n")) {
-    return { frontmatterRaw: "", bodyMarkdown: normalized };
+    return { frontmatterRaw: "", bodyMarkdown: normalized.replace(/^\n+/, "") };
   }
   const closingFence = normalized.indexOf("\n---", 4);
   if (closingFence === -1) {
-    return { frontmatterRaw: "", bodyMarkdown: normalized };
+    return { frontmatterRaw: "", bodyMarkdown: normalized.replace(/^\n+/, "") };
   }
   const frontmatterRaw = normalized.slice(0, closingFence + 4).trim();
   const bodyStart = normalized.indexOf("\n", closingFence + 4);
-  const bodyMarkdown = bodyStart === -1 ? "" : normalized.slice(bodyStart + 1);
+  const bodyMarkdown = bodyStart === -1 ? "" : normalized.slice(bodyStart + 1).replace(/^\n+/, "");
   return { frontmatterRaw, bodyMarkdown };
 }
 

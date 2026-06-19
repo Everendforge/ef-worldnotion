@@ -7,5 +7,4 @@ folder: Stories
 ---
 
 # Stories
-
 Description of this folder's contents.

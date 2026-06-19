@@ -81,6 +81,9 @@ export type EditorSettings = {
   outlineGuideEnabled: boolean;
   breadcrumbsEnabled: boolean;
   codeFoldingEnabled: boolean;
+  // Document header in editor
+  documentHeaderEnabled: boolean;
+  showProjectNameInHeader: boolean;
 };
 
 export type EditorDocumentParts = {
@@ -244,6 +247,9 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   outlineGuideEnabled: true,
   breadcrumbsEnabled: true,
   codeFoldingEnabled: true,
+  // Document header in editor
+  documentHeaderEnabled: true,
+  showProjectNameInHeader: false,
 };
 
 export const DEFAULT_EXPLORER_SETTINGS: ExplorerSettings = {

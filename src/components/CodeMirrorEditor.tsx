@@ -9,6 +9,7 @@ import { foldGutter, foldKeymap } from "@codemirror/language";
 import { markdownSyntaxPlugin } from "./markdownSyntaxPlugin";
 import { wikilinkPlugin } from "./wikilinkPlugin";
 import { fontFamilyPlugin } from "./fontFamilyPlugin";
+import { createDocumentHeaderPlugin } from "./documentHeaderPlugin";
 import {
   EditorMode,
   EditorSettings,
@@ -26,6 +27,8 @@ export interface CodeMirrorEditorProps {
   readOnly?: boolean;
   mode?: EditorMode;
   settings: EditorSettings;
+  documentName?: string;
+  projectName?: string;
   resolveWikilink?: (label: string) => ResolvedWikilink;
   noteSuggestions?: NoteSuggestion[];
   onOpenWikilink?: (targetPath: string, label: string) => void;
@@ -89,6 +92,8 @@ export function CodeMirrorEditor({
   readOnly = false,
   mode = "write",
   settings,
+  documentName,
+  projectName,
   resolveWikilink,
   noteSuggestions = [],
   onOpenWikilink,
@@ -560,6 +565,13 @@ export function CodeMirrorEditor({
         theme={isDarkTheme(theme) ? oneDark : undefined}
         extensions={[
           markdown(),
+          ...(settings.documentHeaderEnabled && documentName && mode === "write" 
+            ? [createDocumentHeaderPlugin({ 
+                documentName, 
+                projectName, 
+                showProjectName: settings.showProjectNameInHeader 
+              })] 
+            : []),
           ...(settings.codeFoldingEnabled ? [
             foldGutter({
               openText: "▼",

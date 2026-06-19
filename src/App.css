@@ -2567,6 +2567,38 @@ button:hover:not(:disabled),
   color: var(--wn-accent);
 }
 
+.modal-button-cancel {
+  background: var(--wn-panel-2);
+  color: var(--wn-text);
+  border-color: var(--wn-border);
+}
+
+.modal-button-cancel:hover {
+  background: var(--wn-border);
+}
+
+.modal-button-discard {
+  background: transparent;
+  color: var(--wn-text-secondary);
+  border-color: var(--wn-border);
+}
+
+.modal-button-discard:hover {
+  background: var(--wn-panel);
+  color: var(--wn-text);
+}
+
+.modal-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.unsaved-dialog .modal-footer {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
 /* Toast Notification */
 @keyframes toast-slide-in {
   from {
@@ -3585,4 +3617,38 @@ button:hover:not(:disabled),
   .editor-surface.mode-source.outline-visible .codemirror-wrap {
     padding-right: 180px;
   }
+}
+
+/* ===========================
+   Document Header in Editor
+   =========================== */
+
+.document-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 0 16px 0;
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--wn-text);
+}
+
+.document-header-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--wn-text);
+}
+
+.document-header-project {
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--wn-muted);
+}
+
+/* Ensure document header appears as a block-level element */
+.cm-content .document-header {
+  display: block;
+  margin-bottom: 1rem;
 }

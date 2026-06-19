@@ -18,11 +18,13 @@ class ListMarkerWidget extends WidgetType {
   }
 }
 
-function marker(from: number, to: number, className = "cm-markdown-syntax-muted") {
+function marker(from: number, to: number, className = "cm-markdown-syntax-muted"): Range<Decoration> | null {
+  if (from >= to) return null;
   return Decoration.mark({ class: className }).range(from, to);
 }
 
-function syntaxMarker(from: number, to: number, active: boolean) {
+function syntaxMarker(from: number, to: number, active: boolean): Range<Decoration> | null {
+  if (from >= to) return null;
   return marker(from, to, active ? "cm-markdown-syntax-muted" : "cm-markdown-syntax-hidden");
 }
 
@@ -51,9 +53,12 @@ function addInlineMatches(
     const contentFrom = openFrom + boldMatch[1].length;
     const contentTo = contentFrom + boldMatch[2].length;
     const active = selectionTouches(selectionFrom, selectionTo, openFrom, contentTo + boldMatch[1].length);
-    decorations.push(syntaxMarker(openFrom, contentFrom, active));
-    decorations.push(marker(contentFrom, contentTo, "cm-md-bold"));
-    decorations.push(syntaxMarker(contentTo, contentTo + boldMatch[1].length, active));
+    const m1 = syntaxMarker(openFrom, contentFrom, active);
+    if (m1) decorations.push(m1);
+    const m2 = marker(contentFrom, contentTo, "cm-md-bold");
+    if (m2) decorations.push(m2);
+    const m3 = syntaxMarker(contentTo, contentTo + boldMatch[1].length, active);
+    if (m3) decorations.push(m3);
   }
 
   let italicMatch: RegExpExecArray | null;
@@ -63,9 +68,12 @@ function addInlineMatches(
     const contentFrom = openFrom + italicMatch[2].length;
     const contentTo = contentFrom + italicMatch[3].length;
     const active = selectionTouches(selectionFrom, selectionTo, openFrom, contentTo + italicMatch[2].length);
-    decorations.push(syntaxMarker(openFrom, contentFrom, active));
-    decorations.push(marker(contentFrom, contentTo, "cm-md-italic"));
-    decorations.push(syntaxMarker(contentTo, contentTo + italicMatch[2].length, active));
+    const m1 = syntaxMarker(openFrom, contentFrom, active);
+    if (m1) decorations.push(m1);
+    const m2 = marker(contentFrom, contentTo, "cm-md-italic");
+    if (m2) decorations.push(m2);
+    const m3 = syntaxMarker(contentTo, contentTo + italicMatch[2].length, active);
+    if (m3) decorations.push(m3);
   }
 
   let codeMatch: RegExpExecArray | null;
@@ -75,9 +83,12 @@ function addInlineMatches(
     const contentFrom = openFrom + 1;
     const contentTo = contentFrom + codeMatch[1].length;
     const active = selectionTouches(selectionFrom, selectionTo, openFrom, contentTo + 1);
-    decorations.push(syntaxMarker(openFrom, contentFrom, active));
-    decorations.push(marker(contentFrom, contentTo, "cm-md-inline-code"));
-    decorations.push(syntaxMarker(contentTo, contentTo + 1, active));
+    const m1 = syntaxMarker(openFrom, contentFrom, active);
+    if (m1) decorations.push(m1);
+    const m2 = marker(contentFrom, contentTo, "cm-md-inline-code");
+    if (m2) decorations.push(m2);
+    const m3 = syntaxMarker(contentTo, contentTo + 1, active);
+    if (m3) decorations.push(m3);
   }
 
   let linkMatch: RegExpExecArray | null;
@@ -86,10 +97,13 @@ function addInlineMatches(
     const linkFrom = from + linkMatch.index;
     const linkTo = linkFrom + linkMatch[0].length;
     const active = selectionTouches(selectionFrom, selectionTo, linkFrom, linkTo);
-    decorations.push(syntaxMarker(linkFrom, linkFrom + 1, active));
-    decorations.push(marker(from + linkMatch.index + 1, from + linkMatch.index + 1 + linkMatch[1].length, "cm-md-link-label"));
+    const m1 = syntaxMarker(linkFrom, linkFrom + 1, active);
+    if (m1) decorations.push(m1);
+    const m2 = marker(from + linkMatch.index + 1, from + linkMatch.index + 1 + linkMatch[1].length, "cm-md-link-label");
+    if (m2) decorations.push(m2);
     const labelEnd = from + linkMatch.index + 1 + linkMatch[1].length;
-    decorations.push(syntaxMarker(labelEnd, linkTo, active));
+    const m3 = syntaxMarker(labelEnd, linkTo, active);
+    if (m3) decorations.push(m3);
   }
 
   let wikilinkMatch: RegExpExecArray | null;
@@ -100,16 +114,21 @@ function addInlineMatches(
     const targetTo = targetFrom + wikilinkMatch[1].length;
     const end = start + wikilinkMatch[0].length;
     const active = selectionTouches(selectionFrom, selectionTo, start, end);
-    decorations.push(syntaxMarker(start, targetFrom, active));
+    const m1 = syntaxMarker(start, targetFrom, active);
+    if (m1) decorations.push(m1);
     if (wikilinkMatch[2]) {
       const aliasFrom = start + wikilinkMatch[0].lastIndexOf("|") + 1;
       const aliasTo = end - 2;
-      decorations.push(marker(targetFrom, aliasFrom, active ? "cm-md-wikilink-target" : "cm-markdown-syntax-hidden"));
-      decorations.push(marker(aliasFrom, aliasTo, "cm-md-wikilink-alias"));
+      const m2 = marker(targetFrom, aliasFrom, active ? "cm-md-wikilink-target" : "cm-markdown-syntax-hidden");
+      if (m2) decorations.push(m2);
+      const m3 = marker(aliasFrom, aliasTo, "cm-md-wikilink-alias");
+      if (m3) decorations.push(m3);
     } else {
-      decorations.push(marker(targetFrom, targetTo, "cm-md-wikilink-alias"));
+      const m2 = marker(targetFrom, targetTo, "cm-md-wikilink-alias");
+      if (m2) decorations.push(m2);
     }
-    decorations.push(syntaxMarker(end - 2, end, active));
+    const m4 = syntaxMarker(end - 2, end, active);
+    if (m4) decorations.push(m4);
   }
 }
 
@@ -130,8 +149,10 @@ function getDecorations(view: EditorView): DecorationSet {
         const markerTo = line.from + heading[0].length;
         const markerActive = selectionTouches(selectionFrom, selectionTo, markerFrom, markerTo);
         decorations.push(lineClass(`cm-md-heading-line cm-md-heading-${level}`, line.from));
-        decorations.push(syntaxMarker(markerFrom, markerTo, markerActive));
-        decorations.push(marker(markerTo, line.to, `cm-md-heading-text cm-md-heading-text-${level}`));
+        const m1 = syntaxMarker(markerFrom, markerTo, markerActive);
+        if (m1) decorations.push(m1);
+        const m2 = marker(markerTo, line.to, `cm-md-heading-text cm-md-heading-text-${level}`);
+        if (m2) decorations.push(m2);
       }
       const list = /^(\s*)(- \[[ xX]\]|\d+\.|[-*])\s/.exec(text);
       if (list) {
@@ -149,13 +170,15 @@ function getDecorations(view: EditorView): DecorationSet {
             }).range(markerFrom),
           );
         }
-        decorations.push(marker(markerFrom, markerTo, markerActive ? "cm-list-marker" : "cm-markdown-syntax-hidden"));
+        const m1 = marker(markerFrom, markerTo, markerActive ? "cm-list-marker" : "cm-markdown-syntax-hidden");
+        if (m1) decorations.push(m1);
       }
       const quote = /^>\s/.exec(text);
       if (quote) {
         const markerActive = selectionTouches(selectionFrom, selectionTo, line.from, line.from + quote[0].length);
         decorations.push(lineClass("cm-md-quote-line", line.from));
-        decorations.push(syntaxMarker(line.from, line.from + quote[0].length, markerActive));
+        const m1 = syntaxMarker(line.from, line.from + quote[0].length, markerActive);
+        if (m1) decorations.push(m1);
       }
 
       addInlineMatches(text, line.from, selectionFrom, selectionTo, decorations);

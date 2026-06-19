@@ -37,6 +37,7 @@ import { OutlineGuide } from "./components/OutlineGuide";
 import { FontSelector } from "./components/FontSelector";
 import { InputDialog } from "./components/InputDialog";
 import { Toast } from "./components/Toast";
+import { UnsavedChangesDialog } from "./components/UnsavedChangesDialog";
 import { extractOutline, findCurrentHeader } from "./utils/outlineExtractor";
 import type { ContextMenuAction } from "./components";
 import { useFonts } from "./utils/useFonts";
@@ -343,12 +344,17 @@ async function getBrowserDirectory(root: BrowserDirectoryHandle, relativePath: s
 
 async function ensureBrowserWritePermission(root: BrowserDirectoryHandle) {
   if (!root.queryPermission || !root.requestPermission) return;
-  const descriptor = { mode: "readwrite" as const };
-  const current = await root.queryPermission(descriptor);
-  if (current === "granted") return;
-  const requested = await root.requestPermission(descriptor);
-  if (requested !== "granted") {
-    throw new Error("WorldNotion needs write permission for this universe folder before saving.");
+  try {
+    const descriptor = { mode: "readwrite" as const };
+    const current = await root.queryPermission(descriptor);
+    if (current === "granted") return;
+    const requested = await root.requestPermission(descriptor);
+    if (requested !== "granted") {
+      console.warn("Write permission was not granted for this universe folder. Some operations may fail.");
+      return;
+    }
+  } catch (error) {
+    console.warn("Could not request write permission for this universe folder.", error);
   }
 }
 
@@ -935,6 +941,9 @@ function App() {
   const [floatingToolbarRect, setFloatingToolbarRect] = useState<DOMRect>();
   const [templatesExpanded, setTemplatesExpanded] = useState(false);
   const [cursorLine, setCursorLine] = useState(0);
+  const [unsavedDialogPath, setUnsavedDialogPath] = useState<string | null>(null);
+  const [isSavingBeforeClose, setIsSavingBeforeClose] = useState(false);
+  const [, setPendingClosePaths] = useState<string[]>([]);
   const editorViewRef = useRef<EditorView | null>(null);
   const editorShellRef = useRef<HTMLDivElement | null>(null);
   
@@ -2362,15 +2371,8 @@ function App() {
     view.focus();
   }
 
-  async function closeTab(path = activeTabPath) {
-    if (!path) return;
-    const target = tabs.find((tab) => tab.path === path);
-    if (!target) return;
-    if (target.dirty && settings.editor.confirmCloseDirtyTab) {
-      const confirmed = window.confirm(`${target.title} has unsaved changes. Close it anyway?`);
-      if (!confirmed) return;
-    }
-
+  // Helper to actually close a tab without confirmation
+  function doCloseTab(path: string) {
     setTabs((current) => {
       const next = current.filter((tab) => tab.path !== path);
       if (activeTabPath === path) {
@@ -2383,12 +2385,126 @@ function App() {
     });
   }
 
-  async function closeOtherTabs(path: string) {
-    for (const tab of tabs) {
-      if (tab.path !== path) {
-        await closeTab(tab.path);
-      }
+  async function closeTab(path = activeTabPath) {
+    if (!path) return;
+    const target = tabs.find((tab) => tab.path === path);
+    if (!target) return;
+    if (target.dirty && settings.editor.confirmCloseDirtyTab) {
+      setUnsavedDialogPath(path);
+      return;
     }
+
+    doCloseTab(path);
+  }
+
+  function handleUnsavedDialogDiscard() {
+    if (!unsavedDialogPath) return;
+    doCloseTab(unsavedDialogPath);
+    // Move to next in queue
+    setPendingClosePaths((current) => {
+      const next = current.slice(1);
+      if (next.length > 0) {
+        setUnsavedDialogPath(next[0]);
+      } else {
+        setUnsavedDialogPath(null);
+      }
+      return next;
+    });
+  }
+
+  async function handleUnsavedDialogSave() {
+    if (!unsavedDialogPath) return;
+    setIsSavingBeforeClose(true);
+    try {
+      // Activate the tab temporarily to save it
+      setActiveTabPath(unsavedDialogPath);
+      // Give a moment for state to update
+      await new Promise(resolve => setTimeout(resolve, 0));
+      // The saveEditor function uses activeTab, so we need to ensure it's set
+      const tabToSave = tabs.find(tab => tab.path === unsavedDialogPath);
+      if (tabToSave && tabToSave.absolutePath) {
+        const result = await invoke<WriteResult>("save_file", {
+          path: tabToSave.absolutePath,
+          content: tabToSave.rawMarkdown,
+          expectedModifiedMs: tabToSave.modifiedMs ?? null,
+        });
+        if (result.ok) {
+          setTabs((current) =>
+            current.map((tab) =>
+              tab.path === unsavedDialogPath
+                ? {
+                    ...tab,
+                    savedMarkdown: tab.rawMarkdown,
+                    dirty: false,
+                    modifiedMs: result.modifiedMs ?? tab.modifiedMs,
+                  }
+                : tab,
+            ),
+          );
+        }
+      }
+      doCloseTab(unsavedDialogPath);
+      // Move to next in queue
+      setPendingClosePaths((current) => {
+        const next = current.slice(1);
+        if (next.length > 0) {
+          setUnsavedDialogPath(next[0]);
+        } else {
+          setUnsavedDialogPath(null);
+        }
+        return next;
+      });
+    } catch (error) {
+      console.error("Error saving file:", error);
+      showToast("Error al guardar.");
+    } finally {
+      setIsSavingBeforeClose(false);
+    }
+  }
+
+  function handleUnsavedDialogCancel() {
+    // Cancel entire sequence
+    setUnsavedDialogPath(null);
+    setPendingClosePaths([]);
+  }
+
+  async function closeAllTabs() {
+    if (tabs.length === 0) return;
+    
+    // Get all dirty tabs
+    const dirtyTabs = tabs.filter((tab) => tab.dirty && settings.editor.confirmCloseDirtyTab);
+    
+    if (dirtyTabs.length > 0) {
+      // Start the queue-based closing process
+      const dirtyPaths = dirtyTabs.map((tab) => tab.path);
+      setPendingClosePaths(dirtyPaths.slice(1));
+      setUnsavedDialogPath(dirtyPaths[0]);
+      return;
+    }
+    
+    // No dirty tabs, close all
+    setTabs([]);
+    setActiveTabPath(undefined);
+    setSelectedPath(undefined);
+    setTabContextMenu(null);
+  }
+
+  async function closeOtherTabs(path: string) {
+    const tabsToClose = tabs.filter((tab) => tab.path !== path);
+    
+    // Get dirty tabs that need confirmation
+    const dirtyTabs = tabsToClose.filter((tab) => tab.dirty && settings.editor.confirmCloseDirtyTab);
+    
+    if (dirtyTabs.length > 0) {
+      // Start the queue-based closing process
+      const dirtyPaths = dirtyTabs.map((tab) => tab.path);
+      setPendingClosePaths(dirtyPaths.slice(1));
+      setUnsavedDialogPath(dirtyPaths[0]);
+      return;
+    }
+    
+    // Close all non-dirty tabs
+    setTabs((current) => current.filter((tab) => tab.path === path));
     activateTab(path);
     setTabContextMenu(null);
   }
@@ -2397,9 +2513,20 @@ function App() {
     const indexOfTab = tabs.findIndex((tab) => tab.path === path);
     if (indexOfTab === -1) return;
     const rightTabs = tabs.slice(indexOfTab + 1);
-    for (const tab of rightTabs) {
-      await closeTab(tab.path);
+    
+    // Get dirty tabs that need confirmation
+    const dirtyTabs = rightTabs.filter((tab) => tab.dirty && settings.editor.confirmCloseDirtyTab);
+    
+    if (dirtyTabs.length > 0) {
+      // Start the queue-based closing process
+      const dirtyPaths = dirtyTabs.map((tab) => tab.path);
+      setPendingClosePaths(dirtyPaths.slice(1));
+      setUnsavedDialogPath(dirtyPaths[0]);
+      return;
     }
+    
+    // Close all clean tabs to the right
+    setTabs((current) => current.filter((_, idx) => idx <= indexOfTab));
     setTabContextMenu(null);
   }
 
@@ -2452,26 +2579,6 @@ function App() {
       setLoadState("error");
       setErrorMessage(error instanceof Error ? error.message : String(error));
     }
-  }
-
-  async function openTabPicker() {
-    if (!index) return;
-    const query = await promptUser("Open note", "Type a note name or path");
-    if (!query?.trim()) return;
-    const normalized = query.trim().toLowerCase();
-    const match = noteSuggestions.find((note) => {
-      return (
-        note.label.toLowerCase().includes(normalized) ||
-        note.path.toLowerCase().includes(normalized) ||
-        note.aliases.some((alias) => alias.toLowerCase().includes(normalized)) ||
-        note.id?.toLowerCase().includes(normalized)
-      );
-    });
-    if (!match) {
-      showToast(`No note found for "${query}".`);
-      return;
-    }
-    openOrCreateTab(match.path);
   }
 
   async function executeCommand(commandId: EditorCommandId) {
@@ -2701,28 +2808,15 @@ function App() {
   const outline = useMemo(() => {
     if (!activeTab) return [];
     
-    let headers = extractOutline(activeTab.rawMarkdown);
+    // Always use activeEditorValue (what's displayed in the editor)
+    // This ensures line numbers match the actual editor content
+    const editorContent = activeTab.mode === "write" 
+      ? rawToEditorParts(activeTab.rawMarkdown).bodyMarkdown 
+      : activeTab.rawMarkdown;
     
-    // In write mode, adjust outline line numbers to match bodyMarkdown coordinates
-    if (activeTab.mode === "write") {
-      const parts = rawToEditorParts(activeTab.rawMarkdown);
-      const frontmatterLines = parts.frontmatterRaw.split("\n").length;
-      
-      // Recursively adjust line numbers for all headers
-      const adjustHeaders = (hdrs: typeof headers): typeof headers => {
-        return hdrs.map(h => ({
-          ...h,
-          line: Math.max(0, h.line - frontmatterLines),
-          children: adjustHeaders(h.children),
-        }));
-      };
-      
-      headers = adjustHeaders(headers);
-    }
-    
-    return headers;
-  }, [activeTab?.rawMarkdown, activeTab?.mode]);
-  
+    return extractOutline(editorContent);
+  }, [activeTab]);
+
   const currentHeader = useMemo(() => {
     if (!activeTab) return null;
     return findCurrentHeader(outline, cursorLine, 0);
@@ -2745,6 +2839,15 @@ function App() {
             setInputDialog({ isOpen: false, title: "" });
           })
         }
+      />
+
+      <UnsavedChangesDialog
+        isOpen={unsavedDialogPath !== null}
+        fileName={unsavedDialogPath ? fileTitle(unsavedDialogPath) : ""}
+        onDiscard={handleUnsavedDialogDiscard}
+        onSave={handleUnsavedDialogSave}
+        onCancel={handleUnsavedDialogCancel}
+        isSaving={isSavingBeforeClose}
       />
 
       <Toast
@@ -3119,7 +3222,7 @@ function App() {
               </div>
             ))}
           </div>
-          <button type="button" className="tab-add" onClick={openTabPicker} title="Open note">
+          <button type="button" className="tab-add" onClick={() => setShowCommandPalette(true)} title="Open note">
             <Plus size={14} />
           </button>
         </div>
@@ -3229,6 +3332,8 @@ function App() {
               theme={settings.theme}
               mode={activeTab.mode}
               settings={settings.editor}
+              documentName={activeTab?.title}
+              projectName={index?.universeProfile?.name ?? (index?.rootPath ? pathName(index.rootPath) : undefined)}
               readOnly={!canWrite}
               resolveWikilink={resolveWikilink}
               noteSuggestions={noteSuggestions}
@@ -3261,13 +3366,13 @@ function App() {
                 currentHeader={currentHeader}
                 onNavigate={(line) => {
                   if (editorViewRef.current) {
-                    // Outline lines are already adjusted for write mode, so use directly
+                    // line is 0-indexed from extractOutline, convert to CodeMirror's 1-indexed
                     const pos = editorViewRef.current.state.doc.line(line + 1).from;
                     editorViewRef.current.dispatch({
                       selection: { anchor: pos },
                       effects: EditorView.scrollIntoView(pos, { y: "center" }),
                     });
-                    // Update cursor line immediately after navigation
+                    // Update cursor line - keep it 0-indexed to match extractOutline
                     setCursorLine(line);
                     editorViewRef.current.focus();
                   }
@@ -3439,15 +3544,31 @@ function App() {
             <X size={16} />
             <span>Close tab</span>
           </button>
-          <button type="button" className="context-menu-item" onClick={() => closeOtherTabs(tabContextMenu.path)}>
+          <button type="button" className="context-menu-item" onClick={() => {
+            closeOtherTabs(tabContextMenu.path);
+            setTabContextMenu(null);
+          }}>
             <X size={16} />
             <span>Close others</span>
           </button>
-          <button type="button" className="context-menu-item" onClick={() => closeTabsToRight(tabContextMenu.path)}>
+          <button type="button" className="context-menu-item" onClick={() => {
+            closeTabsToRight(tabContextMenu.path);
+            setTabContextMenu(null);
+          }}>
             <X size={16} />
             <span>Close tabs to right</span>
           </button>
-          <button type="button" className="context-menu-item" onClick={closeSavedTabs}>
+          <button type="button" className="context-menu-item" onClick={() => {
+            void closeAllTabs();
+            setTabContextMenu(null);
+          }}>
+            <X size={16} />
+            <span>Close all tabs</span>
+          </button>
+          <button type="button" className="context-menu-item" onClick={() => {
+            closeSavedTabs();
+            setTabContextMenu(null);
+          }}>
             <X size={16} />
             <span>Close saved tabs</span>
           </button>

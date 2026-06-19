@@ -384,6 +384,14 @@ export function SettingsModal({
                   <span>Code Folding</span>
                   <input type="checkbox" checked={settings.editor.codeFoldingEnabled} onChange={(event) => updateEditor({ codeFoldingEnabled: event.target.checked })} />
                 </label>
+                <label>
+                  <span>Document Header</span>
+                  <input type="checkbox" checked={settings.editor.documentHeaderEnabled} onChange={(event) => updateEditor({ documentHeaderEnabled: event.target.checked })} />
+                </label>
+                <label>
+                  <span>Show Project Name in Header</span>
+                  <input type="checkbox" disabled={!settings.editor.documentHeaderEnabled} checked={settings.editor.showProjectNameInHeader} onChange={(event) => updateEditor({ showProjectNameInHeader: event.target.checked })} />
+                </label>
               </div>
               </>
             ) : null}
