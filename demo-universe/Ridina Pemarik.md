@@ -1,8 +1,13 @@
 ---
-id: ridina-pemarik
-type: concept
-name: Ridina Pemarik
-status: draft
+id: ridina
+type: scene
+status: outline
+tags:
+  - act-one
+parentId: first-road
+location: ash-gate
+viewpointCharacter: mara-voss
+draftStatus: outline
 ---
 
 # Ridina
@@ -18,4 +23,6 @@ status: draft
 *ddasd* dasdasd ssdasdasdsadsadjsahduysafgsvbfh
 `asdaddasdasds` 
 [dasdasdsad](https://web.whatsapp.com/) dsadas
-[[Mara Voss|Mara Voss]]  das
+[[Mara-Voss|Mara-Voss]]
+
+Hola soy heinz y la verdad quisiera hablarles de mi historia.

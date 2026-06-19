@@ -158,7 +158,7 @@ export type ExplorerFavorite = {
   label: string;
 };
 
-export type ExplorerSection = "allFiles" | "favorites";
+export type ExplorerSection = "allFiles" | "favorites" | "ecosystem";
 
 export type RecentUniverseProfile = {
   name?: string;
@@ -201,6 +201,9 @@ export type FileResult = CommandPaletteResultBase & {
   path: string;
   tags?: string[];
   lastModified?: number;
+  entityType?: string;
+  status?: string;
+  customProperties?: Record<string, unknown>;
 };
 
 export type CommandResult = CommandPaletteResultBase & {
@@ -220,9 +223,99 @@ export type TagResult = CommandPaletteResultBase & {
   type: "tag";
   tag: string;
   fileCount: number;
+  fullPath?: string;
+  depth?: number;
+  color?: string;
 };
 
 export type CommandPaletteResult = FileResult | CommandResult | HeaderResult | TagResult;
+
+// ============================================================================
+// Taxonomy System Types - Hierarchical Tags, Entity Types, Status, Custom Fields
+// ============================================================================
+
+export type TagHierarchyNode = {
+  id: string; // Unique identifier (e.g., "character-protagonist-main")
+  label: string; // Display name (e.g., "Main")
+  fullPath: string; // Complete slash path (e.g., "character/protagonist/main")
+  children: TagHierarchyNode[]; // Child tags
+  color?: string; // Optional color for visualization (hex)
+  icon?: string; // Optional icon identifier
+  description?: string; // Optional description
+  parentId?: string; // Reference to parent node ID
+};
+
+export type CustomFieldType = 
+  | "text" 
+  | "number" 
+  | "boolean" 
+  | "date" 
+  | "select" 
+  | "multiselect" 
+  | "entity-ref" 
+  | "entity-ref-list";
+
+export type CustomFieldDefinition = {
+  id: string; // Unique identifier (e.g., "hp", "alignment")
+  label: string; // Display name (e.g., "Hit Points", "Alignment")
+  type: CustomFieldType;
+  description?: string;
+  required?: boolean;
+  defaultValue?: unknown;
+  // For select/multiselect types
+  options?: Array<{ value: string; label: string; color?: string }>;
+  // For entity-ref types
+  targetTypes?: string[]; // Which entity types can be referenced
+  // Validation
+  min?: number; // For number type
+  max?: number; // For number type
+  pattern?: string; // For text type (regex)
+};
+
+export type EntityTypeDefinition = {
+  id: string; // Internal identifier (e.g., "character", "location")
+  label: string; // Display name (e.g., "Character", "Location")
+  description?: string;
+  icon?: string; // Icon identifier
+  color?: string; // Primary color for this type (hex)
+  // Custom fields specific to this type
+  customFields?: string[]; // Array of CustomFieldDefinition IDs
+  // Template settings
+  defaultTemplate?: string; // Path to template file
+  defaultFolder?: string; // Suggested folder for new entities of this type
+};
+
+export type StatusDefinition = {
+  id: string; // Internal identifier (e.g., "draft", "published")
+  label: string; // Display name (e.g., "Draft", "Published")
+  description?: string;
+  color?: string; // Status color (hex)
+  icon?: string; // Optional icon
+  order?: number; // Display order
+};
+
+export type TaxonomyConfig = {
+  version: string; // Schema version (e.g., "1.0")
+  tags: {
+    rootNodes: TagHierarchyNode[]; // Top-level tags
+    allowCustomTags: boolean; // Allow users to create tags not in hierarchy
+    autoDetectSlashNotation: boolean; // Automatically parse "tag/subtag" syntax
+  };
+  entityTypes: {
+    definitions: EntityTypeDefinition[];
+    defaultType: string; // Default type for new entities
+    allowCustomTypes: boolean; // Allow types not in definitions
+  };
+  statuses: {
+    definitions: StatusDefinition[];
+    defaultStatus: string; // Default status for new entities
+    allowCustomStatuses: boolean; // Allow statuses not in definitions
+  };
+  customFields: {
+    definitions: CustomFieldDefinition[];
+    globalFields?: string[]; // Fields available to all entity types
+  };
+};
 
 export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   lineNumbers: true,

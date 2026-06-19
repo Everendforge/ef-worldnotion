@@ -1,13 +1,12 @@
 ---
 id: mara-voss
 type: character
-name: Mara Voss
 status: canon
-tags: [cartographer, cast]
-aliases: [Mara]
+aliases:
+  - Mara
 homeLocation: ash-gate
 role: protagonist
-parentId: first-road
+folder: Locations
 ---
 
 # Mara Voss

@@ -9,6 +9,7 @@ import {
   Star,
   Search,
   X,
+  Filter,
 } from "lucide-react";
 import {
   CommandPaletteMode,
@@ -19,6 +20,7 @@ import {
   TagResult,
   EditorCommandId,
   FileAccessStats,
+  TaxonomyConfig,
 } from "../editorTypes";
 import { getFileFrequencyScore } from "../utils/fileAccessStats";
 
@@ -34,6 +36,7 @@ export interface CommandPaletteProps {
   favorites?: string[];
   fileAccessStats?: FileAccessStats[];
   quickSwitcherMode?: boolean;
+  taxonomyConfig?: TaxonomyConfig;
   onSelectFile: (path: string) => void;
   onSelectCommand: (commandId: EditorCommandId) => void;
   onSelectHeader: (line: number) => void;
@@ -45,6 +48,8 @@ const FUSE_OPTIONS_FILES: IFuseOptions<FileResult> = {
     { name: "title", weight: 2 },
     { name: "path", weight: 1 },
     { name: "tags", weight: 0.5 },
+    { name: "entityType", weight: 0.8 },
+    { name: "status", weight: 0.6 },
   ],
   threshold: 0.4,
   includeScore: true,
@@ -97,6 +102,7 @@ export function CommandPalette({
   favorites = [],
   fileAccessStats,
   quickSwitcherMode = false,
+  taxonomyConfig,
   onSelectFile,
   onSelectCommand,
   onSelectHeader,
@@ -105,6 +111,9 @@ export function CommandPalette({
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [activeMode, setActiveMode] = useState<CommandPaletteMode>(mode);
+  const [filterEntityType, setFilterEntityType] = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
 
@@ -140,10 +149,19 @@ export function CommandPalette({
 
     switch (activeMode) {
       case "files": {
+        // Apply entity type and status filters first
+        let filteredFiles = fileResults;
+        if (filterEntityType) {
+          filteredFiles = filteredFiles.filter((f) => f.entityType === filterEntityType);
+        }
+        if (filterStatus) {
+          filteredFiles = filteredFiles.filter((f) => f.status === filterStatus);
+        }
+
         if (!searchQuery) {
           // En Quick Switcher mode o sin query, mostrar por frecuencia
           if (quickSwitcherMode && fileAccessStats && fileAccessStats.length > 0) {
-            items = [...fileResults]
+            items = [...filteredFiles]
               .map((file) => ({
                 file,
                 score: getFileFrequencyScore(fileAccessStats, file.path),
@@ -153,9 +171,9 @@ export function CommandPalette({
               .map((item) => item.file);
           } else if (quickSwitcherMode) {
             // Si no hay stats aún, mostrar todos los archivos limitados
-            items = fileResults.slice(0, 15);
+            items = filteredFiles.slice(0, 15);
           } else if (fileAccessStats && fileAccessStats.length > 0) {
-            items = [...fileResults]
+            items = [...filteredFiles]
               .map((file) => ({
                 file,
                 score: getFileFrequencyScore(fileAccessStats, file.path),
@@ -165,13 +183,13 @@ export function CommandPalette({
               .map((item) => item.file);
           } else {
             // Fallback a recientes y favoritos
-            const recentItems = fileResults.filter((f) => recentFiles.includes(f.path)).slice(0, 5);
-            const favoriteItems = fileResults.filter((f) => favorites.includes(f.path)).slice(0, 5);
+            const recentItems = filteredFiles.filter((f) => recentFiles.includes(f.path)).slice(0, 5);
+            const favoriteItems = filteredFiles.filter((f) => favorites.includes(f.path)).slice(0, 5);
             items = [...recentItems, ...favoriteItems];
           }
         } else {
           // Con query, usar fuzzy search pero ajustar scores por frecuencia
-          const fuse = new Fuse(fileResults, FUSE_OPTIONS_FILES);
+          const fuse = new Fuse(filteredFiles, FUSE_OPTIONS_FILES);
           const searchResults = fuse.search(searchQuery);
           
           if (fileAccessStats) {
@@ -233,6 +251,8 @@ export function CommandPalette({
     favorites,
     fileAccessStats,
     quickSwitcherMode,
+    filterEntityType,
+    filterStatus,
   ]);
 
   // Reset selection when results change
@@ -317,6 +337,9 @@ export function CommandPalette({
 
   if (!isOpen) return null;
 
+  const entityTypes = taxonomyConfig?.entityTypes.definitions ?? [];
+  const statuses = taxonomyConfig?.statuses.definitions ?? [];
+
   return (
     <div className="command-palette-backdrop" onClick={handleBackdropClick}>
       <div className="command-palette">
@@ -349,7 +372,66 @@ export function CommandPalette({
               <X size={16} />
             </button>
           )}
+          {activeMode === "files" && taxonomyConfig && (entityTypes.length > 0 || statuses.length > 0) && (
+            <button
+              className="filter-toggle-button"
+              onClick={() => setShowFilters(!showFilters)}
+              aria-label="Toggle filters"
+              title="Filter by type or status"
+            >
+              <Filter size={16} />
+            </button>
+          )}
         </div>
+
+        {/* Taxonomy Filters */}
+        {showFilters && activeMode === "files" && taxonomyConfig && (
+          <div className="command-palette-filters">
+            {entityTypes.length > 0 && (
+              <div className="filter-group">
+                <label>Type:</label>
+                <select
+                  value={filterEntityType || ""}
+                  onChange={(e) => setFilterEntityType(e.target.value || null)}
+                >
+                  <option value="">All types</option>
+                  {entityTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {statuses.length > 0 && (
+              <div className="filter-group">
+                <label>Status:</label>
+                <select
+                  value={filterStatus || ""}
+                  onChange={(e) => setFilterStatus(e.target.value || null)}
+                >
+                  <option value="">All statuses</option>
+                  {statuses.map((status) => (
+                    <option key={status.id} value={status.id}>
+                      {status.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {(filterEntityType || filterStatus) && (
+              <button
+                className="clear-filters-button"
+                onClick={() => {
+                  setFilterEntityType(null);
+                  setFilterStatus(null);
+                }}
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="command-palette-results" ref={resultsRef}>
           {results.length === 0 ? (
@@ -383,6 +465,39 @@ export function CommandPalette({
                       )}
                   </div>
                   {result.subtitle && <div className="result-subtitle">{result.subtitle}</div>}
+                  
+                  {/* Taxonomy badges for file results */}
+                  {result.type === "file" && (
+                    <div className="result-taxonomy">
+                      {(result as FileResult).entityType && (
+                        <span className="taxonomy-badge type-badge">
+                          {entityTypes.find((t) => t.id === (result as FileResult).entityType)?.label || (result as FileResult).entityType}
+                        </span>
+                      )}
+                      {(result as FileResult).status && (
+                        <span className="taxonomy-badge status-badge">
+                          {statuses.find((s) => s.id === (result as FileResult).status)?.label || (result as FileResult).status}
+                        </span>
+                      )}
+                      {(result as FileResult).tags && (result as FileResult).tags!.length > 0 && (
+                        <span className="taxonomy-badge tags-badge">
+                          {(result as FileResult).tags!.slice(0, 3).map((tag) => {
+                            const parts = tag.split("/");
+                            return parts[parts.length - 1];
+                          }).join(", ")}
+                          {(result as FileResult).tags!.length > 3 && ` +${(result as FileResult).tags!.length - 3}`}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Hierarchical tag display */}
+                  {result.type === "tag" && (result as TagResult).fullPath && (
+                    <div className="result-tag-path">
+                      {(result as TagResult).fullPath}
+                    </div>
+                  )}
+                  
                   {result.type === "command" && result.shortcut && (
                     <div className="result-shortcut">{result.shortcut}</div>
                   )}

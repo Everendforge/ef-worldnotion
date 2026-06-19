@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import YAML from "yaml";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl as openExternalUrl } from "@tauri-apps/plugin-opener";
@@ -30,14 +31,22 @@ import {
   RefreshCw,
   ChevronsDownUp,
   Sparkles,
+  Files,
+  Hash,
+  Network,
 } from "lucide-react";
 import "./App.css";
-import { ContextMenu, CodeMirrorEditor, SettingsModal, CommandPalette } from "./components";
+import { ContextMenu, CodeMirrorEditor, SettingsModal, CommandPalette, TaxonomyMigrationDialog } from "./components";
 import { OutlineGuide } from "./components/OutlineGuide";
 import { FontSelector } from "./components/FontSelector";
 import { InputDialog } from "./components/InputDialog";
 import { Toast } from "./components/Toast";
 import { UnsavedChangesDialog } from "./components/UnsavedChangesDialog";
+import { MetadataEditor } from "./components/MetadataEditor";
+import { BacklinksPanel } from "./components/BacklinksPanel";
+import { GraphView } from "./components/GraphView";
+import { GraphControls } from "./components/GraphControls";
+import { buildGraphData, getUniqueTypes, getUniqueTags, type GraphOptions } from "./utils/graphData";
 import { extractOutline, findCurrentHeader } from "./utils/outlineExtractor";
 import type { ContextMenuAction } from "./components";
 import { useFonts } from "./utils/useFonts";
@@ -49,7 +58,6 @@ import {
   EDITOR_COMMANDS,
   EditorCommandId,
   EditorDocumentParts,
-  ExplorerSection,
   FloatingFormatCommand,
   NoteSuggestion,
   OpenTab,
@@ -77,8 +85,10 @@ import {
   indexVault,
   joinMarkdown,
   splitMarkdown,
+  parseMarkdownFrontmatter,
   dirname,
   slugify,
+  generateTaxonomyFromEntities,
 } from "./domain";
 import { isDarkTheme, normalizeThemeId, themeById, themeForStyleCommand, toggledThemeMode } from "./themes";
 import { incrementFileAccess } from "./utils/fileAccessStats";
@@ -166,7 +176,46 @@ function loadSettings(): AppSettingsV4 {
 }
 
 function saveSettings(settings: AppSettingsV4) {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  // Use a replacer to flatten nested objects and avoid Zustand serialization warnings
+  const replacer = (key: string, value: any): any => {
+    // Skip complex objects that trigger warnings
+    if (value && typeof value === 'object') {
+      // For editorState, keep only essential properties
+      if (key === 'editorState' && typeof value === 'object') {
+        const flattened: Record<string, any> = {};
+        for (const [filePath, state] of Object.entries(value)) {
+          if (state && typeof state === 'object') {
+            flattened[filePath] = {
+              cursorPosition: (state as any).cursorPosition,
+              scrollPosition: (state as any).scrollPosition,
+              foldedRanges: (state as any).foldedRanges,
+              selection: (state as any).selection,
+              lastModified: (state as any).lastModified,
+            };
+          }
+        }
+        return flattened;
+      }
+      // For sessions, simplify structure
+      if (key === 'sessions' && typeof value === 'object') {
+        const simplified: Record<string, any> = {};
+        for (const [path, session] of Object.entries(value)) {
+          if (session && typeof session === 'object') {
+            simplified[path] = {
+              rootPath: (session as any).rootPath,
+              activePath: (session as any).activePath,
+              tabs: (session as any).tabs || [],
+              editorState: (session as any).editorState || {},
+            };
+          }
+        }
+        return simplified;
+      }
+    }
+    return value;
+  };
+
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings, replacer));
 }
 
 function isTauriRuntime() {
@@ -565,6 +614,9 @@ function buildFileResults(index: VaultIndex | null): FileResult[] {
     path: entity.path,
     tags: entity.tags || [],
     lastModified: entity.file.modifiedMs || undefined,
+    entityType: entity.type,
+    status: entity.status,
+    customProperties: entity.customProperties,
   }));
 }
 
@@ -613,14 +665,39 @@ function buildTagResults(index: VaultIndex | null): TagResult[] {
     });
   });
   
-  return Array.from(tagCounts.entries()).map(([tag, count]) => ({
-    type: "tag" as const,
-    id: `tag-${tag}`,
-    tag,
-    title: `#${tag}`,
-    subtitle: `${count} file${count !== 1 ? "s" : ""}`,
-    fileCount: count,
-  }));
+  // Helper to find tag node in hierarchy
+  const findTagNode = (fullPath: string) => {
+    if (!index.taxonomyConfig) return null;
+    const findInNodes = (nodes: typeof index.taxonomyConfig.tags.rootNodes): typeof nodes[0] | null => {
+      for (const node of nodes) {
+        if (node.fullPath === fullPath) return node;
+        if (node.children.length > 0) {
+          const found = findInNodes(node.children);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    return findInNodes(index.taxonomyConfig.tags.rootNodes);
+  };
+  
+  return Array.from(tagCounts.entries()).map(([tag, count]) => {
+    const tagNode = findTagNode(tag);
+    const parts = tag.split("/");
+    const label = parts[parts.length - 1];
+    
+    return {
+      type: "tag" as const,
+      id: `tag-${tag}`,
+      tag,
+      title: `#${label}`,
+      subtitle: `${count} file${count !== 1 ? "s" : ""}`,
+      fileCount: count,
+      fullPath: tag,
+      depth: parts.length - 1,
+      color: tagNode?.color,
+    };
+  });
 }
 
 const FLOATING_FORMAT_COMMANDS: FloatingFormatCommand[] = [
@@ -657,6 +734,7 @@ function TreeNode({
   onDragMove,
   onPointerDragStart,
   isPointerClickSuppressed,
+  entityTagColors,
 }: {
   node: VaultTreeNode;
   selectedPath?: string;
@@ -672,12 +750,14 @@ function TreeNode({
   onDragMove: (fromPath: string, toFolderPath: string, kind?: "file" | "folder") => void;
   onPointerDragStart: (path: string, kind: "file" | "folder", x: number, y: number) => void;
   isPointerClickSuppressed: () => boolean;
+  entityTagColors?: Map<string, string>;
 }) {
   const isExpanded = expandedPaths.has(node.path);
   const hasChildren = node.children.length > 0;
   const isFavorite = favoritePaths.has(node.path);
   const isOpen = openTabPaths.has(node.path);
   const isDirty = dirtyTabPaths.has(node.path);
+  const tagColor = entityTagColors?.get(node.path);
   const activateNode = () => {
     if (isPointerClickSuppressed()) return;
     if (node.kind === "folder") {
@@ -743,6 +823,13 @@ function TreeNode({
             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           </span>
         )}
+        {tagColor && node.kind === "file" && (
+          <span 
+            className="tree-tag-indicator" 
+            style={{ backgroundColor: tagColor }}
+            title="Tag color"
+          />
+        )}
         {node.kind === "folder" ? (
           isExpanded ? <FolderOpen size={14} /> : <Folder size={14} />
         ) : (
@@ -797,6 +884,7 @@ function TreeNode({
               onDragMove={onDragMove}
               onPointerDragStart={onPointerDragStart}
               isPointerClickSuppressed={isPointerClickSuppressed}
+              entityTagColors={entityTagColors}
             />
           ))}
         </div>
@@ -815,12 +903,16 @@ function Inspector({
   index,
   activeTab,
   onChangeFrontmatter,
+  onUpdateEntity,
+  onOpenEntity,
 }: {
   entity?: Entity;
   template?: EntityTemplate;
   index?: VaultIndex;
   activeTab?: OpenTab;
   onChangeFrontmatter?: (frontmatterRaw: string) => void;
+  onUpdateEntity?: (updates: Partial<Entity>) => void;
+  onOpenEntity?: (path: string) => void;
 }) {
   if (!index) {
     return (
@@ -851,9 +943,6 @@ function Inspector({
   }
 
   const findings = index.findings.filter((finding) => finding.file === entity.path);
-  const backlinks = entity.backlinks
-    .map((id) => index.entities.find((candidate) => candidate.id === id))
-    .filter((candidate): candidate is Entity => Boolean(candidate));
   const typeDefinition = index.taxonomy?.types[entity.type];
   const editableFrontmatter = activeTab?.path === entity.path ? rawToEditorParts(activeTab.rawMarkdown).frontmatterRaw : "";
 
@@ -863,40 +952,48 @@ function Inspector({
       <p className="path-line">{entity.path}</p>
 
       <section>
-        <h3>Frontmatter</h3>
-        {activeTab?.path === entity.path && onChangeFrontmatter ? (
-          <label className="frontmatter-editor-wrap">
-            <span>YAML metadata</span>
-            <textarea
-              value={editableFrontmatter || "---\n\n---"}
-              onChange={(event) => onChangeFrontmatter(event.target.value)}
-              spellCheck={false}
-            />
-          </label>
+        {activeTab?.path === entity.path && onChangeFrontmatter && onUpdateEntity ? (
+          <MetadataEditor
+            entity={entity}
+            taxonomyConfig={index.taxonomyConfig}
+            rawYaml={editableFrontmatter || "---\n\n---"}
+            onUpdate={(updates) => onUpdateEntity(updates)}
+            onUpdateRawYaml={(yaml) => onChangeFrontmatter(yaml)}
+          />
         ) : (
-          <p className="muted">Open this note in a tab to edit its metadata.</p>
+          <>
+            <h3>Metadata</h3>
+            <p className="muted">Open this note in a tab to edit its metadata.</p>
+            <dl className="metadata-list">
+              <dt>id</dt>
+              <dd>{entity.id}</dd>
+              <dt>type</dt>
+              <dd>{typeDefinition?.label ?? entity.type}</dd>
+              <dt>status</dt>
+              <dd>{entity.status}</dd>
+              {Object.entries(entity.customProperties).map(([key, value]) => (
+                <div key={key} className="metadata-pair">
+                  <dt>{key}</dt>
+                  <dd>{formatValue(value)}</dd>
+                </div>
+              ))}
+            </dl>
+          </>
         )}
-        <dl className="metadata-list">
-          <dt>id</dt>
-          <dd>{entity.id}</dd>
-          <dt>type</dt>
-          <dd>{typeDefinition?.label ?? entity.type}</dd>
-          <dt>status</dt>
-          <dd>{entity.status}</dd>
-          {Object.entries(entity.customProperties).map(([key, value]) => (
-            <div key={key} className="metadata-pair">
-              <dt>{key}</dt>
-              <dd>{formatValue(value)}</dd>
-            </div>
-          ))}
-        </dl>
       </section>
 
       <section>
         <h3>Links</h3>
         <p className="muted">Wikilinks: {entity.wikilinks.length ? entity.wikilinks.join(", ") : "None"}</p>
-        <p className="muted">Backlinks: {backlinks.length ? backlinks.map((item) => item.name).join(", ") : "None"}</p>
       </section>
+
+      <BacklinksPanel
+        entity={entity}
+        allEntities={index.entities}
+        onOpenEntity={(path) => {
+          onOpenEntity?.(path);
+        }}
+      />
 
       <section>
         <h3>Findings</h3>
@@ -935,8 +1032,19 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showQuickSwitcher, setShowQuickSwitcher] = useState(false);
+  const [showTaxonomyMigration, setShowTaxonomyMigration] = useState(false);
+  const [generatedTaxonomy, setGeneratedTaxonomy] = useState<import("./editorTypes.js").TaxonomyConfig | null>(null);
   const [showSidebar, setShowSidebar] = useState(true);
   const [showInspector, setShowInspector] = useState(true);
+  const [showGraphView, setShowGraphView] = useState(false);
+  const [graphViewMode, setGraphViewMode] = useState<"global" | "local">("global");
+  const [graphDepth, setGraphDepth] = useState(1);
+  const [graphFilterTypes, setGraphFilterTypes] = useState<string[]>([]);
+  const [graphFilterTags, setGraphFilterTags] = useState<string[]>([]);
+  const [graphShowWikilinks, setGraphShowWikilinks] = useState(true);
+  const [graphShowHierarchy, setGraphShowHierarchy] = useState(true);
+  const [graphShowTagRelations, setGraphShowTagRelations] = useState(false);
+  const [graphHighlightedNodes, setGraphHighlightedNodes] = useState<Set<string>>(new Set());
   const [appZoom, setAppZoom] = useState(1);
   const [floatingToolbarRect, setFloatingToolbarRect] = useState<DOMRect>();
   const [templatesExpanded, setTemplatesExpanded] = useState(false);
@@ -1145,9 +1253,85 @@ function App() {
     };
   }, [tabContextMenu]);
 
-  const selectedEntity = index?.entities.find((entity) => entity.path === selectedPath);
+  // Create a "live" entity from the active tab's current content
+  // This allows Inspector to show unsaved changes immediately
+  const selectedEntity = useMemo(() => {
+    const indexEntity = index?.entities.find((entity) => entity.path === selectedPath);
+    
+    // If there's an active tab for this path, parse its current content
+    const activeTabForSelected = tabs.find((tab) => tab.path === selectedPath);
+    if (activeTabForSelected && indexEntity) {
+      try {
+        const parsed = parseMarkdownFrontmatter(activeTabForSelected.rawMarkdown);
+        
+        // Create live entity with current tab data
+        return {
+          ...indexEntity,
+          id: String(parsed.data.id || indexEntity.id),
+          name: String(parsed.data.name || indexEntity.name),
+          type: String(parsed.data.type || indexEntity.type),
+          status: String(parsed.data.status || indexEntity.status),
+          tags: Array.isArray(parsed.data.tags) ? parsed.data.tags.map(String) : indexEntity.tags,
+          aliases: Array.isArray(parsed.data.aliases) ? parsed.data.aliases.map(String) : indexEntity.aliases,
+          customProperties: (() => {
+            const props: Record<string, unknown> = {};
+            const excludedKeys = ['id', 'name', 'type', 'status', 'tags', 'aliases'];
+            Object.entries(parsed.data).forEach(([key, value]) => {
+              if (!excludedKeys.includes(key)) {
+                props[key] = value;
+              }
+            });
+            return props;
+          })(),
+          body: parsed.content,
+        };
+      } catch {
+        // If parsing fails, fall back to index entity
+        return indexEntity;
+      }
+    }
+    
+    return indexEntity;
+  }, [index, selectedPath, tabs]);
+  
   const selectedTemplate = index?.templates.find((template) => template.path === selectedPath);
   const canWrite = Boolean(index);
+
+  // Graph view data (computed after selectedEntity is available)
+  const graphOptions = useMemo<GraphOptions>(() => ({
+    mode: graphViewMode,
+    centerNodeId: graphViewMode === "local" ? selectedEntity?.id : undefined,
+    depth: graphDepth,
+    filterTypes: graphFilterTypes.length > 0 ? graphFilterTypes : undefined,
+    filterTags: graphFilterTags.length > 0 ? graphFilterTags : undefined,
+    showWikilinks: graphShowWikilinks,
+    showHierarchy: graphShowHierarchy,
+    showTagRelations: graphShowTagRelations,
+  }), [
+    graphViewMode,
+    selectedEntity?.id,
+    graphDepth,
+    graphFilterTypes,
+    graphFilterTags,
+    graphShowWikilinks,
+    graphShowHierarchy,
+    graphShowTagRelations,
+  ]);
+
+  const graphData = useMemo(() => {
+    if (!index) return { nodes: [], links: [] };
+    return buildGraphData(index.entities, graphOptions);
+  }, [index, graphOptions]);
+
+  const availableTypes = useMemo(() => {
+    if (!index) return [];
+    return getUniqueTypes(index.entities);
+  }, [index]);
+
+  const availableTags = useMemo(() => {
+    if (!index) return [];
+    return getUniqueTags(index.entities);
+  }, [index]);
 
   const visibleTree = useMemo(() => {
     if (!index) return [];
@@ -1192,6 +1376,84 @@ function App() {
       return index.files.some((file) => file.relativePath === favorite.path);
     });
   }, [index, settings.explorer.favorites]);
+
+  // Group entities by their ecosystem tags
+  const ecosystemGroups = useMemo(() => {
+    if (!index?.taxonomyConfig) return new Map<string, Entity[]>();
+    
+    const groups = new Map<string, Entity[]>();
+    const taxonomyConfig = index.taxonomyConfig;
+    
+    // Flatten tag hierarchy to get all tags with their colors
+    const tagMap = new Map<string, { color?: string; fullPath: string }>();
+    function flattenTags(nodes: typeof taxonomyConfig.tags.rootNodes, parentPath = "") {
+      nodes.forEach(node => {
+        const fullPath = parentPath ? `${parentPath}/${node.label}` : node.label;
+        tagMap.set(node.label, { color: node.color, fullPath });
+        tagMap.set(fullPath, { color: node.color, fullPath });
+        if (node.children?.length) {
+          flattenTags(node.children, fullPath);
+        }
+      });
+    }
+    flattenTags(taxonomyConfig.tags.rootNodes);
+    
+    // Add entities to groups based on their first tag
+    index.entities.forEach(entity => {
+      if (entity.tags.length > 0) {
+        const primaryTag = entity.tags[0];
+        const tagInfo = tagMap.get(primaryTag);
+        const groupKey = tagInfo?.fullPath || primaryTag;
+        
+        if (!groups.has(groupKey)) {
+          groups.set(groupKey, []);
+        }
+        groups.get(groupKey)!.push(entity);
+      } else {
+        // Untagged entities
+        if (!groups.has("_untagged")) {
+          groups.set("_untagged", []);
+        }
+        groups.get("_untagged")!.push(entity);
+      }
+    });
+    
+    return groups;
+  }, [index]);
+
+  // Get tag color for an entity
+  const entityTagColors = useMemo(() => {
+    const colorMap = new Map<string, string>();
+    if (!index?.taxonomyConfig) return colorMap;
+    
+    const taxonomyConfig = index.taxonomyConfig;
+    
+    // Find color in hierarchy
+    function findColor(nodes: typeof taxonomyConfig.tags.rootNodes, tag: string): string | undefined {
+      for (const node of nodes) {
+        if (node.label === tag || node.fullPath === tag) {
+          return node.color;
+        }
+        if (node.children?.length) {
+          const childColor = findColor(node.children, tag);
+          if (childColor) return childColor;
+        }
+      }
+      return undefined;
+    }
+    
+    // Map each entity path to its primary tag color
+    index.entities.forEach(entity => {
+      if (entity.tags.length > 0) {
+        const color = findColor(taxonomyConfig.tags.rootNodes, entity.tags[0]);
+        if (color) {
+          colorMap.set(entity.path, color);
+        }
+      }
+    });
+    
+    return colorMap;
+  }, [index]);
 
   function collectSearchMatches(
     nodes: VaultTreeNode[],
@@ -1813,6 +2075,47 @@ function App() {
     showToast(`Style: ${themeById(theme).label}`);
   }
 
+  async function saveTaxonomyConfig(taxonomy: import("./editorTypes.js").TaxonomyConfig) {
+    if (!index) return;
+    const content = `${JSON.stringify(taxonomy, null, 2)}\n`;
+    try {
+      if (browserRoot) {
+        await writeBrowserFile(browserRoot, ".everend/taxonomy.json", content);
+      } else {
+        const result = await invoke<WriteResult>("save_file", {
+          path: `${index.rootPath}/.everend/taxonomy.json`,
+          content,
+          expectedModifiedMs: null,
+        });
+        if (!result.ok) throw new Error(result.message ?? "Could not save taxonomy configuration.");
+      }
+      setIndex((current) => (current ? { ...current, taxonomyConfig: taxonomy } : current));
+      await reindexUniverseMetadata();
+      showToast("Taxonomy configuration saved.");
+    } catch (error) {
+      setLoadState("error");
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+      throw error;
+    }
+  }
+
+  async function handleAcceptTaxonomy(taxonomy: import("./editorTypes.js").TaxonomyConfig) {
+    await saveTaxonomyConfig(taxonomy);
+    setShowTaxonomyMigration(false);
+    setGeneratedTaxonomy(null);
+  }
+
+  function handleDeclineTaxonomy() {
+    setShowTaxonomyMigration(false);
+    setGeneratedTaxonomy(null);
+  }
+
+  function handleCustomizeTaxonomy() {
+    setShowTaxonomyMigration(false);
+    setShowSettings(true);
+    // SettingsModal will automatically show taxonomy section
+  }
+
   function toggleBuiltinTheme() {
     setThemeById(toggledThemeMode(settings.theme));
   }
@@ -1905,6 +2208,19 @@ function App() {
     setView("workspace");
     setLoadState("ready");
     setSettings((current) => rememberUniverse(current, readResult.rootPath, profileForRecent(nextIndex)));
+    
+    // Check if we should prompt for taxonomy migration
+    if (!nextIndex.taxonomyConfig && nextIndex.entities.length > 0) {
+      const generated = generateTaxonomyFromEntities(nextIndex.entities);
+      setGeneratedTaxonomy(generated);
+      // Only show dialog if there's meaningful data to migrate
+      const hasData = generated.tags.rootNodes.length > 0 || 
+                     generated.entityTypes.definitions.some(t => t.id !== "concept") ||
+                     generated.customFields.definitions.length > 0;
+      if (hasData) {
+        setShowTaxonomyMigration(true);
+      }
+    }
   }
 
   function createTabFromFile(file: VaultFile, mode = settings.editor.defaultMode): OpenTab {
@@ -2198,6 +2514,42 @@ function App() {
         };
       }),
     );
+  }
+
+  function updateEntityMetadata(updates: Partial<Entity>) {
+    if (!activeTabPath || !activeTab) return;
+    
+    const currentEntity = selectedEntity;
+    if (!currentEntity) return;
+
+    // Merge updates with current entity
+    const updatedEntity = { ...currentEntity, ...updates };
+
+    // Build YAML object
+    const yamlObj: Record<string, unknown> = {
+      id: updatedEntity.id,
+      type: updatedEntity.type,
+      status: updatedEntity.status,
+    };
+
+    // Only add tags and aliases if they have values
+    if (updatedEntity.tags.length > 0) {
+      yamlObj.tags = updatedEntity.tags;
+    }
+    if (updatedEntity.aliases.length > 0) {
+      yamlObj.aliases = updatedEntity.aliases;
+    }
+
+    // Add custom properties
+    Object.entries(updatedEntity.customProperties).forEach(([key, value]) => {
+      yamlObj[key] = value;
+    });
+
+    // Serialize to YAML using YAML library for proper formatting
+    const yamlContent = YAML.stringify(yamlObj);
+    const frontmatterRaw = `---\n${yamlContent}---`;
+
+    updateActiveFrontmatter(frontmatterRaw);
   }
 
   async function saveEditor() {
@@ -3036,6 +3388,14 @@ function App() {
           >
             <ExternalLink size={14} />
           </button>
+          <button
+            type="button"
+            onClick={() => setShowGraphView((current) => !current)}
+            title="Toggle graph view"
+            className={showGraphView ? "active" : ""}
+          >
+            <Network size={14} />
+          </button>
         </div>
 
         <label className="search-box">
@@ -3044,20 +3404,34 @@ function App() {
         </label>
 
         <nav className="explorer-sections">
-          {(["allFiles", "favorites"] as ExplorerSection[]).map((section) => (
-            <button
-              key={section}
-              type="button"
-              className={activeExplorerSection === section ? "active" : ""}
-              onClick={() => updateExplorer({ activeSection: section })}
-            >
-              {section === "allFiles" ? "All Files" : `${section.charAt(0).toUpperCase()}${section.slice(1)}`}
-            </button>
-          ))}
+          <button
+            type="button"
+            className={activeExplorerSection === "allFiles" ? "active" : ""}
+            onClick={() => updateExplorer({ activeSection: "allFiles" })}
+            title="All Files"
+          >
+            <Files size={16} />
+          </button>
+          <button
+            type="button"
+            className={activeExplorerSection === "favorites" ? "active" : ""}
+            onClick={() => updateExplorer({ activeSection: "favorites" })}
+            title="Favorites"
+          >
+            <Star size={16} />
+          </button>
+          <button
+            type="button"
+            className={activeExplorerSection === "ecosystem" ? "active" : ""}
+            onClick={() => updateExplorer({ activeSection: "ecosystem" })}
+            title="Ecosystem"
+          >
+            <Hash size={16} />
+          </button>
         </nav>
 
         <div className="sidebar-main" onContextMenu={(event) => handleContextMenu(event, "", "empty")}>
-          {activeExplorerSection === "favorites" ? (
+          {activeExplorerSection === "favorites" && (
             <section className="sidebar-section">
               <h2>Favorites</h2>
               <div className="template-list">
@@ -3079,7 +3453,70 @@ function App() {
                 )}
               </div>
             </section>
-          ) : (
+          )}
+
+          {activeExplorerSection === "ecosystem" && (
+            <section className="sidebar-section ecosystem-view">
+              <h2>Ecosystem</h2>
+              <div className="ecosystem-groups">
+                {ecosystemGroups.size > 0 ? (
+                  Array.from(ecosystemGroups.entries())
+                    .sort(([a], [b]) => {
+                      if (a === "_untagged") return 1;
+                      if (b === "_untagged") return -1;
+                      return a.localeCompare(b);
+                    })
+                    .map(([tagPath, entities]) => {
+                      const tagInfo = index?.taxonomyConfig?.tags.rootNodes.find(
+                        node => node.label === tagPath || node.fullPath === tagPath
+                      );
+                      const displayName = tagPath === "_untagged" ? "Sin etiquetas" : tagPath;
+                      const tagColor = tagInfo?.color;
+
+                      return (
+                        <div key={tagPath} className="ecosystem-group">
+                          <div className="ecosystem-group-header">
+                            {tagColor && (
+                              <span 
+                                className="ecosystem-group-color" 
+                                style={{ backgroundColor: tagColor }}
+                              />
+                            )}
+                            <Hash size={14} />
+                            <span className="ecosystem-group-name">{displayName}</span>
+                            <span className="ecosystem-group-count">{entities.length}</span>
+                          </div>
+                          <div className="ecosystem-group-items">
+                            {entities.map(entity => (
+                              <button
+                                key={entity.path}
+                                type="button"
+                                className={`ecosystem-item ${selectedPath === entity.path ? "active" : ""}`}
+                                onClick={() => selectPath(entity.path)}
+                                onContextMenu={(event) => handleContextMenu(event, entity.path, "file")}
+                              >
+                                {tagColor && (
+                                  <span 
+                                    className="ecosystem-item-color" 
+                                    style={{ backgroundColor: tagColor }}
+                                  />
+                                )}
+                                <FileText size={14} />
+                                <span className="ecosystem-item-name">{entity.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })
+                ) : (
+                  <p className="muted">No entities with tags yet.</p>
+                )}
+              </div>
+            </section>
+          )}
+
+          {activeExplorerSection === "allFiles" && (
             <section className="sidebar-section">
               <h2>All Files</h2>
               <div
@@ -3119,6 +3556,7 @@ function App() {
                         setPointerDragItem({ path, kind, startX, startY, active: false })
                       }
                       isPointerClickSuppressed={() => suppressTreeClickRef.current}
+                      entityTagColors={entityTagColors}
                     />
                   ))
                 ) : (
@@ -3431,7 +3869,64 @@ function App() {
           index={index}
           activeTab={activeTab}
           onChangeFrontmatter={updateActiveFrontmatter}
+          onUpdateEntity={updateEntityMetadata}
+          onOpenEntity={(path) => {
+            openOrCreateTab(path);
+            setSelectedPath(path);
+          }}
         />
+      ) : null}
+
+      {showGraphView ? (
+        <aside className="inspector graph-panel">
+          <div className="graph-panel-header">
+            <h2>Graph View</h2>
+            <button
+              type="button"
+              className="close-button"
+              onClick={() => setShowGraphView(false)}
+              title="Close graph view"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <div className="graph-panel-controls">
+            <GraphControls
+              nodes={graphData.nodes}
+              availableTypes={availableTypes}
+              availableTags={availableTags}
+              mode={graphViewMode}
+              depth={graphDepth}
+              filterTypes={graphFilterTypes}
+              filterTags={graphFilterTags}
+              showWikilinks={graphShowWikilinks}
+              showHierarchy={graphShowHierarchy}
+              showTagRelations={graphShowTagRelations}
+              onModeChange={setGraphViewMode}
+              onDepthChange={setGraphDepth}
+              onFilterTypesChange={setGraphFilterTypes}
+              onFilterTagsChange={setGraphFilterTags}
+              onShowWikilinksChange={setGraphShowWikilinks}
+              onShowHierarchyChange={setGraphShowHierarchy}
+              onShowTagRelationsChange={setGraphShowTagRelations}
+              onSearchResultsChange={setGraphHighlightedNodes}
+            />
+          </div>
+          <div className="graph-panel-view">
+            <GraphView
+              graphData={graphData}
+              mode={graphViewMode}
+              centerNodeId={selectedEntity?.id}
+              onNodeClick={(path) => {
+                openOrCreateTab(path);
+                setSelectedPath(path);
+              }}
+              highlightedNodes={graphHighlightedNodes}
+              width={800}
+              height={600}
+            />
+          </div>
+        </aside>
       ) : null}
 
       {showSettings ? (
@@ -3449,6 +3944,17 @@ function App() {
         />
       ) : null}
 
+      {showTaxonomyMigration && generatedTaxonomy && index ? (
+        <TaxonomyMigrationDialog
+          isOpen={showTaxonomyMigration}
+          generatedTaxonomy={generatedTaxonomy}
+          entityCount={index.entities.length}
+          onAccept={handleAcceptTaxonomy}
+          onDecline={handleDeclineTaxonomy}
+          onCustomize={handleCustomizeTaxonomy}
+        />
+      ) : null}
+
       {showCommandPalette ? (
         <CommandPalette
           isOpen={showCommandPalette}
@@ -3460,6 +3966,7 @@ function App() {
           recentFiles={settings.explorer.recentFiles}
           favorites={settings.explorer.favorites.map((f) => f.path)}
           fileAccessStats={currentSession?.fileAccessStats}
+          taxonomyConfig={index?.taxonomyConfig}
           onSelectFile={(path) => {
             openOrCreateTab(path);
             setShowCommandPalette(false);
@@ -3499,6 +4006,7 @@ function App() {
           tagResults={[]}
           fileAccessStats={currentSession?.fileAccessStats}
           quickSwitcherMode={true}
+          taxonomyConfig={index?.taxonomyConfig}
           onSelectFile={(path) => {
             openOrCreateTab(path);
             setShowQuickSwitcher(false);

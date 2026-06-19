@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { BookOpen, Castle, ExternalLink, FileText, Folder, Globe2, Keyboard, PanelLeft, Settings, Sparkles, TextCursorInput, Upload, X } from "lucide-react";
+import { BookOpen, Castle, ExternalLink, FileText, Folder, Globe2, Hash, Keyboard, PanelLeft, Settings, Sparkles, TextCursorInput, Upload, X } from "lucide-react";
 import {
   AppSettingsV4,
   DEFAULT_KEYBINDINGS,
@@ -8,9 +8,12 @@ import {
   EditorCommandId,
   EditorSettings,
   Keybinding,
+  TaxonomyConfig,
 } from "../editorTypes";
 import type { UniverseProfile } from "../domain";
+import { createDefaultTaxonomyConfig } from "../domain";
 import { themeById } from "../themes";
+import { TaxonomyManager } from "./TaxonomyManager";
 import "../App.css";
 
 type SettingsModalProps = {
@@ -23,9 +26,11 @@ type SettingsModalProps = {
     templateCount: number;
     findingCount: number;
     profile?: UniverseProfile;
+    taxonomyConfig?: TaxonomyConfig;
   };
   onChange: (settings: AppSettingsV4) => void;
   onSaveUniverseProfile?: (profile: UniverseProfile) => Promise<void>;
+  onSaveTaxonomyConfig?: (config: TaxonomyConfig) => Promise<void>;
   onClose: () => void;
   onRevealUniverse?: () => void;
   onOpenUniverseNote?: () => void;
@@ -81,13 +86,14 @@ function readImageFile(file: File) {
   });
 }
 
-type SettingsSection = "overview" | "editor" | "shortcuts" | "tabs" | "explorer";
+type SettingsSection = "overview" | "taxonomy" | "editor" | "shortcuts" | "tabs" | "explorer";
 
 export function SettingsModal({
   settings,
   universe,
   onChange,
   onSaveUniverseProfile,
+  onSaveTaxonomyConfig,
   onClose,
   onRevealUniverse,
   onOpenUniverseNote,
@@ -100,6 +106,10 @@ export function SettingsModal({
     icon: universe?.profile?.icon ?? { type: "preset", value: "book" },
   }));
   const [profileSaving, setProfileSaving] = useState(false);
+  const [taxonomyDraft, setTaxonomyDraft] = useState<TaxonomyConfig>(() =>
+    universe?.taxonomyConfig ?? createDefaultTaxonomyConfig()
+  );
+  const [taxonomySaving, setTaxonomySaving] = useState(false);
 
   useEffect(() => {
     if (!universe) return;
@@ -107,7 +117,14 @@ export function SettingsModal({
       name: universe.profile?.name ?? universe.name,
       icon: universe.profile?.icon ?? { type: "preset", value: "book" },
     });
-  }, [universe?.name, universe?.profile?.name, universe?.profile?.icon?.type, universe?.profile?.icon?.value]);
+    setTaxonomyDraft(universe.taxonomyConfig ?? createDefaultTaxonomyConfig());
+  }, [
+    universe?.name,
+    universe?.profile?.name,
+    universe?.profile?.icon?.type,
+    universe?.profile?.icon?.value,
+    universe?.taxonomyConfig,
+  ]);
 
   const keybindingMap = useMemo(
     () => new Map(settings.keybindings.map((binding) => [binding.commandId, binding.shortcut])),
@@ -156,6 +173,10 @@ export function SettingsModal({
                 <button className={activeSection === "overview" ? "active" : ""} onClick={() => setActiveSection("overview")} type="button">
                   <Settings size={14} />
                   Overview
+                </button>
+                <button className={activeSection === "taxonomy" ? "active" : ""} onClick={() => setActiveSection("taxonomy")} type="button">
+                  <Hash size={14} />
+                  Ecosistema
                 </button>
               </div>
             ) : null}
@@ -438,6 +459,33 @@ export function SettingsModal({
                   <span>Confirm dirty close</span>
                   <input type="checkbox" checked={settings.editor.confirmCloseDirtyTab} onChange={(event) => updateEditor({ confirmCloseDirtyTab: event.target.checked })} />
                 </label>
+              </div>
+            ) : null}
+
+            {activeSection === "taxonomy" && universe ? (
+              <div className="settings-panel">
+                <h3>Configuración del Ecosistema</h3>
+                <p className="settings-description">
+                  Configura etiquetas, tipos de entidad, estados y campos personalizados para la arquitectura de tu mundo.
+                </p>
+                <TaxonomyManager config={taxonomyDraft} onChange={setTaxonomyDraft} />
+                <div className="settings-actions">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!onSaveTaxonomyConfig) return;
+                      setTaxonomySaving(true);
+                      try {
+                        await onSaveTaxonomyConfig(taxonomyDraft);
+                      } finally {
+                        setTaxonomySaving(false);
+                      }
+                    }}
+                    disabled={taxonomySaving}
+                  >
+                    {taxonomySaving ? "Guardando..." : "Guardar Ecosistema"}
+                  </button>
+                </div>
               </div>
             ) : null}
 

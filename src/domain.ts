@@ -47,6 +47,7 @@ export type UniverseIcon = {
 export type UniverseProfile = {
   name?: string;
   icon?: UniverseIcon;
+  taxonomyVersion?: string; // Version of taxonomy config being used
 };
 
 export type ValidationFinding = {
@@ -58,7 +59,11 @@ export type ValidationFinding = {
     | "missing_canon_ref"
     | "broken_graph_transition"
     | "missing_runtime_asset"
-    | "save_conflict";
+    | "save_conflict"
+    | "undefined_tag"
+    | "undefined_entity_type"
+    | "undefined_status"
+    | "invalid_custom_field";
   severity: "info" | "warning" | "error";
   message: string;
   file?: string;
@@ -90,6 +95,7 @@ export type VaultIndex = {
   directories: string[];
   markdownFiles: VaultFile[];
   taxonomy?: Taxonomy;
+  taxonomyConfig?: import("./editorTypes.js").TaxonomyConfig; // New hierarchical taxonomy
   templates: EntityTemplate[];
   universeProfile?: UniverseProfile;
   universes: Universe[];
@@ -226,6 +232,122 @@ function basenameWithoutExtension(path: string): string {
   return filename.replace(/\.[^.]+$/, "");
 }
 
+/**
+ * Process tags considering hierarchical slash notation
+ * Returns normalized tag strings
+ * @internal Not currently used - kept for future tag hierarchy processing
+ *
+function _processTagsWithHierarchy(value: unknown): string[] {
+  const tags = toStringArray(value);
+  // Tags are stored as-is (with slash notation if present)
+  // The hierarchy extraction happens in mergeTagHierarchy during indexing
+  return tags;
+}
+*/
+
+/**
+ * Validate entity against taxonomy configuration
+ * Returns array of validation findings
+ */
+export function validateAgainstTaxonomy(
+  entity: Entity,
+  taxonomyConfig: import("./editorTypes.js").TaxonomyConfig | undefined,
+  filePath: string,
+): ValidationFinding[] {
+  if (!taxonomyConfig) return [];
+
+  const findings: ValidationFinding[] = [];
+
+  // Validate tags
+  if (entity.tags.length > 0 && !taxonomyConfig.tags.allowCustomTags) {
+    const definedTags = new Set<string>();
+    const collectTags = (nodes: import("./editorTypes.js").TagHierarchyNode[]) => {
+      nodes.forEach((node) => {
+        definedTags.add(node.fullPath);
+        collectTags(node.children);
+      });
+    };
+    collectTags(taxonomyConfig.tags.rootNodes);
+
+    entity.tags.forEach((tag) => {
+      if (!definedTags.has(tag)) {
+        findings.push(
+          createFinding(
+            "undefined_tag",
+            "warning",
+            `Tag "${tag}" is not defined in taxonomy. Add it to the hierarchy or enable custom tags.`,
+            filePath,
+            "tags",
+          ),
+        );
+      }
+    });
+  }
+
+  // Validate entity type
+  const typeIds = new Set(taxonomyConfig.entityTypes.definitions.map((t) => t.id));
+  if (!typeIds.has(entity.type) && !taxonomyConfig.entityTypes.allowCustomTypes) {
+    const suggestion = taxonomyConfig.entityTypes.definitions
+      .map((t) => t.id)
+      .find((id) => id.includes(entity.type) || entity.type.includes(id));
+
+    findings.push(
+      createFinding(
+        "undefined_entity_type",
+        "warning",
+        `Entity type "${entity.type}" is not defined in taxonomy.`,
+        filePath,
+        "type",
+      ),
+    );
+    if (suggestion) {
+      findings[findings.length - 1].suggestion = `Did you mean "${suggestion}"?`;
+    }
+  }
+
+  // Validate status
+  const statusIds = new Set(taxonomyConfig.statuses.definitions.map((s) => s.id));
+  if (!statusIds.has(entity.status) && !taxonomyConfig.statuses.allowCustomStatuses) {
+    const suggestion = taxonomyConfig.statuses.definitions
+      .map((s) => s.id)
+      .find((id) => id.includes(entity.status) || entity.status.includes(id));
+
+    findings.push(
+      createFinding(
+        "undefined_status",
+        "warning",
+        `Status "${entity.status}" is not defined in taxonomy.`,
+        filePath,
+        "status",
+      ),
+    );
+    if (suggestion) {
+      findings[findings.length - 1].suggestion = `Did you mean "${suggestion}"?`;
+    }
+  }
+
+  // Validate custom fields if entity type has required fields
+  const entityTypeDef = taxonomyConfig.entityTypes.definitions.find((t) => t.id === entity.type);
+  if (entityTypeDef?.customFields) {
+    entityTypeDef.customFields.forEach((fieldId) => {
+      const fieldDef = taxonomyConfig.customFields.definitions.find((f) => f.id === fieldId);
+      if (fieldDef?.required && !(fieldId in entity.customProperties)) {
+        findings.push(
+          createFinding(
+            "invalid_custom_field",
+            "warning",
+            `Required field "${fieldDef.label}" (${fieldId}) is missing for entity type "${entityTypeDef.label}".`,
+            filePath,
+            fieldId,
+          ),
+        );
+      }
+    });
+  }
+
+  return findings;
+}
+
 function pathName(path: string): string {
   return path.replace(/^browser:/, "").split(/[\\/]/).pop() ?? path;
 }
@@ -281,7 +403,7 @@ export function parseMarkdownFrontmatter(content: string): ParsedMarkdown {
   const yaml = normalized.slice(3, closingFence).trim();
   const bodyStart = normalized.indexOf("\n", closingFence + 4);
   const body = bodyStart === -1 ? "" : normalized.slice(bodyStart + 1);
-  const data = YAML.parse(yaml) as Record<string, unknown> | null;
+  const data = YAML.parse(yaml, { mapAsMap: true }) as Record<string, unknown> | null;
 
   return {
     data: data ?? {},
@@ -362,6 +484,384 @@ function parseUniverseProfile(files: VaultFile[], findings: ValidationFinding[])
     );
     return undefined;
   }
+}
+
+// ============================================================================
+// Taxonomy Config Persistence Functions
+// ============================================================================
+
+/**
+ * Parse taxonomy configuration from .everend/taxonomy.json
+ */
+function parseTaxonomyConfig(
+  files: VaultFile[],
+  findings: ValidationFinding[],
+): import("./editorTypes.js").TaxonomyConfig | undefined {
+  const taxonomyFile = files.find((file) => file.relativePath === ".everend/taxonomy.json");
+  if (!taxonomyFile) return undefined;
+
+  try {
+    const parsed = JSON.parse(taxonomyFile.content);
+    if (!parsed || typeof parsed !== "object") return undefined;
+
+    // Validate structure
+    const config = parsed as import("./editorTypes.js").TaxonomyConfig;
+    if (!config.version || !config.tags || !config.entityTypes || !config.statuses || !config.customFields) {
+      findings.push(
+        createFinding(
+          "missing_runtime_asset",
+          "warning",
+          "Taxonomy config is missing required fields.",
+          ".everend/taxonomy.json",
+        ),
+      );
+      return undefined;
+    }
+
+    return config;
+  } catch (error) {
+    findings.push(
+      createFinding(
+        "missing_runtime_asset",
+        "warning",
+        `Taxonomy config must be valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+        ".everend/taxonomy.json",
+      ),
+    );
+    return undefined;
+  }
+}
+
+/**
+ * Generate default taxonomy config with common entity types and statuses
+ */
+export function createDefaultTaxonomyConfig(): import("./editorTypes.js").TaxonomyConfig {
+  return {
+    version: "1.0",
+    tags: {
+      rootNodes: [],
+      allowCustomTags: true,
+      autoDetectSlashNotation: true,
+    },
+    entityTypes: {
+      definitions: [
+        {
+          id: "character",
+          label: "Character",
+          description: "Person, creature, or viewpoint actor",
+          icon: "user",
+          color: "#3b82f6",
+          customFields: [],
+        },
+        {
+          id: "location",
+          label: "Location",
+          description: "Place, region, settlement, or site",
+          icon: "map-pin",
+          color: "#10b981",
+          customFields: [],
+        },
+        {
+          id: "organization",
+          label: "Organization",
+          description: "Faction, institution, house, or guild",
+          icon: "users",
+          color: "#f59e0b",
+          customFields: [],
+        },
+        {
+          id: "concept",
+          label: "Concept",
+          description: "Idea, law, magic rule, or abstract note",
+          icon: "lightbulb",
+          color: "#8b5cf6",
+          customFields: [],
+        },
+        {
+          id: "event",
+          label: "Event",
+          description: "Canon event or historical beat",
+          icon: "calendar",
+          color: "#ef4444",
+          customFields: [],
+        },
+        {
+          id: "item",
+          label: "Item",
+          description: "Object, relic, tool, or artifact",
+          icon: "package",
+          color: "#ec4899",
+          customFields: [],
+        },
+      ],
+      defaultType: "concept",
+      allowCustomTypes: true,
+    },
+    statuses: {
+      definitions: [
+        {
+          id: "draft",
+          label: "Draft",
+          description: "Work in progress",
+          color: "#6b7280",
+          order: 0,
+        },
+        {
+          id: "in-progress",
+          label: "In Progress",
+          description: "Actively being worked on",
+          color: "#f59e0b",
+          order: 1,
+        },
+        {
+          id: "review",
+          label: "Review",
+          description: "Ready for review",
+          color: "#3b82f6",
+          order: 2,
+        },
+        {
+          id: "published",
+          label: "Published",
+          description: "Finalized and approved",
+          color: "#10b981",
+          order: 3,
+        },
+        {
+          id: "archived",
+          label: "Archived",
+          description: "No longer active",
+          color: "#6b7280",
+          order: 4,
+        },
+      ],
+      defaultStatus: "draft",
+      allowCustomStatuses: true,
+    },
+    customFields: {
+      definitions: [],
+      globalFields: [],
+    },
+  };
+}
+
+/**
+ * Generate initial taxonomy configuration from existing vault entities
+ * Analyzes tags, types, statuses, and custom properties to create a starting taxonomy
+ */
+export function generateTaxonomyFromEntities(entities: Entity[]): import("./editorTypes.js").TaxonomyConfig {
+  const tagSet = new Set<string>();
+  const typeSet = new Set<string>();
+  const statusSet = new Set<string>();
+  const propertyFrequency = new Map<string, number>();
+  const propertyExamples = new Map<string, Set<unknown>>();
+
+  // Analyze entities
+  entities.forEach((entity) => {
+    // Collect tags
+    entity.tags.forEach((tag) => tagSet.add(tag));
+
+    // Collect types
+    if (entity.type) typeSet.add(entity.type);
+
+    // Collect statuses
+    if (entity.status) statusSet.add(entity.status);
+
+    // Collect custom properties
+    Object.entries(entity.customProperties).forEach(([key, value]) => {
+      propertyFrequency.set(key, (propertyFrequency.get(key) || 0) + 1);
+      if (!propertyExamples.has(key)) {
+        propertyExamples.set(key, new Set());
+      }
+      propertyExamples.get(key)!.add(value);
+    });
+  });
+
+  // Build hierarchical tag structure from slash notation
+  const buildTagHierarchy = (tags: string[]): import("./editorTypes.js").TagHierarchyNode[] => {
+    const rootMap = new Map<string, import("./editorTypes.js").TagHierarchyNode>();
+
+    tags.forEach((tag) => {
+      const parts = tag.split("/");
+      let currentPath = "";
+
+      parts.forEach((part, index) => {
+        const parentPath = currentPath;
+        currentPath = currentPath ? `${currentPath}/${part}` : part;
+
+        if (index === 0) {
+          // Root level
+          if (!rootMap.has(currentPath)) {
+            rootMap.set(currentPath, {
+              id: `tag-${currentPath}`,
+              label: part,
+              fullPath: currentPath,
+              children: [],
+            });
+          }
+        } else {
+          // Find parent and add child
+          const findAndAddChild = (nodes: import("./editorTypes.js").TagHierarchyNode[]): boolean => {
+            for (const node of nodes) {
+              if (node.fullPath === parentPath) {
+                const existing = node.children.find((c) => c.fullPath === currentPath);
+                if (!existing) {
+                  node.children.push({
+                    id: `tag-${currentPath}`,
+                    label: part,
+                    fullPath: currentPath,
+                    children: [],
+                    parentId: node.id,
+                  });
+                }
+                return true;
+              }
+              if (findAndAddChild(node.children)) return true;
+            }
+            return false;
+          };
+
+          findAndAddChild(Array.from(rootMap.values()));
+        }
+      });
+    });
+
+    return Array.from(rootMap.values());
+  };
+
+  // Build entity type definitions
+  const entityTypeDefinitions: import("./editorTypes.js").EntityTypeDefinition[] = Array.from(typeSet)
+    .filter((type) => type !== "")
+    .map((type, _index) => ({
+      id: type,
+      label: type.charAt(0).toUpperCase() + type.slice(1),
+      customFields: [],
+    }));
+
+  // Build status definitions
+  const statusDefinitions: import("./editorTypes.js").StatusDefinition[] = Array.from(statusSet)
+    .filter((status) => status !== "")
+    .map((status, index) => ({
+      id: status,
+      label: status.charAt(0).toUpperCase() + status.slice(1),
+      order: index,
+    }));
+
+  // Build custom field definitions (only for frequently used properties)
+  const threshold = Math.max(3, Math.floor(entities.length * 0.1)); // At least 10% of entities or minimum 3
+  const customFieldDefinitions: import("./editorTypes.js").CustomFieldDefinition[] = Array.from(
+    propertyFrequency.entries()
+  )
+    .filter(([_, count]) => count >= threshold)
+    .map(([key, _]) => {
+      const examples = Array.from(propertyExamples.get(key) || []);
+      
+      // Infer field type from examples
+      let fieldType: import("./editorTypes.js").CustomFieldType = "text";
+      if (examples.every((v) => typeof v === "boolean")) {
+        fieldType = "boolean";
+      } else if (examples.every((v) => typeof v === "number")) {
+        fieldType = "number";
+      } else if (examples.every((v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(String(v)))) {
+        fieldType = "date";
+      } else if (examples.length <= 10 && examples.every((v) => typeof v === "string")) {
+        fieldType = "select";
+      }
+
+      return {
+        id: key,
+        label: key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, " $1"),
+        type: fieldType,
+        ...(fieldType === "select" && {
+          options: examples.map((v) => ({
+            label: String(v),
+            value: String(v),
+          })),
+        }),
+      };
+    });
+
+  return {
+    version: "1.0",
+    tags: {
+      rootNodes: buildTagHierarchy(Array.from(tagSet)),
+      allowCustomTags: true,
+      autoDetectSlashNotation: true,
+    },
+    entityTypes: {
+      definitions: entityTypeDefinitions.length > 0 
+        ? entityTypeDefinitions 
+        : createDefaultTaxonomyConfig().entityTypes.definitions,
+      defaultType: entityTypeDefinitions.length > 0 ? entityTypeDefinitions[0].id : "concept",
+      allowCustomTypes: true,
+    },
+    statuses: {
+      definitions: statusDefinitions.length > 0 
+        ? statusDefinitions 
+        : createDefaultTaxonomyConfig().statuses.definitions,
+      defaultStatus: statusDefinitions.length > 0 ? statusDefinitions[0].id : "draft",
+      allowCustomStatuses: true,
+    },
+    customFields: {
+      definitions: customFieldDefinitions,
+      globalFields: customFieldDefinitions.map((f) => f.id),
+    },
+  };
+}
+
+/**
+ * Merge hierarchical tags from predefined structure and auto-detected slash notation
+ */
+export function mergeTagHierarchy(
+  predefinedTags: import("./editorTypes.js").TagHierarchyNode[],
+  detectedTags: string[],
+): import("./editorTypes.js").TagHierarchyNode[] {
+  const tagMap = new Map<string, import("./editorTypes.js").TagHierarchyNode>();
+
+  // Add all predefined tags to map
+  const addToMap = (node: import("./editorTypes.js").TagHierarchyNode) => {
+    tagMap.set(node.fullPath, node);
+    node.children.forEach(addToMap);
+  };
+  predefinedTags.forEach(addToMap);
+
+  // Process detected tags with slash notation
+  detectedTags.forEach((tag) => {
+    if (tag.includes("/")) {
+      const parts = tag.split("/").filter(Boolean);
+      let currentPath = "";
+      let parentId: string | undefined;
+
+      parts.forEach((part, _index) => {
+        currentPath = currentPath ? `${currentPath}/${part}` : part;
+
+        if (!tagMap.has(currentPath)) {
+          const newNode: import("./editorTypes.js").TagHierarchyNode = {
+            id: currentPath.replace(/\//g, "-"),
+            label: part,
+            fullPath: currentPath,
+            children: [],
+            parentId,
+          };
+
+          tagMap.set(currentPath, newNode);
+
+          // Add to parent's children or root
+          if (parentId) {
+            const parent = Array.from(tagMap.values()).find((n) => n.id === parentId);
+            if (parent && !parent.children.some((c) => c.id === newNode.id)) {
+              parent.children.push(newNode);
+            }
+          }
+        }
+
+        parentId = currentPath.replace(/\//g, "-");
+      });
+    }
+  });
+
+  // Return only root nodes (nodes without parentId)
+  return Array.from(tagMap.values()).filter((node) => !node.parentId);
 }
 
 function isFolderDescriptionFile(file: VaultFile, folderName: string) {
@@ -537,7 +1037,7 @@ function parseTaxonomy(files: VaultFile[], findings: ValidationFinding[]): Taxon
   }
 
   try {
-    const parsed = YAML.parse(taxonomyFile.content) as Taxonomy | null;
+    const parsed = YAML.parse(taxonomyFile.content, { mapAsMap: true }) as Taxonomy | null;
     if (!parsed || typeof parsed !== "object") {
       findings.push(
         createFinding(
@@ -632,6 +1132,7 @@ export function indexVault(readResult: VaultReadResult): VaultIndex {
   const taxonomy = mergeWithStarterTaxonomy(parseTaxonomy(readResult.files, findings));
   const templates = parseTemplates(readResult.files);
   const universeProfile = parseUniverseProfile(readResult.files, findings);
+  const taxonomyConfig = parseTaxonomyConfig(readResult.files, findings);
   const entities: Entity[] = [];
   const ids = new Map<string, Entity[]>();
 
@@ -708,6 +1209,12 @@ export function indexVault(readResult: VaultReadResult): VaultIndex {
 
     entities.push(entity);
     ids.set(entity.id, [...(ids.get(entity.id) ?? []), entity]);
+
+    // Validate against taxonomy if configured
+    if (taxonomyConfig) {
+      const taxonomyFindings = validateAgainstTaxonomy(entity, taxonomyConfig, file.relativePath);
+      findings.push(...taxonomyFindings);
+    }
   }
 
   for (const [id, matchingEntities] of ids.entries()) {
@@ -798,6 +1305,7 @@ export function indexVault(readResult: VaultReadResult): VaultIndex {
     directories,
     markdownFiles,
     taxonomy,
+    taxonomyConfig,
     templates,
     universeProfile,
     universes,

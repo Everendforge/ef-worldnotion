@@ -1,0 +1,194 @@
+{
+  "version": "1.0",
+  "tags": {
+    "rootNodes": [
+      {
+        "id": "tag-city",
+        "label": "city",
+        "fullPath": "city",
+        "children": []
+      },
+      {
+        "id": "tag-frontier",
+        "label": "frontier",
+        "fullPath": "frontier",
+        "children": []
+      },
+      {
+        "id": "tag-cast",
+        "label": "cast",
+        "fullPath": "cast",
+        "children": []
+      },
+      {
+        "id": "tag-guild",
+        "label": "guild",
+        "fullPath": "guild",
+        "children": []
+      },
+      {
+        "id": "tag-archive",
+        "label": "archive",
+        "fullPath": "archive",
+        "children": []
+      },
+      {
+        "id": "tag-artifact",
+        "label": "artifact",
+        "fullPath": "artifact",
+        "children": []
+      },
+      {
+        "id": "tag-cartographer",
+        "label": "cartographer",
+        "fullPath": "cartographer",
+        "children": []
+      },
+      {
+        "id": "tag-myth",
+        "label": "myth",
+        "fullPath": "myth",
+        "children": []
+      },
+      {
+        "id": "tag-travel",
+        "label": "travel",
+        "fullPath": "travel",
+        "children": []
+      },
+      {
+        "id": "tag-act-one",
+        "label": "act-one",
+        "fullPath": "act-one",
+        "children": []
+      }
+    ],
+    "allowCustomTags": true,
+    "autoDetectSlashNotation": true
+  },
+  "entityTypes": {
+    "definitions": [
+      {
+        "id": "location",
+        "label": "Location",
+        "customFields": []
+      },
+      {
+        "id": "character",
+        "label": "Character",
+        "customFields": []
+      },
+      {
+        "id": "folder-description",
+        "label": "Folder-description",
+        "customFields": []
+      },
+      {
+        "id": "unknown",
+        "label": "Unknown",
+        "customFields": []
+      },
+      {
+        "id": "universe",
+        "label": "Universe",
+        "customFields": []
+      },
+      {
+        "id": "organization",
+        "label": "Organization",
+        "customFields": []
+      },
+      {
+        "id": "item",
+        "label": "Item",
+        "customFields": []
+      },
+      {
+        "id": "concept",
+        "label": "Concept",
+        "customFields": []
+      },
+      {
+        "id": "scene",
+        "label": "Scene",
+        "customFields": []
+      }
+    ],
+    "defaultType": "location",
+    "allowCustomTypes": true
+  },
+  "statuses": {
+    "definitions": [
+      {
+        "id": "canon",
+        "label": "Canon",
+        "order": 0
+      },
+      {
+        "id": "unknown",
+        "label": "Unknown",
+        "order": 1
+      },
+      {
+        "id": "draft",
+        "label": "Draft",
+        "order": 2
+      },
+      {
+        "id": "outline",
+        "label": "Outline",
+        "order": 3
+      }
+    ],
+    "defaultStatus": "canon",
+    "allowCustomStatuses": true
+  },
+  "customFields": {
+    "definitions": [
+      {
+        "id": "folder",
+        "label": "Folder",
+        "type": "select",
+        "options": [
+          {
+            "label": "Characters",
+            "value": "Characters"
+          },
+          {
+            "label": "Concepts",
+            "value": "Concepts"
+          },
+          {
+            "label": "Items",
+            "value": "Items"
+          },
+          {
+            "label": "Locations",
+            "value": "Locations"
+          },
+          {
+            "label": "Organizations",
+            "value": "Organizations"
+          },
+          {
+            "label": "Scenes",
+            "value": "Scenes"
+          },
+          {
+            "label": "Stories",
+            "value": "Stories"
+          }
+        ]
+      },
+      {
+        "id": "relatedCharacters",
+        "label": "Related Characters",
+        "type": "text"
+      }
+    ],
+    "globalFields": [
+      "folder",
+      "relatedCharacters"
+    ]
+  }
+}
