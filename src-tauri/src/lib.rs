@@ -508,6 +508,10 @@ fn write_file_checked(
     content: &str,
     expected_modified_ms: Option<u128>,
 ) -> Result<WriteResult, String> {
+    if path.is_dir() {
+        return Err("Cannot write file content to a directory.".to_string());
+    }
+
     if let Some(expected) = expected_modified_ms {
         if let Some(current) = modified_ms(path) {
             if current != expected {
@@ -521,9 +525,10 @@ fn write_file_checked(
         }
     }
 
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    }
+    let parent = path
+        .parent()
+        .ok_or_else(|| "Path has no parent directory.".to_string())?;
+    fs::create_dir_all(parent).map_err(|error| error.to_string())?;
 
     let mut file = fs::File::create(path).map_err(|error| error.to_string())?;
     file.write_all(content.as_bytes())
@@ -1083,4 +1088,36 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{normalize_relative_path, sanitize_segment};
+
+    #[test]
+    fn normalize_relative_path_rejects_absolute_and_traversal_paths() {
+        assert!(normalize_relative_path("../outside.md").is_err());
+        assert!(normalize_relative_path("folder/../../outside.md").is_err());
+        assert!(normalize_relative_path("C:/outside.md").is_err());
+        assert!(normalize_relative_path("folder\\outside.md").is_err());
+    }
+
+    #[test]
+    fn normalize_relative_path_allows_safe_nested_paths_and_root() {
+        assert_eq!(normalize_relative_path("").unwrap().to_string_lossy(), "");
+        assert_eq!(normalize_relative_path("Characters/Mara.md").unwrap().components().count(), 2);
+    }
+
+    #[test]
+    fn sanitize_segment_rejects_empty_hidden_or_nested_names() {
+        assert!(sanitize_segment("").is_err());
+        assert!(sanitize_segment(".hidden").is_err());
+        assert!(sanitize_segment("../Mara.md").is_err());
+        assert!(sanitize_segment("Folder/Mara.md").is_err());
+    }
+
+    #[test]
+    fn sanitize_segment_preserves_safe_names() {
+        assert_eq!(sanitize_segment(" Mara Voss.md ").unwrap(), "Mara Voss.md");
+    }
 }

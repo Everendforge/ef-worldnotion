@@ -12,6 +12,7 @@ draftStatus: outline
 
 # Ridina
 ## ridina 2
+Hola que tal.
 #### Heading 4
 ###### Heading 6
 ## Halo
@@ -24,5 +25,3 @@ draftStatus: outline
 `asdaddasdasds` 
 [dasdasdsad](https://web.whatsapp.com/) dsadas
 [[Mara-Voss|Mara-Voss]]
-
-Hola soy heinz y la verdad quisiera hablarles de mi historia.

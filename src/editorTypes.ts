@@ -72,6 +72,7 @@ export type EditorSettings = {
   hideMarkdownSyntaxInWrite: boolean;
   persistTabs: boolean;
   reuseOpenTabs: boolean;
+  dockTabScale: number;
   confirmCloseDirtyTab: boolean;
   showPaperShadow: boolean; // Show paper container with shadow in write mode
   // Navigation & Visualization features (Phase 1 & 2)
@@ -130,6 +131,39 @@ export type OpenTab = {
 
 export type PersistedOpenTab = Pick<OpenTab, "path" | "title" | "mode" | "modifiedMs" | "isTemplate">;
 
+export type DockPanelKind = "document" | "explorer" | "graph" | "outline" | "backlinks" | "inspector";
+
+export type DockTabRef = {
+  id: string;
+  kind: DockPanelKind;
+  title: string;
+  path?: string;
+};
+
+export type DockGroupNode = {
+  type: "group";
+  id: string;
+  tabs: DockTabRef[];
+  activeTabId?: string;
+};
+
+export type DockSplitNode = {
+  type: "split";
+  id: string;
+  direction: "horizontal" | "vertical";
+  ratio: number;
+  first: DockNode;
+  second: DockNode;
+};
+
+export type DockNode = DockGroupNode | DockSplitNode;
+
+export type WorkspaceLayoutV1 = {
+  version: 1;
+  root: DockNode;
+  activeGroupId: string;
+};
+
 export type FileEditorState = {
   cursorPosition?: { line: number; column: number };
   scrollPosition?: number;
@@ -148,6 +182,7 @@ export type WorkspaceSession = {
   rootPath: string;
   activePath?: string;
   tabs: PersistedOpenTab[];
+  layout?: WorkspaceLayoutV1;
   editorState?: Record<string, FileEditorState>;
   fileAccessStats?: FileAccessStats[];
 };
@@ -331,6 +366,7 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   hideMarkdownSyntaxInWrite: true,
   persistTabs: true,
   reuseOpenTabs: true,
+  dockTabScale: 1.25,
   confirmCloseDirtyTab: true,
   showPaperShadow: true, // Paper style enabled by default
   // Navigation & Visualization features (Phase 1 & 2) - enabled by default

@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide } from 'd3-force';
+import type { Simulation, SimulationLinkDatum } from 'd3-force';
 import type { GraphData, GraphNode, GraphLink } from '../utils/graphData';
 import { getNodeColor, getLinkColor } from '../utils/graphData';
 
@@ -23,7 +24,7 @@ interface D3Node extends GraphNode {
   fy?: number;
 }
 
-interface D3Link {
+interface D3Link extends SimulationLinkDatum<D3Node> {
   source: string | D3Node;
   target: string | D3Node;
 }
@@ -39,16 +40,39 @@ export function GraphView({
   onNodeClick,
   onNodeHover,
   highlightedNodes,
-  width = 800,
-  height = 600,
+  width,
+  height,
 }: GraphViewProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const simulationRef = useRef<any>(null);
+  const simulationRef = useRef<Simulation<D3Node, D3Link> | null>(null);
   const nodesRef = useRef<D3Node[]>([]);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragNode, setDragNode] = useState<D3Node | null>(null);
+  const [measuredSize, setMeasuredSize] = useState({ width: width ?? 800, height: height ?? 600 });
   const animationFrameRef = useRef<number | null>(null);
+  const canvasWidth = width ?? measuredSize.width;
+  const canvasHeight = height ?? measuredSize.height;
+
+  useEffect(() => {
+    if (width && height) return;
+    const container = containerRef.current;
+    if (!container) return;
+    const observedContainer = container;
+
+    function updateSize() {
+      setMeasuredSize({
+        width: Math.max(320, Math.floor(observedContainer.clientWidth || 800)),
+        height: Math.max(260, Math.floor(observedContainer.clientHeight || 600)),
+      });
+    }
+
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(observedContainer);
+    return () => observer.disconnect();
+  }, [width, height]);
 
   // Calculate highlighted links
   const highlightedLinks = useMemo(() => {
@@ -85,8 +109,8 @@ export function GraphView({
 
     const d3Nodes: D3Node[] = graphData.nodes.map((n) => ({
       ...n,
-      x: Math.random() * width - width / 2,
-      y: Math.random() * height - height / 2,
+      x: Math.random() * canvasWidth - canvasWidth / 2,
+      y: Math.random() * canvasHeight - canvasHeight / 2,
       vx: 0,
       vy: 0,
     }));
@@ -129,10 +153,10 @@ export function GraphView({
 
       // Clear canvas
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, width, height);
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-      const offsetX = width / 2;
-      const offsetY = height / 2;
+      const offsetX = canvasWidth / 2;
+      const offsetY = canvasHeight / 2;
 
       // Draw links
       graphData.links.forEach((link) => {
@@ -142,7 +166,14 @@ export function GraphView({
         const sourceNode = nodesRef.current.find((n) => n.id === sourceId);
         const targetNode = nodesRef.current.find((n) => n.id === targetId);
 
-        if (!sourceNode?.x || !sourceNode?.y || !targetNode?.x || !targetNode?.y) return;
+        if (
+          sourceNode?.x === undefined ||
+          sourceNode.y === undefined ||
+          targetNode?.x === undefined ||
+          targetNode.y === undefined
+        ) {
+          return;
+        }
 
         const isHighlighted = highlightedLinks.has(link);
         const linkColor = getLinkColor(link.type);
@@ -210,7 +241,7 @@ export function GraphView({
       }
       simulation.stop();
     };
-  }, [graphData.nodes, graphData.links, width, height, mode, centerNodeId, highlightedNodes, hoveredNode]);
+  }, [graphData.nodes, graphData.links, canvasWidth, canvasHeight, mode, centerNodeId, highlightedNodes, hoveredNode]);
 
   // Handle mouse move for hover and dragging
   const handleMouseMove = useCallback(
@@ -219,8 +250,8 @@ export function GraphView({
       if (!canvas) return;
 
       const rect = canvas.getBoundingClientRect();
-      const x = event.clientX - rect.left - width / 2;
-      const y = event.clientY - rect.top - height / 2;
+      const x = event.clientX - rect.left - canvasWidth / 2;
+      const y = event.clientY - rect.top - canvasHeight / 2;
 
       // Find hovered node
       let found: D3Node | null = null;
@@ -246,7 +277,7 @@ export function GraphView({
         dragNode.fy = y;
       }
     },
-    [width, height, isDragging, dragNode, onNodeHover]
+    [canvasWidth, canvasHeight, isDragging, dragNode, onNodeHover]
   );
 
   // Handle mouse down for dragging
@@ -256,8 +287,8 @@ export function GraphView({
       if (!canvas) return;
 
       const rect = canvas.getBoundingClientRect();
-      const x = event.clientX - rect.left - width / 2;
-      const y = event.clientY - rect.top - height / 2;
+      const x = event.clientX - rect.left - canvasWidth / 2;
+      const y = event.clientY - rect.top - canvasHeight / 2;
 
       for (const node of nodesRef.current) {
         if (node.x !== undefined && node.y !== undefined) {
@@ -278,7 +309,7 @@ export function GraphView({
         }
       }
     },
-    [width, height, onNodeClick]
+    [canvasWidth, canvasHeight, onNodeClick]
   );
 
   // Handle mouse up
@@ -292,15 +323,17 @@ export function GraphView({
   };
 
   return (
-    <div className="graph-view-container" style={{ width, height, position: 'relative' }}>
+    <div ref={containerRef} className="graph-view-container" style={{ width: width ?? "100%", height: height ?? "100%", position: 'relative' }}>
       <canvas
         ref={canvasRef}
-        width={width}
-        height={height}
+        width={canvasWidth}
+        height={canvasHeight}
         style={{
-          border: '1px solid #e5e7eb',
-          borderRadius: '8px',
-          backgroundColor: '#ffffff',
+          width: '100%',
+          height: '100%',
+          border: '0',
+          borderRadius: '0',
+          backgroundColor: 'var(--wn-editor-bg)',
           display: 'block',
         }}
         onMouseMove={handleMouseMove}

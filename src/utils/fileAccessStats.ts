@@ -1,4 +1,4 @@
-import type { FileAccessStats, WorkspaceSession } from "../editorTypes";
+import type { AppSettingsV4, FileAccessStats, WorkspaceSession } from "../editorTypes";
 
 const MAX_STATS_ENTRIES = 100;
 const STATS_EXPIRY_DAYS = 30;
@@ -39,6 +39,29 @@ export function incrementFileAccess(
   
   // Limpiar entradas antiguas y limitar tamaño
   return cleanupStats(updatedStats);
+}
+
+export function recordFileAccessInSettings(
+  settings: AppSettingsV4,
+  rootPath: string,
+  filePath: string,
+): AppSettingsV4 {
+  const currentSession = settings.sessions[rootPath] || {
+    rootPath,
+    tabs: [],
+  };
+  const updatedStats = incrementFileAccess(currentSession, filePath);
+
+  return {
+    ...settings,
+    sessions: {
+      ...settings.sessions,
+      [rootPath]: {
+        ...currentSession,
+        fileAccessStats: updatedStats,
+      },
+    },
+  };
 }
 
 /**

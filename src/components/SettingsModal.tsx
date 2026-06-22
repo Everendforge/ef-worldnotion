@@ -35,6 +35,7 @@ type SettingsModalProps = {
   onRevealUniverse?: () => void;
   onOpenUniverseNote?: () => void;
   revealUniverseLabel?: string;
+  initialSection?: SettingsSection;
 };
 
 function eventToShortcut(event: KeyboardEvent) {
@@ -57,6 +58,12 @@ function duplicateShortcut(shortcut: string, commandId: EditorCommandId, keybind
     (binding) => binding.shortcut === shortcut && binding.commandId !== commandId,
   );
   return duplicate ? EDITOR_COMMANDS.find((command) => command.id === duplicate.commandId)?.label : undefined;
+}
+
+function dockTabScaleFromInput(value: string) {
+  const nextValue = Number(value);
+  if (!Number.isFinite(nextValue)) return 1.25;
+  return Math.min(1.75, Math.max(0.75, nextValue));
 }
 
 function UniverseIconPreview({ profile }: { profile: UniverseProfile }) {
@@ -98,8 +105,9 @@ export function SettingsModal({
   onRevealUniverse,
   onOpenUniverseNote,
   revealUniverseLabel = "Reveal universe folder",
+  initialSection,
 }: SettingsModalProps) {
-  const [activeSection, setActiveSection] = useState<SettingsSection>(universe ? "overview" : "editor");
+  const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection ?? (universe ? "overview" : "editor"));
   const [conflictMessage, setConflictMessage] = useState("");
   const [profileDraft, setProfileDraft] = useState<UniverseProfile>(() => ({
     name: universe?.profile?.name ?? universe?.name,
@@ -110,6 +118,10 @@ export function SettingsModal({
     universe?.taxonomyConfig ?? createDefaultTaxonomyConfig()
   );
   const [taxonomySaving, setTaxonomySaving] = useState(false);
+
+  useEffect(() => {
+    if (initialSection) setActiveSection(initialSection);
+  }, [initialSection]);
 
   useEffect(() => {
     if (!universe) return;
@@ -447,6 +459,28 @@ export function SettingsModal({
 
             {activeSection === "tabs" ? (
               <div className="settings-grid">
+                <label>
+                  <span>Dock tab size</span>
+                  <input
+                    type="range"
+                    min={0.75}
+                    max={1.75}
+                    step={0.05}
+                    value={settings.editor.dockTabScale}
+                    onChange={(event) => updateEditor({ dockTabScale: dockTabScaleFromInput(event.target.value) })}
+                  />
+                </label>
+                <label>
+                  <span>Dock tab scale</span>
+                  <input
+                    type="number"
+                    min={75}
+                    max={175}
+                    step={5}
+                    value={Math.round(settings.editor.dockTabScale * 100)}
+                    onChange={(event) => updateEditor({ dockTabScale: dockTabScaleFromInput(String(Number(event.target.value) / 100)) })}
+                  />
+                </label>
                 <label>
                   <span>Persist tabs</span>
                   <input type="checkbox" checked={settings.editor.persistTabs} onChange={(event) => updateEditor({ persistTabs: event.target.checked })} />

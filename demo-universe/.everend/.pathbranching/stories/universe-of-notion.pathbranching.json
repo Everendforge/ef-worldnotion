@@ -1,0 +1,132 @@
+{
+  "specVersion": "0.1",
+  "projectId": "pathbranching:universe-of-notion",
+  "name": "Branching Story",
+  "sourceVault": {
+    "kind": "worldnotion",
+    "relativePath": "."
+  },
+  "canonRefs": [
+    {
+      "id": "characters-folder",
+      "kind": "folder-description",
+      "label": "Characters",
+      "preview": "# Characters\n\nCast notes, viewpoint characters, factions-as-people, and recurring figures.a\n\nCameelo\ndasdasdasddsadasd",
+      "source": "worldnotion",
+      "canonSourcePath": "Characters.md"
+    },
+    {
+      "id": "concepts-folder",
+      "kind": "folder-description",
+      "label": "Concepts",
+      "preview": "# Concepts\n\nDescription of this folder's contents.",
+      "source": "worldnotion",
+      "canonSourcePath": "Concepts.md"
+    },
+    {
+      "id": "old-roads",
+      "kind": "concept",
+      "label": "Old Roads",
+      "preview": "# Old Roads\n\nThe Old Roads are buried routes that connect decisions instead of places.\n\nThe [[Iron Meridian]] can sense them, and the [[Glass Cartographers]] keep partial surveys below [[Ash Gate]].",
+      "source": "worldnotion",
+      "canonSourcePath": "Concepts/Old-Roads.md"
+    },
+    {
+      "id": "items-folder",
+      "kind": "folder-description",
+      "label": "Items",
+      "preview": "# Items\n\nDescription of this folder's content",
+      "source": "worldnotion",
+      "canonSourcePath": "Items.md"
+    },
+    {
+      "id": "iron-meridian",
+      "kind": "item",
+      "label": "Iron Meridian",
+      "preview": "# Iron Meridian\n\nThe Iron Meridian is a relic compass that points toward decisions instead of north.\n\nIt last activated below [[Ash Gate]], where [[Mara Voss]] found a route marker for the [[First Road]].",
+      "source": "worldnotion",
+      "canonSourcePath": "Items/Iron-Meridian.md"
+    },
+    {
+      "id": "locations-folder",
+      "kind": "folder-description",
+      "label": "Locations",
+      "preview": "# Locations\n\nPlaces, routes, settlements, regions, and sites used by the active universe.",
+      "source": "worldnotion",
+      "canonSourcePath": "Locations.md"
+    },
+    {
+      "id": "ash-gate",
+      "kind": "location",
+      "label": "Ash Gate",
+      "preview": "# Ash Gate\n\nAsh Gate is a trade city built against black basalt cliffs.\n\nMara Voss begins her search here after receiving the [[Iron Meridian]].\n\nThe city archive is managed by the [[Glass Cartographers]].\n\nAs it began",
+      "source": "worldnotion",
+      "canonSourcePath": "Locations/Ash-Gate.md"
+    },
+    {
+      "id": "organizations-folder",
+      "kind": "folder-description",
+      "label": "Organizations",
+      "preview": "# Organizations\n\nDescription of this folder's contents.",
+      "source": "worldnotion",
+      "canonSourcePath": "Organizations.md"
+    },
+    {
+      "id": "glass-cartographers",
+      "kind": "organization",
+      "label": "Glass Cartographers",
+      "preview": "# Glass Cartographers\n\nThe Glass Cartographers maintain the civic maps of [[Ash Gate]] and suppress records of the [[First Road]].\n\nThey trained [[Mara Voss]], but no longer trust what she found in the [[Iron Meridian]].",
+      "source": "worldnotion",
+      "canonSourcePath": "Organizations/Glass-Cartographers.md"
+    },
+    {
+      "id": "stories-folder",
+      "kind": "folder-description",
+      "label": "Stories",
+      "preview": "# Stories\nDescription of this folder's contents.",
+      "source": "worldnotion",
+      "canonSourcePath": "Stories.md"
+    },
+    {
+      "id": "scenes-folder",
+      "kind": "folder-description",
+      "label": "Scenes",
+      "preview": "# Scenes\n\nDescription of this folder's contents.\ndasdas",
+      "source": "worldnotion",
+      "canonSourcePath": "Stories/Scenes.md"
+    },
+    {
+      "id": "basalt-archive-scene",
+      "kind": "scene",
+      "label": "The Basalt Archive",
+      "preview": "# The Basalt Archive\n\n[[Mara Voss]] breaks into the lower archive of [[Ash Gate]] and finds a sealed survey from the [[Glass Cartographers]].\n\nThe survey points to the [[Old Roads]] but contradicts the pull of the [[Iron Meridian]].",
+      "source": "worldnotion",
+      "canonSourcePath": "Stories/Scenes/The-Basalt-Archive.md"
+    },
+    {
+      "id": "demo-universe",
+      "kind": "universe",
+      "label": "demo-universe",
+      "preview": "# demo-universe\nHola este universo es god dasdadasd",
+      "source": "worldnotion",
+      "canonSourcePath": "demo-universe.md"
+    }
+  ],
+  "dataClasses": [],
+  "projectionRules": [],
+  "graphModules": [],
+  "sequences": [],
+  "branches": [],
+  "events": [],
+  "scripts": [],
+  "externalFunctions": [],
+  "variables": {},
+  "projectDataObjects": [],
+  "panels": {
+    "canonOpen": true,
+    "filesOpen": true
+  },
+  "canvas": {},
+  "storyId": "universe-of-notion",
+  "universeRootPath": "D:\\Repositorio\\Apps\\Everend Forge\\worldnotion\\demo-universe"
+}

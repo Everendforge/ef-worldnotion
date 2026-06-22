@@ -8,20 +8,34 @@ export interface MarkdownPreviewProps {
   markdown: string;
 }
 
+const HTML_ESCAPE_MAP: Record<string, string> = {
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
+
+function escapeHtml(value: string) {
+  return value.replace(/[<>"']/g, (character) => HTML_ESCAPE_MAP[character]);
+}
+
+export function renderMarkdownPreviewHtml(markdown: string) {
+  const result = remark()
+    .use(remarkGfm)
+    .use(remarkHtml, { sanitize: true })
+    .processSync(markdown);
+
+  return String(result).replace(/\[\[([^\]]+)\]\]/g, (_match, rawTarget: string) => {
+    const target = rawTarget.trim();
+    const escapedTarget = escapeHtml(target);
+    return `<span class="wikilink" data-target="${escapedTarget}">${escapedTarget}</span>`;
+  });
+}
+
 export function MarkdownPreview({ markdown }: MarkdownPreviewProps) {
   const html = useMemo(() => {
     try {
-      const result = remark()
-        .use(remarkGfm)
-        .use(remarkHtml, { sanitize: false })
-        .processSync(markdown);
-
-      // Process wikilinks in the HTML
-      const htmlString = String(result);
-      return htmlString.replace(
-        /\[\[([^\]]+)\]\]/g,
-        '<span class="wikilink" data-target="$1">$1</span>'
-      );
+      return renderMarkdownPreviewHtml(markdown);
     } catch {
       return "<div class='error'>Error rendering markdown</div>";
     }

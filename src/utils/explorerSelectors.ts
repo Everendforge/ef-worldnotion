@@ -1,0 +1,125 @@
+import type { ExplorerFavorite, TagHierarchyNode } from "../editorTypes";
+import type { Entity, VaultIndex, VaultTreeNode } from "../domain";
+import { buildTree } from "./treeBuilder";
+import { pathName } from "./pathUtils";
+
+function collectSearchMatches(
+  nodes: VaultTreeNode[],
+  normalized: string,
+  files: VaultTreeNode[],
+  folders: VaultTreeNode[],
+) {
+  nodes.forEach((node) => {
+    const matches = node.name.toLowerCase().includes(normalized) || node.path.toLowerCase().includes(normalized);
+    if (matches) {
+      if (node.kind === "file") {
+        files.push({ ...node, children: [] });
+      } else {
+        folders.push({ ...node, children: [] });
+      }
+    }
+    collectSearchMatches(node.children, normalized, files, folders);
+  });
+}
+
+export function selectVisibleTree(index: VaultIndex | undefined, query: string, showHiddenEverend: boolean): VaultTreeNode[] {
+  if (!index) return [];
+  const tree = showHiddenEverend
+    ? buildTree(index.files, index.directories, true, `${pathName(index.rootPath)}.md`)
+    : index.tree;
+  if (!query.trim()) return tree;
+
+  const normalized = query.toLowerCase();
+  const files: VaultTreeNode[] = [];
+  const folders: VaultTreeNode[] = [];
+  collectSearchMatches(tree, normalized, files, folders);
+  return [...files, ...folders];
+}
+
+export function selectFavoriteItems(index: VaultIndex | undefined, favorites: ExplorerFavorite[]): ExplorerFavorite[] {
+  if (!index) return [];
+  const treePaths = new Set<string>();
+
+  function collectTreePaths(nodes: VaultTreeNode[]) {
+    for (const node of nodes) {
+      treePaths.add(node.path);
+      collectTreePaths(node.children);
+    }
+  }
+
+  collectTreePaths(index.tree);
+  return favorites.filter((favorite) => {
+    if (favorite.kind === "folder") {
+      return treePaths.has(favorite.path);
+    }
+    return index.files.some((file) => file.relativePath === favorite.path);
+  });
+}
+
+function flattenTags(nodes: TagHierarchyNode[], tagMap: Map<string, { color?: string; fullPath: string }>, parentPath = "") {
+  nodes.forEach((node) => {
+    const fullPath = parentPath ? `${parentPath}/${node.label}` : node.label;
+    tagMap.set(node.label, { color: node.color, fullPath });
+    tagMap.set(fullPath, { color: node.color, fullPath });
+    if (node.children?.length) {
+      flattenTags(node.children, tagMap, fullPath);
+    }
+  });
+}
+
+export function selectEcosystemGroups(index: VaultIndex | undefined): Map<string, Entity[]> {
+  if (!index?.taxonomyConfig) return new Map<string, Entity[]>();
+
+  const groups = new Map<string, Entity[]>();
+  const tagMap = new Map<string, { color?: string; fullPath: string }>();
+  flattenTags(index.taxonomyConfig.tags.rootNodes, tagMap);
+
+  index.entities.forEach((entity) => {
+    if (entity.tags.length > 0) {
+      const primaryTag = entity.tags[0];
+      const tagInfo = tagMap.get(primaryTag);
+      const groupKey = tagInfo?.fullPath || primaryTag;
+
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, []);
+      }
+      groups.get(groupKey)!.push(entity);
+    } else {
+      if (!groups.has("_untagged")) {
+        groups.set("_untagged", []);
+      }
+      groups.get("_untagged")!.push(entity);
+    }
+  });
+
+  return groups;
+}
+
+function findTagColor(nodes: TagHierarchyNode[], tag: string): string | undefined {
+  for (const node of nodes) {
+    if (node.label === tag || node.fullPath === tag) {
+      return node.color;
+    }
+    if (node.children?.length) {
+      const childColor = findTagColor(node.children, tag);
+      if (childColor) return childColor;
+    }
+  }
+  return undefined;
+}
+
+export function selectEntityTagColors(index: VaultIndex | undefined): Map<string, string> {
+  const colorMap = new Map<string, string>();
+  if (!index?.taxonomyConfig) return colorMap;
+
+  index.entities.forEach((entity) => {
+    if (entity.tags.length > 0) {
+      const color = findTagColor(index.taxonomyConfig!.tags.rootNodes, entity.tags[0]);
+      if (color) {
+        colorMap.set(entity.path, color);
+      }
+    }
+  });
+
+  return colorMap;
+}

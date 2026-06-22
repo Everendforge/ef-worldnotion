@@ -1,20 +1,16 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import YAML from "yaml";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl as openExternalUrl } from "@tauri-apps/plugin-opener";
-import { EditorView } from "@codemirror/view";
-import { openSearchPanel } from "@codemirror/search";
-import { foldCode } from "@codemirror/language";
+import type { EditorView } from "@codemirror/view";
 import {
   BookOpen,
-  Castle,
+  Check,
   ChevronDown,
   ChevronRight,
   FileText,
   Folder,
   FolderOpen,
-  Globe2,
   Home,
   Moon,
   Plus,
@@ -22,85 +18,173 @@ import {
   Search,
   Settings,
   Star,
-  StarOff,
   Sun,
   FileEdit,
   AlertTriangle,
   X,
   ExternalLink,
-  RefreshCw,
-  ChevronsDownUp,
-  Sparkles,
   Files,
   Hash,
-  Network,
+  Crown,
 } from "lucide-react";
 import "./App.css";
-import { ContextMenu, CodeMirrorEditor, SettingsModal, CommandPalette, TaxonomyMigrationDialog } from "./components";
+import { ContextMenu, type ContextMenuAction } from "./components/ContextMenu";
 import { OutlineGuide } from "./components/OutlineGuide";
 import { FontSelector } from "./components/FontSelector";
 import { InputDialog } from "./components/InputDialog";
 import { Toast } from "./components/Toast";
 import { UnsavedChangesDialog } from "./components/UnsavedChangesDialog";
-import { MetadataEditor } from "./components/MetadataEditor";
-import { BacklinksPanel } from "./components/BacklinksPanel";
-import { GraphView } from "./components/GraphView";
-import { GraphControls } from "./components/GraphControls";
+import { ExplorerTreeNode } from "./components/ExplorerTreeNode";
+import { InspectorPanel } from "./components/InspectorPanel";
+import { LazyPanelFallback } from "./components/LazyPanelFallback";
+import { UniverseIconFrame } from "./components/UniverseIconFrame";
+import { DockWorkspace, type DockMoveRequest } from "./components/DockWorkspace";
 import { buildGraphData, getUniqueTypes, getUniqueTags, type GraphOptions } from "./utils/graphData";
-import { extractOutline, findCurrentHeader } from "./utils/outlineExtractor";
-import type { ContextMenuAction } from "./components";
 import { useFonts } from "./utils/useFonts";
 import {
   AppSettingsV4,
-  DEFAULT_EDITOR_SETTINGS,
-  DEFAULT_EXPLORER_SETTINGS,
-  DEFAULT_KEYBINDINGS,
-  EDITOR_COMMANDS,
   EditorCommandId,
-  EditorDocumentParts,
   FloatingFormatCommand,
+  DockPanelKind,
+  DockTabRef,
   NoteSuggestion,
   OpenTab,
-  RecentUniverseProfile,
-  ResolvedWikilink,
   ThemeId,
-  WorkspaceSession,
-  shortcutFor,
-  FileResult,
-  CommandResult,
-  HeaderResult,
-  TagResult,
 } from "./editorTypes";
 import {
   Entity,
-  EntityTemplate,
-  ValidationFinding,
-  VaultFile,
   VaultIndex,
   VaultReadResult,
-  VaultTreeNode,
   WriteResult,
   UniverseProfile,
-  buildTree,
   indexVault,
   joinMarkdown,
-  splitMarkdown,
-  parseMarkdownFrontmatter,
   dirname,
   slugify,
   generateTaxonomyFromEntities,
 } from "./domain";
-import { isDarkTheme, normalizeThemeId, themeById, themeForStyleCommand, toggledThemeMode } from "./themes";
-import { incrementFileAccess } from "./utils/fileAccessStats";
+import { isDarkTheme, themeById, themeForStyleCommand, toggledThemeMode } from "./themes";
+import { recordFileAccessInSettings } from "./utils/fileAccessStats";
+import { loadSettings, saveSettings } from "./settings";
+import {
+  type BrowserDirectoryHandle,
+  copyBrowserPath,
+  ensureBrowserWritePermission,
+  getBrowserDirectory,
+  getBrowserFile,
+  moveBrowserPath,
+  readBrowserUniverse,
+  removeBrowserPath,
+  renameBrowserPath,
+  writeBrowserFile,
+} from "./utils/browserVault";
+import { buildCommandResults, buildFileResults, buildHeaderResults, buildTagResults } from "./utils/commandResults";
+import {
+  bodyToRawMarkdown,
+  contentFromTemplate,
+  folderDescriptionContent,
+  folderDescriptionInfo,
+  folderDescriptionPath,
+  universeNoteContent,
+  rawToEditorParts,
+} from "./utils/contentTemplates";
+import {
+  type PathChangeSet,
+  activeCreationFolder as getActiveCreationFolder,
+  duplicatePathFor,
+  fileTitle,
+  pathAfterChanges,
+  pathIsAffectedByChanges,
+  pathName,
+  relativeFromAbsolute,
+  selectedAbsolutePath as getSelectedAbsolutePath,
+} from "./utils/pathUtils";
+import {
+  closeOpenTab,
+  closeOtherOpenTabs,
+  closeSavedOpenTabs,
+  closeTabsToRightOf,
+  createOpenTabFromFile,
+  advancePendingCloseQueue,
+  dirtyTabPaths as getDirtyTabPaths,
+  nextAdjacentTabPath,
+  pendingCloseQueueFromDirtyPaths,
+  serializeWorkspaceSession,
+  updateOpenTabsForPathChange,
+} from "./utils/tabUtils";
+import {
+  entityToFrontmatterRaw,
+  fontFamilyInsertion,
+  headingLine,
+  listLine,
+  markdownLinkInsertion,
+  wikilinkInsertion,
+  wrapSelectionText,
+} from "./utils/markdownEditing";
+import {
+  dirtyTabPathsAffectedByTree,
+  favoritesOutsideTree,
+  movePathChange,
+  movePathProblem,
+  planFolderDescriptionRename,
+  renamePathChange,
+} from "./utils/vaultOperations";
+import { editorCommandAction, nativeMenuEditorCommand } from "./utils/editorCommandActions";
+import { profileForRecent, rememberUniverse, universeDisplayName } from "./utils/universeSession";
+import { canUseBrowserDirectoryPicker, isTauriRuntime, platformLabels, shortcutMatches } from "./utils/appEnvironment";
+import {
+  selectEcosystemGroups,
+  selectEntityTagColors,
+  selectFavoriteItems,
+  selectVisibleTree,
+} from "./utils/explorerSelectors";
+import { selectLiveEntity } from "./utils/liveEntity";
+import { planUniverseWorkspaceState } from "./utils/universeApply";
+import { markSavedTabInList, saveFilePayloadForTab } from "./utils/editorPersistence";
+import { resolveWikilinkInIndex } from "./utils/wikilinkResolver";
+import { currentHeaderForLine, editorDisplayValue, outlineForTab } from "./utils/editorDerivedState";
+import {
+  activateDockTab,
+  addDocumentToLayout,
+  closeDockTab as closeDockLayoutTab,
+  createDefaultWorkspaceLayout,
+  createWorkspaceLayoutPreset,
+  documentDockTabId,
+  isDockMoveAllowedAroundDocumentAnchor,
+  layoutHasPanel,
+  moveDockTab,
+  orderOpenTabsByLayout,
+  panelDockTabId,
+  resizeDockSplit,
+  setPanelInGroup,
+  syncLayoutWithOpenTabs,
+  togglePanelInLayout,
+  updateLayoutForPathChange,
+  type WorkspaceLayoutPreset,
+} from "./utils/workspaceLayout";
+
+const CommandPalette = lazy(() =>
+  import("./components/CommandPalette").then((module) => ({ default: module.CommandPalette })),
+);
+const CodeMirrorEditor = lazy(() =>
+  import("./components/CodeMirrorEditor").then((module) => ({ default: module.CodeMirrorEditor })),
+);
+const SettingsModal = lazy(() =>
+  import("./components/SettingsModal").then((module) => ({ default: module.SettingsModal })),
+);
+const TaxonomyMigrationDialog = lazy(() =>
+  import("./components/TaxonomyMigrationDialog").then((module) => ({ default: module.TaxonomyMigrationDialog })),
+);
+const GraphView = lazy(() =>
+  import("./components/GraphView").then((module) => ({ default: module.GraphView })),
+);
+const GraphControls = lazy(() =>
+  import("./components/GraphControls").then((module) => ({ default: module.GraphControls })),
+);
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 type AppView = "home" | "workspace";
-type PathChange = {
-  fromPath: string;
-  toPath: string;
-  mode: "single" | "tree";
-};
-type PathChangeSet = PathChange | PathChange[];
+type ActiveWorkspacePreset = WorkspaceLayoutPreset | "custom";
 type PointerDragItem = {
   path: string;
   kind: "file" | "folder";
@@ -108,597 +192,6 @@ type PointerDragItem = {
   startY: number;
   active: boolean;
 };
-
-type BrowserFileHandle = {
-  getFile: () => Promise<File>;
-  createWritable: () => Promise<{ write: (content: string) => Promise<void>; close: () => Promise<void> }>;
-  queryPermission?: (descriptor?: { mode?: "read" | "readwrite" }) => Promise<PermissionState>;
-  requestPermission?: (descriptor?: { mode?: "read" | "readwrite" }) => Promise<PermissionState>;
-};
-
-type BrowserDirectoryHandle = {
-  name: string;
-  entries: () => AsyncIterableIterator<[string, BrowserDirectoryHandle | BrowserFileHandle]>;
-  getDirectoryHandle: (name: string, options?: { create?: boolean }) => Promise<BrowserDirectoryHandle>;
-  getFileHandle: (name: string, options?: { create?: boolean }) => Promise<BrowserFileHandle>;
-  removeEntry?: (name: string, options?: { recursive?: boolean }) => Promise<void>;
-  queryPermission?: (descriptor?: { mode?: "read" | "readwrite" }) => Promise<PermissionState>;
-  requestPermission?: (descriptor?: { mode?: "read" | "readwrite" }) => Promise<PermissionState>;
-};
-
-const SETTINGS_KEY = "worldnotion.settings.v4";
-const LEGACY_SETTINGS_KEY = "worldnotion.settings.v3";
-
-function loadSettings(): AppSettingsV4 {
-  try {
-    const stored = localStorage.getItem(SETTINGS_KEY) ?? localStorage.getItem(LEGACY_SETTINGS_KEY) ?? "{}";
-    const parsed = JSON.parse(stored) as Partial<AppSettingsV4>;
-    const recentUniverses = Array.isArray(parsed.recentUniverses)
-      ? parsed.recentUniverses.filter((item): item is string => typeof item === "string")
-      : parsed.recentUniverse
-        ? [parsed.recentUniverse]
-        : [];
-    const parsedExplorer: Partial<AppSettingsV4["explorer"]> = parsed.explorer ?? {};
-    const activeSection = parsedExplorer.activeSection === "favorites" ? "favorites" : "allFiles";
-    
-    // Merge keybindings: keep user customizations but add new defaults
-    const mergedKeybindings = (() => {
-      if (!parsed.keybindings?.length) return DEFAULT_KEYBINDINGS;
-      
-      const userBindings = new Map(parsed.keybindings.map(kb => [kb.commandId, kb.shortcut]));
-      return DEFAULT_KEYBINDINGS.map(defaultKb => ({
-        commandId: defaultKb.commandId,
-        shortcut: userBindings.get(defaultKb.commandId) ?? defaultKb.shortcut,
-      }));
-    })();
-    
-    return {
-      theme: normalizeThemeId(parsed.theme),
-      recentUniverse: parsed.recentUniverse,
-      recentUniverses,
-      recentUniverseProfiles: parsed.recentUniverseProfiles ?? {},
-      editor: { ...DEFAULT_EDITOR_SETTINGS, ...(parsed.editor ?? {}) },
-      explorer: { ...DEFAULT_EXPLORER_SETTINGS, ...parsedExplorer, activeSection },
-      keybindings: mergedKeybindings,
-      sessions: parsed.sessions ?? {},
-    };
-  } catch {
-    return {
-      theme: "worldnotion-light",
-      recentUniverses: [],
-      recentUniverseProfiles: {},
-      editor: DEFAULT_EDITOR_SETTINGS,
-      explorer: DEFAULT_EXPLORER_SETTINGS,
-      keybindings: DEFAULT_KEYBINDINGS,
-      sessions: {},
-    };
-  }
-}
-
-function saveSettings(settings: AppSettingsV4) {
-  // Use a replacer to flatten nested objects and avoid Zustand serialization warnings
-  const replacer = (key: string, value: any): any => {
-    // Skip complex objects that trigger warnings
-    if (value && typeof value === 'object') {
-      // For editorState, keep only essential properties
-      if (key === 'editorState' && typeof value === 'object') {
-        const flattened: Record<string, any> = {};
-        for (const [filePath, state] of Object.entries(value)) {
-          if (state && typeof state === 'object') {
-            flattened[filePath] = {
-              cursorPosition: (state as any).cursorPosition,
-              scrollPosition: (state as any).scrollPosition,
-              foldedRanges: (state as any).foldedRanges,
-              selection: (state as any).selection,
-              lastModified: (state as any).lastModified,
-            };
-          }
-        }
-        return flattened;
-      }
-      // For sessions, simplify structure
-      if (key === 'sessions' && typeof value === 'object') {
-        const simplified: Record<string, any> = {};
-        for (const [path, session] of Object.entries(value)) {
-          if (session && typeof session === 'object') {
-            simplified[path] = {
-              rootPath: (session as any).rootPath,
-              activePath: (session as any).activePath,
-              tabs: (session as any).tabs || [],
-              editorState: (session as any).editorState || {},
-            };
-          }
-        }
-        return simplified;
-      }
-    }
-    return value;
-  };
-
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings, replacer));
-}
-
-function isTauriRuntime() {
-  return "__TAURI_INTERNALS__" in window;
-}
-
-function canUseBrowserDirectoryPicker() {
-  return "showDirectoryPicker" in window;
-}
-
-function formatValue(value: unknown): string {
-  if (Array.isArray(value)) return value.join(", ");
-  if (value === null || value === undefined) return "";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
-}
-
-function pathName(path: string): string {
-  return path.replace(/^browser:/, "").split(/[\\/]/).pop() ?? path;
-}
-
-function platformLabels() {
-  const platform = navigator.platform.toLowerCase();
-  const userAgent = navigator.userAgent.toLowerCase();
-  const isMac = platform.includes("mac");
-  const isWindows = platform.includes("win") || userAgent.includes("windows");
-  return {
-    revealItem: isWindows ? "Reveal in Explorer" : isMac ? "Reveal in Finder" : "Reveal in Files",
-    revealUniverse: isWindows ? "Reveal universe folder in Explorer" : isMac ? "Reveal universe folder in Finder" : "Reveal universe folder",
-    trashAction: isWindows ? "Move to Recycle Bin" : "Move to Trash",
-    trashDone: isWindows ? "Moved to Recycle Bin." : "Moved to Trash.",
-  };
-}
-
-function profileForRecent(index: VaultIndex): RecentUniverseProfile {
-  return {
-    name: universeDisplayName(index),
-    icon: index.universeProfile?.icon ?? { type: "preset", value: "book" },
-  };
-}
-
-function rememberUniverse(
-  settings: AppSettingsV4,
-  rootPath: string,
-  profile?: RecentUniverseProfile,
-): AppSettingsV4 {
-  const recentUniverses = [
-    rootPath,
-    ...settings.recentUniverses.filter((candidate) => candidate !== rootPath),
-  ].slice(0, 8);
-  return {
-    ...settings,
-    recentUniverse: rootPath,
-    recentUniverses,
-    recentUniverseProfiles: profile
-      ? { ...settings.recentUniverseProfiles, [rootPath]: profile }
-      : settings.recentUniverseProfiles,
-  };
-}
-
-function shortcutMatches(event: KeyboardEvent, shortcut: string) {
-  if (!shortcut) return false;
-  const parts = shortcut.split("+");
-  const needsMod = parts.includes("Mod");
-  const needsAlt = parts.includes("Alt");
-  const needsShift = parts.includes("Shift");
-  const key = parts.find((part) => !["Mod", "Alt", "Shift"].includes(part));
-  const eventKey = event.key.length === 1 ? event.key.toUpperCase() : event.key;
-
-  return (
-    (event.metaKey || event.ctrlKey) === needsMod &&
-    event.altKey === needsAlt &&
-    event.shiftKey === needsShift &&
-    (!key || eventKey === key)
-  );
-}
-
-function fileTitle(path: string) {
-  return pathName(path).replace(/\.md$/i, "");
-}
-
-function relativeFromAbsolute(rootPath: string, absolutePath: string) {
-  return absolutePath.startsWith(rootPath)
-    ? absolutePath.slice(rootPath.length).replace(/^[\\/]+/, "")
-    : absolutePath;
-}
-
-function childPathAfterMove(path: string, fromPath: string, toFolderPath: string) {
-  const name = path.split("/").pop() ?? path;
-  if (path === fromPath) {
-    return toFolderPath ? `${toFolderPath}/${name}` : name;
-  }
-  if (path.startsWith(`${fromPath}/`)) {
-    const movedRoot = toFolderPath ? `${toFolderPath}/${name}` : name;
-    return `${movedRoot}/${path.slice(fromPath.length + 1)}`;
-  }
-  return path;
-}
-
-function pathIsAffectedByChange(path: string | undefined, change: PathChange) {
-  if (!path) return false;
-  return change.mode === "tree" ? path === change.fromPath || path.startsWith(`${change.fromPath}/`) : path === change.fromPath;
-}
-
-function pathAfterChange(path: string, change: PathChange) {
-  return change.mode === "tree" ? childPathAfterMove(path, change.fromPath, dirname(change.toPath)) : change.toPath;
-}
-
-function normalizePathChanges(changes?: PathChangeSet) {
-  return Array.isArray(changes) ? changes : changes ? [changes] : [];
-}
-
-function pathAfterChanges(path: string, changes?: PathChangeSet) {
-  return normalizePathChanges(changes).reduce(
-    (current, change) => (pathIsAffectedByChange(current, change) ? pathAfterChange(current, change) : current),
-    path,
-  );
-}
-
-function pathIsAffectedByChanges(path: string | undefined, changes?: PathChangeSet) {
-  if (!path) return false;
-  return normalizePathChanges(changes).some((change) => pathIsAffectedByChange(path, change));
-}
-
-async function readBrowserUniverse(root: BrowserDirectoryHandle): Promise<VaultReadResult> {
-  const files: VaultFile[] = [];
-  const directories: string[] = [];
-  const errors: VaultReadResult["errors"] = [];
-
-  async function walk(directory: BrowserDirectoryHandle, prefix: string) {
-    for await (const [name, handle] of directory.entries()) {
-      const relativePath = prefix ? `${prefix}/${name}` : name;
-      const maybeDirectory = handle as BrowserDirectoryHandle;
-      const maybeFile = handle as BrowserFileHandle;
-
-      if ("entries" in maybeDirectory) {
-        if (name.startsWith(".") && name !== ".everend") continue;
-        directories.push(relativePath);
-        await walk(maybeDirectory, relativePath);
-        continue;
-      }
-
-      if (!relativePath.endsWith(".md") && !relativePath.endsWith(".yaml") && !relativePath.endsWith(".json")) continue;
-
-      try {
-        const file = await maybeFile.getFile();
-        files.push({
-          relativePath,
-          content: await file.text(),
-          modifiedMs: file.lastModified,
-        });
-      } catch (error) {
-        errors.push({
-          relativePath,
-          message: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-  }
-
-  await walk(root, "");
-  directories.sort((a, b) => a.localeCompare(b));
-  files.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
-  return { rootPath: `browser:${root.name}`, files, directories, errors };
-}
-
-async function getBrowserDirectory(root: BrowserDirectoryHandle, relativePath: string, create = false) {
-  const parts = relativePath.split("/").filter(Boolean);
-  let current = root;
-  for (const part of parts) {
-    current = await current.getDirectoryHandle(part, { create });
-  }
-  return current;
-}
-
-async function ensureBrowserWritePermission(root: BrowserDirectoryHandle) {
-  if (!root.queryPermission || !root.requestPermission) return;
-  try {
-    const descriptor = { mode: "readwrite" as const };
-    const current = await root.queryPermission(descriptor);
-    if (current === "granted") return;
-    const requested = await root.requestPermission(descriptor);
-    if (requested !== "granted") {
-      console.warn("Write permission was not granted for this universe folder. Some operations may fail.");
-      return;
-    }
-  } catch (error) {
-    console.warn("Could not request write permission for this universe folder.", error);
-  }
-}
-
-async function getBrowserFile(root: BrowserDirectoryHandle, relativePath: string, create = false) {
-  const parts = relativePath.split("/").filter(Boolean);
-  const filename = parts.pop();
-  if (!filename) throw new Error("File path is required.");
-  const directory = await getBrowserDirectory(root, parts.join("/"), create);
-  return directory.getFileHandle(filename, { create });
-}
-
-async function getBrowserParent(root: BrowserDirectoryHandle, relativePath: string) {
-  const parts = relativePath.split("/").filter(Boolean);
-  const name = parts.pop();
-  if (!name) throw new Error("Path is required.");
-  return {
-    directory: await getBrowserDirectory(root, parts.join("/")),
-    name,
-  };
-}
-
-async function writeBrowserFile(root: BrowserDirectoryHandle, relativePath: string, content: string) {
-  await ensureBrowserWritePermission(root);
-  const fileHandle = await getBrowserFile(root, relativePath, true);
-  const writable = await fileHandle.createWritable();
-  await writable.write(content);
-  await writable.close();
-  const file = await fileHandle.getFile();
-  return file.lastModified;
-}
-
-async function removeBrowserPath(root: BrowserDirectoryHandle, relativePath: string, recursive = true) {
-  await ensureBrowserWritePermission(root);
-  const { directory, name } = await getBrowserParent(root, relativePath);
-  if (!directory.removeEntry) {
-    throw new Error("This browser does not support deleting files from a selected folder.");
-  }
-  await directory.removeEntry(name, { recursive });
-}
-
-async function copyBrowserDirectory(source: BrowserDirectoryHandle, target: BrowserDirectoryHandle) {
-  await ensureBrowserWritePermission(target);
-  for await (const [name, handle] of source.entries()) {
-    const maybeDirectory = handle as BrowserDirectoryHandle;
-    const maybeFile = handle as BrowserFileHandle;
-    if ("entries" in maybeDirectory) {
-      const nextTarget = await target.getDirectoryHandle(name, { create: true });
-      await copyBrowserDirectory(maybeDirectory, nextTarget);
-    } else {
-      const file = await maybeFile.getFile();
-      const targetFile = await target.getFileHandle(name, { create: true });
-      const writable = await targetFile.createWritable();
-      await writable.write(await file.text());
-      await writable.close();
-    }
-  }
-}
-
-function pathExists(index: VaultIndex, path: string, kind: "file" | "folder") {
-  if (kind === "file") {
-    return index.files.some((file) => file.relativePath === path);
-  }
-  const stack = [...index.tree];
-  while (stack.length) {
-    const node = stack.pop();
-    if (!node) continue;
-    if (node.kind === "folder" && node.path === path) return true;
-    stack.push(...node.children);
-  }
-  return false;
-}
-
-function duplicatePathFor(index: VaultIndex, relativePath: string, kind: "file" | "folder") {
-  const parent = dirname(relativePath);
-  const filename = pathName(relativePath);
-  const extensionMatch = kind === "file" ? filename.match(/(\.[^.]+)$/) : undefined;
-  const extension = extensionMatch?.[1] ?? "";
-  const stem = extension ? filename.slice(0, -extension.length) : filename;
-
-  for (let copyIndex = 1; copyIndex < 1000; copyIndex += 1) {
-    const candidateName = `${stem} copy ${copyIndex}${extension}`;
-    const candidate = parent ? `${parent}/${candidateName}` : candidateName;
-    if (!pathExists(index, candidate, kind)) return candidate;
-  }
-  throw new Error("Could not find an available duplicate name.");
-}
-
-async function copyBrowserPath(
-  root: BrowserDirectoryHandle,
-  fromPath: string,
-  toPath: string,
-  kind: "file" | "folder",
-) {
-  await ensureBrowserWritePermission(root);
-  if (kind === "file") {
-    const source = await getBrowserFile(root, fromPath);
-    const file = await source.getFile();
-    await writeBrowserFile(root, toPath, await file.text());
-    return;
-  }
-
-  const source = await getBrowserDirectory(root, fromPath);
-  const { directory, name } = await getBrowserParent(root, toPath);
-  const target = await directory.getDirectoryHandle(name, { create: true });
-  await copyBrowserDirectory(source, target);
-}
-
-async function renameBrowserPath(
-  root: BrowserDirectoryHandle,
-  fromPath: string,
-  newName: string,
-  kind: "file" | "folder",
-) {
-  const targetPath = dirname(fromPath) ? `${dirname(fromPath)}/${newName}` : newName;
-  await copyBrowserPath(root, fromPath, targetPath, kind);
-  await removeBrowserPath(root, fromPath, true);
-  return targetPath;
-}
-
-async function moveBrowserPath(
-  root: BrowserDirectoryHandle,
-  fromPath: string,
-  toFolderPath: string,
-  kind: "file" | "folder",
-) {
-  const targetPath = toFolderPath ? `${toFolderPath}/${pathName(fromPath)}` : pathName(fromPath);
-  await copyBrowserPath(root, fromPath, targetPath, kind);
-  await removeBrowserPath(root, fromPath, true);
-  return targetPath;
-}
-
-function contentFromTemplate(index: VaultIndex, entityType: string, name: string) {
-  const slug = slugify(name);
-  const template = index.templates.find((candidate) => candidate.type === entityType);
-  if (!template) {
-    return `---\nid: ${slug}\ntype: ${entityType}\nname: ${name}\nstatus: draft\n---\n\n# ${name}\n`;
-  }
-  return template.content
-    .replace(/\{\{id\}\}/g, slug)
-    .replace(/\{\{type\}\}/g, entityType)
-    .replace(/\{\{name\}\}/g, name)
-    .replace(/\{\{status\}\}/g, "draft");
-}
-
-function folderDescriptionContent(name: string) {
-  return `---\nid: ${slugify(name)}-folder\ntype: folder-description\nname: ${name}\nstatus: draft\nfolder: ${name}\n---\n\n# ${name}\n\nDescription of this folder's contents.\n`;
-}
-
-function folderDescriptionPath(folderPath: string) {
-  const folderName = pathName(folderPath);
-  const parentPath = dirname(folderPath);
-  return parentPath ? `${parentPath}/${folderName}.md` : `${folderName}.md`;
-}
-
-function updateFolderDescriptionContent(content: string, oldName: string, newName: string) {
-  const escaped = oldName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return content
-    .replace(new RegExp(`(^name:\\s*)${escaped}(\\s*$)`, "m"), `$1${newName}$2`)
-    .replace(new RegExp(`(^folder:\\s*)${escaped}(\\s*$)`, "m"), `$1${newName}$2`)
-    .replace(new RegExp(`(^#\\s+)${escaped}(\\s*$)`, "m"), `$1${newName}$2`);
-}
-
-function universeNoteContent(name: string) {
-  return `---\nid: ${slugify(name)}\ntype: universe\nname: ${name}\nstatus: draft\n---\n\n# ${name}\n`;
-}
-
-function rawToEditorParts(rawMarkdown: string): EditorDocumentParts {
-  return splitMarkdown(rawMarkdown);
-}
-
-function bodyToRawMarkdown(tab: OpenTab, bodyMarkdown: string) {
-  return joinMarkdown(rawToEditorParts(tab.rawMarkdown).frontmatterRaw, bodyMarkdown);
-}
-
-function universeDisplayName(index?: VaultIndex) {
-  if (!index) return "Universe";
-  return index.universeProfile?.name ?? pathName(index.rootPath);
-}
-
-function UniverseIconFrame({ profile, size = 34 }: { profile?: UniverseProfile; size?: number }) {
-  const icon = profile?.icon;
-  if (icon?.type === "image" && icon.value) {
-    return (
-      <span className="universe-icon-frame" style={{ width: size, height: size }}>
-        <img src={icon.value} alt="" />
-      </span>
-    );
-  }
-  const preset = icon?.value ?? "book";
-  const iconSize = Math.max(16, Math.round(size * 0.56));
-  const Icon = preset === "globe" ? Globe2 : preset === "castle" ? Castle : preset === "sparkles" ? Sparkles : BookOpen;
-  return (
-    <span className="universe-icon-frame" style={{ width: size, height: size }}>
-      <Icon size={iconSize} />
-    </span>
-  );
-}
-
-// Command Palette Helper Functions
-function buildFileResults(index: VaultIndex | null): FileResult[] {
-  if (!index) return [];
-  
-  return index.entities.map((entity) => ({
-    type: "file" as const,
-    id: entity.path,
-    title: entity.name,
-    subtitle: entity.path,
-    path: entity.path,
-    tags: entity.tags || [],
-    lastModified: entity.file.modifiedMs || undefined,
-    entityType: entity.type,
-    status: entity.status,
-    customProperties: entity.customProperties,
-  }));
-}
-
-function buildCommandResults(keybindings: Array<{ commandId: EditorCommandId; shortcut: string }>): CommandResult[] {
-  return EDITOR_COMMANDS.map((command) => ({
-    type: "command" as const,
-    id: command.id,
-    commandId: command.id,
-    title: command.label,
-    subtitle: command.group,
-    group: command.group,
-    shortcut: shortcutFor(command.id, keybindings),
-  }));
-}
-
-function buildHeaderResults(markdown: string): HeaderResult[] {
-  const results: HeaderResult[] = [];
-  const lines = markdown.split("\n");
-  
-  lines.forEach((line, index) => {
-    const match = line.match(/^(#{1,6})\s+(.+)$/);
-    if (match) {
-      const level = match[1].length;
-      const title = match[2].trim();
-      results.push({
-        type: "header" as const,
-        id: `header-${index}`,
-        title,
-        level,
-        line: index + 1,
-      });
-    }
-  });
-  
-  return results;
-}
-
-function buildTagResults(index: VaultIndex | null): TagResult[] {
-  if (!index) return [];
-  
-  const tagCounts = new Map<string, number>();
-  
-  index.entities.forEach((entity) => {
-    entity.tags?.forEach((tag: string) => {
-      tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
-    });
-  });
-  
-  // Helper to find tag node in hierarchy
-  const findTagNode = (fullPath: string) => {
-    if (!index.taxonomyConfig) return null;
-    const findInNodes = (nodes: typeof index.taxonomyConfig.tags.rootNodes): typeof nodes[0] | null => {
-      for (const node of nodes) {
-        if (node.fullPath === fullPath) return node;
-        if (node.children.length > 0) {
-          const found = findInNodes(node.children);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-    return findInNodes(index.taxonomyConfig.tags.rootNodes);
-  };
-  
-  return Array.from(tagCounts.entries()).map(([tag, count]) => {
-    const tagNode = findTagNode(tag);
-    const parts = tag.split("/");
-    const label = parts[parts.length - 1];
-    
-    return {
-      type: "tag" as const,
-      id: `tag-${tag}`,
-      tag,
-      title: `#${label}`,
-      subtitle: `${count} file${count !== 1 ? "s" : ""}`,
-      fileCount: count,
-      fullPath: tag,
-      depth: parts.length - 1,
-      color: tagNode?.color,
-    };
-  });
-}
 
 const FLOATING_FORMAT_COMMANDS: FloatingFormatCommand[] = [
   { id: "bold", label: "B" },
@@ -719,301 +212,6 @@ const FLOATING_HEADING_COMMANDS: FloatingFormatCommand[] = [
   { id: "heading6", label: "H6" },
 ];
 
-function TreeNode({
-  node,
-  selectedPath,
-  openTabPaths,
-  dirtyTabPaths,
-  favoritePaths,
-  onSelectPath,
-  onSelectFolder,
-  expandedPaths,
-  onToggleExpand,
-  onContextMenu,
-  onToggleFavorite,
-  onDragMove,
-  onPointerDragStart,
-  isPointerClickSuppressed,
-  entityTagColors,
-}: {
-  node: VaultTreeNode;
-  selectedPath?: string;
-  openTabPaths: Set<string>;
-  dirtyTabPaths: Set<string>;
-  favoritePaths: Set<string>;
-  onSelectPath: (path: string) => void;
-  onSelectFolder: (path: string) => void;
-  expandedPaths: Set<string>;
-  onToggleExpand: (path: string) => void;
-  onContextMenu: (event: React.MouseEvent, path: string, kind: "file" | "folder" | "empty") => void;
-  onToggleFavorite: (path: string, kind: "file" | "folder") => void;
-  onDragMove: (fromPath: string, toFolderPath: string, kind?: "file" | "folder") => void;
-  onPointerDragStart: (path: string, kind: "file" | "folder", x: number, y: number) => void;
-  isPointerClickSuppressed: () => boolean;
-  entityTagColors?: Map<string, string>;
-}) {
-  const isExpanded = expandedPaths.has(node.path);
-  const hasChildren = node.children.length > 0;
-  const isFavorite = favoritePaths.has(node.path);
-  const isOpen = openTabPaths.has(node.path);
-  const isDirty = dirtyTabPaths.has(node.path);
-  const tagColor = entityTagColors?.get(node.path);
-  const activateNode = () => {
-    if (isPointerClickSuppressed()) return;
-    if (node.kind === "folder") {
-      onSelectFolder(node.path);
-      if (hasChildren) {
-        onToggleExpand(node.path);
-      }
-    } else if (node.kind === "file") {
-      onSelectPath(node.path);
-    }
-  };
-
-  return (
-    <div className="tree-node">
-      <div
-        role="button"
-        tabIndex={0}
-        draggable={false}
-        data-tree-node="true"
-        data-tree-drop-path={node.kind === "folder" ? node.path : undefined}
-        onDragStart={(event) => {
-          event.dataTransfer.setData("text/plain", node.path);
-          event.dataTransfer.setData("application/worldnotion-kind", node.kind);
-          event.dataTransfer.effectAllowed = "move";
-        }}
-        onPointerDown={(event) => {
-          if (event.button !== 0 || (event.target as HTMLElement).closest("button")) return;
-          onPointerDragStart(node.path, node.kind, event.clientX, event.clientY);
-        }}
-        onDragOver={(event) => {
-          if (node.kind === "folder") {
-            event.preventDefault();
-            event.dataTransfer.dropEffect = "move";
-          }
-        }}
-        onDrop={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          if (node.kind !== "folder") return;
-          const fromPath = event.dataTransfer.getData("text/plain");
-          const fromKind = event.dataTransfer.getData("application/worldnotion-kind") as "file" | "folder" | "";
-          if (fromPath && fromPath !== node.path && !node.path.startsWith(`${fromPath}/`)) {
-            onDragMove(fromPath, node.path, fromKind || undefined);
-          }
-        }}
-        className={`tree-button ${selectedPath === node.path ? "active" : ""} ${node.hasDescription ? "has-description" : ""} ${isOpen ? "is-open" : ""}`}
-        onClick={activateNode}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            activateNode();
-          }
-        }}
-        onContextMenu={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          onContextMenu(event, node.path, node.kind);
-        }}
-        title={node.path}
-      >
-        {node.kind === "folder" && hasChildren && (
-          <span className="tree-chevron">
-            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          </span>
-        )}
-        {tagColor && node.kind === "file" && (
-          <span 
-            className="tree-tag-indicator" 
-            style={{ backgroundColor: tagColor }}
-            title="Tag color"
-          />
-        )}
-        {node.kind === "folder" ? (
-          isExpanded ? <FolderOpen size={14} /> : <Folder size={14} />
-        ) : (
-          <FileText size={14} />
-        )}
-        <span>{node.name}</span>
-        {isDirty ? <strong className="tree-dirty">*</strong> : null}
-        {isFavorite ? <Star size={12} className="tree-favorite" /> : null}
-        {node.kind === "folder" && node.hasDescription && (
-          <button
-            type="button"
-            className="folder-description-button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (node.descriptionPath) {
-                onSelectPath(node.descriptionPath);
-              }
-            }}
-            title={`Edit ${node.name} description`}
-          >
-            <FileEdit size={12} />
-          </button>
-        )}
-        <button
-          type="button"
-          className="folder-description-button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleFavorite(node.path, node.kind);
-          }}
-          title={isFavorite ? "Remove favorite" : "Add favorite"}
-        >
-          {isFavorite ? <StarOff size={12} /> : <Star size={12} />}
-        </button>
-      </div>
-      {node.kind === "folder" && hasChildren && isExpanded && (
-        <div className="tree-children">
-          {node.children.map((child) => (
-            <TreeNode
-              key={child.path}
-              node={child}
-              selectedPath={selectedPath}
-              openTabPaths={openTabPaths}
-              dirtyTabPaths={dirtyTabPaths}
-              favoritePaths={favoritePaths}
-              onSelectPath={onSelectPath}
-              onSelectFolder={onSelectFolder}
-              expandedPaths={expandedPaths}
-              onToggleExpand={onToggleExpand}
-              onContextMenu={onContextMenu}
-              onToggleFavorite={onToggleFavorite}
-              onDragMove={onDragMove}
-              onPointerDragStart={onPointerDragStart}
-              isPointerClickSuppressed={isPointerClickSuppressed}
-              entityTagColors={entityTagColors}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FindingBadge({ finding }: { finding: ValidationFinding }) {
-  return <span className={`finding-badge finding-${finding.severity}`}>{finding.severity}</span>;
-}
-
-function Inspector({
-  entity,
-  template,
-  index,
-  activeTab,
-  onChangeFrontmatter,
-  onUpdateEntity,
-  onOpenEntity,
-}: {
-  entity?: Entity;
-  template?: EntityTemplate;
-  index?: VaultIndex;
-  activeTab?: OpenTab;
-  onChangeFrontmatter?: (frontmatterRaw: string) => void;
-  onUpdateEntity?: (updates: Partial<Entity>) => void;
-  onOpenEntity?: (path: string) => void;
-}) {
-  if (!index) {
-    return (
-      <aside className="inspector">
-        <h2>Inspector</h2>
-        <p className="muted">Open a universe to inspect metadata and links.</p>
-      </aside>
-    );
-  }
-
-  if (template) {
-    return (
-      <aside className="inspector">
-        <h2>Template</h2>
-        <p className="path-line">{template.path}</p>
-        <p className="muted">Templates are Markdown files with placeholders.</p>
-      </aside>
-    );
-  }
-
-  if (!entity) {
-    return (
-      <aside className="inspector">
-        <h2>Inspector</h2>
-        <p className="muted">Select a note or template.</p>
-      </aside>
-    );
-  }
-
-  const findings = index.findings.filter((finding) => finding.file === entity.path);
-  const typeDefinition = index.taxonomy?.types[entity.type];
-  const editableFrontmatter = activeTab?.path === entity.path ? rawToEditorParts(activeTab.rawMarkdown).frontmatterRaw : "";
-
-  return (
-    <aside className="inspector">
-      <h2>{entity.name}</h2>
-      <p className="path-line">{entity.path}</p>
-
-      <section>
-        {activeTab?.path === entity.path && onChangeFrontmatter && onUpdateEntity ? (
-          <MetadataEditor
-            entity={entity}
-            taxonomyConfig={index.taxonomyConfig}
-            rawYaml={editableFrontmatter || "---\n\n---"}
-            onUpdate={(updates) => onUpdateEntity(updates)}
-            onUpdateRawYaml={(yaml) => onChangeFrontmatter(yaml)}
-          />
-        ) : (
-          <>
-            <h3>Metadata</h3>
-            <p className="muted">Open this note in a tab to edit its metadata.</p>
-            <dl className="metadata-list">
-              <dt>id</dt>
-              <dd>{entity.id}</dd>
-              <dt>type</dt>
-              <dd>{typeDefinition?.label ?? entity.type}</dd>
-              <dt>status</dt>
-              <dd>{entity.status}</dd>
-              {Object.entries(entity.customProperties).map(([key, value]) => (
-                <div key={key} className="metadata-pair">
-                  <dt>{key}</dt>
-                  <dd>{formatValue(value)}</dd>
-                </div>
-              ))}
-            </dl>
-          </>
-        )}
-      </section>
-
-      <section>
-        <h3>Links</h3>
-        <p className="muted">Wikilinks: {entity.wikilinks.length ? entity.wikilinks.join(", ") : "None"}</p>
-      </section>
-
-      <BacklinksPanel
-        entity={entity}
-        allEntities={index.entities}
-        onOpenEntity={(path) => {
-          onOpenEntity?.(path);
-        }}
-      />
-
-      <section>
-        <h3>Findings</h3>
-        {findings.length ? (
-          <div className="finding-list">
-            {findings.map((finding) => (
-              <div key={`${finding.code}-${finding.message}`} className="finding-item">
-                <FindingBadge finding={finding} />
-                <span>{finding.message}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="muted">No findings for this file.</p>
-        )}
-      </section>
-    </aside>
-  );
-}
-
 function App() {
   const [settings, setSettings] = useState<AppSettingsV4>(() => loadSettings());
   const [view, setView] = useState<AppView>("home");
@@ -1029,14 +227,15 @@ function App() {
   const [errorMessage, setErrorMessage] = useState("");
   const [tabs, setTabs] = useState<OpenTab[]>([]);
   const [activeTabPath, setActiveTabPath] = useState<string>();
+  const [workspaceLayout, setWorkspaceLayout] = useState(() => createDefaultWorkspaceLayout());
+  const [activeWorkspacePreset, setActiveWorkspacePreset] = useState<ActiveWorkspacePreset>("default");
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsInitialSection, setSettingsInitialSection] = useState<"overview" | "editor">("overview");
+  const [forgeMenuOpen, setForgeMenuOpen] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showQuickSwitcher, setShowQuickSwitcher] = useState(false);
   const [showTaxonomyMigration, setShowTaxonomyMigration] = useState(false);
   const [generatedTaxonomy, setGeneratedTaxonomy] = useState<import("./editorTypes.js").TaxonomyConfig | null>(null);
-  const [showSidebar, setShowSidebar] = useState(true);
-  const [showInspector, setShowInspector] = useState(true);
-  const [showGraphView, setShowGraphView] = useState(false);
   const [graphViewMode, setGraphViewMode] = useState<"global" | "local">("global");
   const [graphDepth, setGraphDepth] = useState(1);
   const [graphFilterTypes, setGraphFilterTypes] = useState<string[]>([]);
@@ -1078,6 +277,11 @@ function App() {
     y: number;
     path: string;
   } | null>(null);
+  const [dockPanelContextMenu, setDockPanelContextMenu] = useState<{
+    x: number;
+    y: number;
+    groupId: string;
+  } | null>(null);
   const [missingRecentPaths, setMissingRecentPaths] = useState<Set<string>>(new Set());
   const [inputDialog, setInputDialog] = useState<{
     isOpen: boolean;
@@ -1094,6 +298,7 @@ function App() {
   const [toastQueue, setToastQueue] = useState<string[]>([]);
   const [activeToast, setActiveToast] = useState("");
   const [pointerDragItem, setPointerDragItem] = useState<PointerDragItem>();
+  const [graphControlsPosition, setGraphControlsPosition] = useState({ x: 14, y: 14 });
   const suppressTreeClickRef = useRef(false);
 
   const showToast = (message: string) => {
@@ -1122,6 +327,9 @@ function App() {
       });
   }, [index]);
   const labels = useMemo(() => platformLabels(), []);
+  const isExplorerPanelOpen = layoutHasPanel(workspaceLayout, "explorer");
+  const isInspectorPanelOpen = layoutHasPanel(workspaceLayout, "inspector");
+  const isGraphPanelOpen = layoutHasPanel(workspaceLayout, "graph");
 
   useEffect(() => {
     document.documentElement.dataset.theme = settings.theme;
@@ -1149,22 +357,16 @@ function App() {
 
   useEffect(() => {
     if (!index || !settings.editor.persistTabs) return;
-    const session: WorkspaceSession = {
-      rootPath: index.rootPath,
-      activePath: activeTabPath,
-      tabs: tabs.map((tab) => ({
-        path: tab.path,
-        title: tab.title,
-        mode: tab.mode,
-        modifiedMs: tab.modifiedMs,
-        isTemplate: tab.isTemplate,
-      })),
-    };
+    const session = serializeWorkspaceSession(index.rootPath, activeTabPath, tabs, workspaceLayout);
     setSettings((current) => ({
       ...current,
       sessions: { ...current.sessions, [index.rootPath]: session },
     }));
-  }, [activeTabPath, index?.rootPath, settings.editor.persistTabs, tabs]);
+  }, [activeTabPath, index?.rootPath, settings.editor.persistTabs, tabs, workspaceLayout]);
+
+  useEffect(() => {
+    setWorkspaceLayout((current) => syncLayoutWithOpenTabs(current, tabs, activeTabPath));
+  }, [activeTabPath, tabs]);
 
   useEffect(() => {
     const recent = settings.recentUniverse;
@@ -1253,45 +455,32 @@ function App() {
     };
   }, [tabContextMenu]);
 
-  // Create a "live" entity from the active tab's current content
-  // This allows Inspector to show unsaved changes immediately
-  const selectedEntity = useMemo(() => {
-    const indexEntity = index?.entities.find((entity) => entity.path === selectedPath);
-    
-    // If there's an active tab for this path, parse its current content
-    const activeTabForSelected = tabs.find((tab) => tab.path === selectedPath);
-    if (activeTabForSelected && indexEntity) {
-      try {
-        const parsed = parseMarkdownFrontmatter(activeTabForSelected.rawMarkdown);
-        
-        // Create live entity with current tab data
-        return {
-          ...indexEntity,
-          id: String(parsed.data.id || indexEntity.id),
-          name: String(parsed.data.name || indexEntity.name),
-          type: String(parsed.data.type || indexEntity.type),
-          status: String(parsed.data.status || indexEntity.status),
-          tags: Array.isArray(parsed.data.tags) ? parsed.data.tags.map(String) : indexEntity.tags,
-          aliases: Array.isArray(parsed.data.aliases) ? parsed.data.aliases.map(String) : indexEntity.aliases,
-          customProperties: (() => {
-            const props: Record<string, unknown> = {};
-            const excludedKeys = ['id', 'name', 'type', 'status', 'tags', 'aliases'];
-            Object.entries(parsed.data).forEach(([key, value]) => {
-              if (!excludedKeys.includes(key)) {
-                props[key] = value;
-              }
-            });
-            return props;
-          })(),
-          body: parsed.content,
-        };
-      } catch {
-        // If parsing fails, fall back to index entity
-        return indexEntity;
-      }
+  useEffect(() => {
+    if (!dockPanelContextMenu) return;
+
+    function closeDockPanelMenu() {
+      setDockPanelContextMenu(null);
     }
-    
-    return indexEntity;
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") closeDockPanelMenu();
+    }
+
+    document.addEventListener("mousedown", closeDockPanelMenu);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeDockPanelMenu);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [dockPanelContextMenu]);
+
+  useEffect(() => {
+    if (!layoutHasPanel(workspaceLayout, "outline")) return;
+    setWorkspaceLayout((current) => closeDockLayoutTab(current, panelDockTabId("outline")));
+  }, [workspaceLayout]);
+
+  const selectedEntity = useMemo(() => {
+    return selectLiveEntity(index, selectedPath, tabs);
   }, [index, selectedPath, tabs]);
   
   const selectedTemplate = index?.templates.find((template) => template.path === selectedPath);
@@ -1334,16 +523,7 @@ function App() {
   }, [index]);
 
   const visibleTree = useMemo(() => {
-    if (!index) return [];
-    const tree = settings.explorer.showHiddenEverend
-      ? buildTree(index.files, index.directories, true, `${pathName(index.rootPath)}.md`)
-      : index.tree;
-    if (!query.trim()) return tree;
-    const normalized = query.toLowerCase();
-    const files: VaultTreeNode[] = [];
-    const folders: VaultTreeNode[] = [];
-    collectSearchMatches(tree, normalized, files, folders);
-    return [...files, ...folders];
+    return selectVisibleTree(index, query, settings.explorer.showHiddenEverend);
   }, [index, query, settings.explorer.showHiddenEverend]);
 
   const activeExplorerSection = settings.explorer.activeSection;
@@ -1360,119 +540,18 @@ function App() {
     };
   }, [index]);
   const favoriteItems = useMemo(() => {
-    if (!index) return [];
-    const treePaths = new Set<string>();
-    function collectTreePaths(nodes: VaultTreeNode[]) {
-      for (const node of nodes) {
-        treePaths.add(node.path);
-        collectTreePaths(node.children);
-      }
-    }
-    collectTreePaths(index.tree);
-    return settings.explorer.favorites.filter((favorite) => {
-      if (favorite.kind === "folder") {
-        return treePaths.has(favorite.path);
-      }
-      return index.files.some((file) => file.relativePath === favorite.path);
-    });
+    return selectFavoriteItems(index, settings.explorer.favorites);
   }, [index, settings.explorer.favorites]);
 
   // Group entities by their ecosystem tags
   const ecosystemGroups = useMemo(() => {
-    if (!index?.taxonomyConfig) return new Map<string, Entity[]>();
-    
-    const groups = new Map<string, Entity[]>();
-    const taxonomyConfig = index.taxonomyConfig;
-    
-    // Flatten tag hierarchy to get all tags with their colors
-    const tagMap = new Map<string, { color?: string; fullPath: string }>();
-    function flattenTags(nodes: typeof taxonomyConfig.tags.rootNodes, parentPath = "") {
-      nodes.forEach(node => {
-        const fullPath = parentPath ? `${parentPath}/${node.label}` : node.label;
-        tagMap.set(node.label, { color: node.color, fullPath });
-        tagMap.set(fullPath, { color: node.color, fullPath });
-        if (node.children?.length) {
-          flattenTags(node.children, fullPath);
-        }
-      });
-    }
-    flattenTags(taxonomyConfig.tags.rootNodes);
-    
-    // Add entities to groups based on their first tag
-    index.entities.forEach(entity => {
-      if (entity.tags.length > 0) {
-        const primaryTag = entity.tags[0];
-        const tagInfo = tagMap.get(primaryTag);
-        const groupKey = tagInfo?.fullPath || primaryTag;
-        
-        if (!groups.has(groupKey)) {
-          groups.set(groupKey, []);
-        }
-        groups.get(groupKey)!.push(entity);
-      } else {
-        // Untagged entities
-        if (!groups.has("_untagged")) {
-          groups.set("_untagged", []);
-        }
-        groups.get("_untagged")!.push(entity);
-      }
-    });
-    
-    return groups;
+    return selectEcosystemGroups(index);
   }, [index]);
 
   // Get tag color for an entity
   const entityTagColors = useMemo(() => {
-    const colorMap = new Map<string, string>();
-    if (!index?.taxonomyConfig) return colorMap;
-    
-    const taxonomyConfig = index.taxonomyConfig;
-    
-    // Find color in hierarchy
-    function findColor(nodes: typeof taxonomyConfig.tags.rootNodes, tag: string): string | undefined {
-      for (const node of nodes) {
-        if (node.label === tag || node.fullPath === tag) {
-          return node.color;
-        }
-        if (node.children?.length) {
-          const childColor = findColor(node.children, tag);
-          if (childColor) return childColor;
-        }
-      }
-      return undefined;
-    }
-    
-    // Map each entity path to its primary tag color
-    index.entities.forEach(entity => {
-      if (entity.tags.length > 0) {
-        const color = findColor(taxonomyConfig.tags.rootNodes, entity.tags[0]);
-        if (color) {
-          colorMap.set(entity.path, color);
-        }
-      }
-    });
-    
-    return colorMap;
+    return selectEntityTagColors(index);
   }, [index]);
-
-  function collectSearchMatches(
-    nodes: VaultTreeNode[],
-    normalized: string,
-    files: VaultTreeNode[],
-    folders: VaultTreeNode[],
-  ) {
-    nodes.forEach((node) => {
-      const matches = node.name.toLowerCase().includes(normalized) || node.path.toLowerCase().includes(normalized);
-      if (matches) {
-        if (node.kind === "file") {
-          files.push({ ...node, children: [] });
-        } else {
-          folders.push({ ...node, children: [] });
-        }
-      }
-      collectSearchMatches(node.children, normalized, files, folders);
-    });
-  }
 
   useEffect(() => {
     localStorage.setItem("worldnotion.expandedPaths", JSON.stringify(Array.from(expandedPaths)));
@@ -1572,18 +651,6 @@ function App() {
     showToast("Removed from dashboard.");
   }
 
-  function selectedAbsolutePath(path = selectedPath) {
-    if (!index || !path) return index?.rootPath;
-    const file = index.files.find((candidate) => candidate.relativePath === path);
-    return file?.absolutePath ?? `${index.rootPath}/${path}`;
-  }
-
-  function activeCreationFolder() {
-    if (selectedExplorerTarget?.kind === "folder") return selectedExplorerTarget.path;
-    if (selectedExplorerTarget?.kind === "file") return dirname(selectedExplorerTarget.path);
-    return selectedPath ? dirname(selectedPath) : "";
-  }
-
   function updateExplorer(next: Partial<AppSettingsV4["explorer"]>) {
     setSettings((current) => ({ ...current, explorer: { ...current.explorer, ...next } }));
   }
@@ -1609,13 +676,8 @@ function App() {
   }
 
   function updateTabsForPathChange(change: PathChangeSet) {
-    setTabs((current) =>
-      current.map((tab) => {
-        if (!pathIsAffectedByChanges(tab.path, change)) return tab;
-        const path = pathAfterChanges(tab.path, change);
-        return { ...tab, path, title: fileTitle(path), absolutePath: index ? `${index.rootPath}/${path}` : tab.absolutePath };
-      }),
-    );
+    setTabs((current) => updateOpenTabsForPathChange(current, change, index?.rootPath));
+    setWorkspaceLayout((current) => updateLayoutForPathChange(current, change));
     if (pathIsAffectedByChanges(activeTabPath, change) && activeTabPath) {
       setActiveTabPath(pathAfterChanges(activeTabPath, change));
     }
@@ -1631,42 +693,28 @@ function App() {
 
   async function renameFolderDescriptionIfNeeded(folderPath: string, newFolderName: string) {
     if (!index) return undefined;
-    const oldDescriptionPath = folderDescriptionPath(folderPath);
-    const oldDescriptionFile = index.files.find((file) => file.relativePath === oldDescriptionPath);
-    if (!oldDescriptionFile) return undefined;
-
-    const newDescriptionPath = dirname(folderPath)
-      ? `${dirname(folderPath)}/${newFolderName}.md`
-      : `${newFolderName}.md`;
-    if (
-      oldDescriptionPath !== newDescriptionPath &&
-      index.files.some((file) => file.relativePath === newDescriptionPath)
-    ) {
-      throw new Error(`Cannot rename folder description because ${newDescriptionPath} already exists.`);
-    }
-
-    const oldFolderName = pathName(folderPath);
-    const nextContent = updateFolderDescriptionContent(oldDescriptionFile.content, oldFolderName, newFolderName);
+    const plan = planFolderDescriptionRename(index, folderPath, newFolderName);
+    if (!plan) return undefined;
 
     if (browserRoot) {
-      if (oldDescriptionPath !== newDescriptionPath) {
-        await renameBrowserPath(browserRoot, oldDescriptionPath, `${newFolderName}.md`, "file");
+      if (plan.oldDescriptionPath !== plan.newDescriptionPath) {
+        await renameBrowserPath(browserRoot, plan.oldDescriptionPath, plan.newFileName, "file");
       }
-      await writeBrowserFile(browserRoot, newDescriptionPath, nextContent);
+      await writeBrowserFile(browserRoot, plan.newDescriptionPath, plan.content);
     } else {
-      if (oldDescriptionPath !== newDescriptionPath) {
+      if (plan.oldDescriptionPath !== plan.newDescriptionPath) {
         const renameResult = await invoke<WriteResult>("rename_path", {
           vaultPath: index.rootPath,
-          relativePath: oldDescriptionPath,
-          newName: `${newFolderName}.md`,
+          relativePath: plan.oldDescriptionPath,
+          newName: plan.newFileName,
         });
         if (!renameResult.ok) {
           throw new Error(renameResult.message ?? "Could not rename folder description.");
         }
       }
       const saveResult = await invoke<WriteResult>("save_file", {
-        path: `${index.rootPath}/${newDescriptionPath}`,
-        content: nextContent,
+        path: `${index.rootPath}/${plan.newDescriptionPath}`,
+        content: plan.content,
         expectedModifiedMs: null,
       });
       if (!saveResult.ok) {
@@ -1674,11 +722,7 @@ function App() {
       }
     }
 
-    return {
-      fromPath: oldDescriptionPath,
-      toPath: newDescriptionPath,
-      mode: "single",
-    } satisfies PathChange;
+    return plan.change;
   }
 
   async function handleContextMenuAction(
@@ -1808,17 +852,8 @@ function App() {
         const currentName = pathName(targetPath);
         const newName = await promptUser("New name:", "new name", currentName);
         if (!newName || newName === currentName) return;
-        const nextPath = `${dirname(targetPath) ? `${dirname(targetPath)}/` : ""}${newName}`;
         if (targetKind === "folder") {
-          const oldDescriptionPath = folderDescriptionPath(targetPath);
-          const newDescriptionPath = dirname(targetPath) ? `${dirname(targetPath)}/${newName}.md` : `${newName}.md`;
-          if (
-            oldDescriptionPath !== newDescriptionPath &&
-            index.files.some((file) => file.relativePath === oldDescriptionPath) &&
-            index.files.some((file) => file.relativePath === newDescriptionPath)
-          ) {
-            throw new Error(`Cannot rename folder description because ${newDescriptionPath} already exists.`);
-          }
+          planFolderDescriptionRename(index, targetPath, newName);
         }
         if (browserRoot) {
           await renameBrowserPath(browserRoot, targetPath, newName, targetKind);
@@ -1832,7 +867,7 @@ function App() {
         }
         const folderDescriptionChange =
           targetKind === "folder" ? await renameFolderDescriptionIfNeeded(targetPath, newName) : undefined;
-        const change: PathChange = { fromPath: targetPath, toPath: nextPath, mode: targetKind === "folder" ? "tree" : "single" };
+        const change = renamePathChange(targetPath, newName, targetKind);
         const changes = folderDescriptionChange ? [change, folderDescriptionChange] : [change];
         updateTabsForPathChange(changes);
         await refreshUniverse(undefined, changes);
@@ -1882,11 +917,12 @@ function App() {
   async function moveExplorerPath(fromPath: string, toFolderPath: string, kind?: "file" | "folder") {
     if (!index) return;
     const itemKind = kind ?? (index.files.some((file) => file.relativePath === fromPath) ? "file" : "folder");
-    if (itemKind === "folder" && (toFolderPath === fromPath || toFolderPath.startsWith(`${fromPath}/`))) {
-      showToast("Cannot move a folder into itself.");
+    const moveProblem = movePathProblem(fromPath, toFolderPath, itemKind);
+    if (moveProblem === "Cannot move a folder into itself.") {
+      showToast(moveProblem);
       return;
     }
-    if (dirname(fromPath) === toFolderPath) {
+    if (moveProblem === "already-there") {
       return;
     }
     const confirmed = settings.explorer.confirmDragMove
@@ -1905,7 +941,7 @@ function App() {
       if (!result.ok) throw new Error(result.message ?? "Could not move item.");
       movedPath = relativeFromAbsolute(index.rootPath, result.path);
     }
-    const change: PathChange = { fromPath, toPath: movedPath, mode: "tree" };
+    const change = movePathChange(fromPath, dirname(movedPath));
     updateTabsForPathChange(change);
     await refreshUniverse(undefined, change);
     showToast(`Moved ${pathName(fromPath)}.`);
@@ -1916,7 +952,7 @@ function App() {
     if (browserRoot) {
       throw new Error(`${labels.revealItem} is only available in the desktop app.`);
     }
-    const absolutePath = path ? selectedAbsolutePath(path) : index.rootPath;
+    const absolutePath = path ? getSelectedAbsolutePath(index, path) : index.rootPath;
     if (!path) {
       await invoke<WriteResult>("reveal_vault", { vaultPath: index.rootPath });
     } else {
@@ -1926,7 +962,7 @@ function App() {
 
   async function trashExplorerPath(path: string, kind: "file" | "folder") {
     if (!index) return;
-    const affectedDirtyTabs = tabs.filter((tab) => tab.dirty && (tab.path === path || tab.path.startsWith(`${path}/`)));
+    const affectedDirtyTabs = dirtyTabPathsAffectedByTree(tabs, path);
     if (affectedDirtyTabs.length) {
       const confirmed = window.confirm(`${affectedDirtyTabs.length} open tab(s) have unsaved changes. ${labels.trashAction} anyway?`);
       if (!confirmed) return;
@@ -1977,7 +1013,7 @@ function App() {
       setActiveTabPath(undefined);
     }
     updateExplorer({
-      favorites: settings.explorer.favorites.filter((favorite) => !(favorite.path === path || favorite.path.startsWith(`${path}/`))),
+      favorites: favoritesOutsideTree(settings.explorer.favorites, path),
     });
     await refreshUniverse();
     showToast(`${kind === "folder" ? "Folder" : "File"} ${labels.trashDone.toLowerCase()}`);
@@ -2122,64 +1158,34 @@ function App() {
 
   function applyUniverse(readResult: VaultReadResult, preferredPath?: string, pathChange?: PathChangeSet) {
     const nextIndex = indexVault(readResult);
-    const activePathAfterChange =
-      activeTabPath && pathChange && pathIsAffectedByChanges(activeTabPath, pathChange)
-        ? pathAfterChanges(activeTabPath, pathChange)
-        : activeTabPath;
-    const selectedPathAfterChange =
-      selectedPath && pathChange && pathIsAffectedByChanges(selectedPath, pathChange)
-        ? pathAfterChanges(selectedPath, pathChange)
-        : selectedPath;
     setIndex(nextIndex);
     setView("workspace");
     setLoadState("ready");
     setErrorMessage("");
     setSettings((current) => rememberUniverse(current, readResult.rootPath, profileForRecent(nextIndex)));
 
-    const liveTabs =
-      index?.rootPath === readResult.rootPath && tabs.length
-        ? tabs
-            .map((tab) => {
-              const nextTabPath = pathChange && pathIsAffectedByChanges(tab.path, pathChange)
-                ? pathAfterChanges(tab.path, pathChange)
-                : tab.path;
-              const file = nextIndex.files.find((candidate) => candidate.relativePath === nextTabPath);
-              if (!file) return undefined;
-              return tab.dirty
-                ? { ...tab, path: nextTabPath, title: fileTitle(nextTabPath), absolutePath: file.absolutePath, modifiedMs: file.modifiedMs }
-                : createTabFromFile(file, tab.mode);
-            })
-            .filter((tab): tab is OpenTab => Boolean(tab))
-        : [];
-    const restoredSession = settings.sessions[readResult.rootPath];
-    const restoredTabs = liveTabs.length
-      ? liveTabs
-      : settings.editor.persistTabs
-        ? (restoredSession?.tabs ?? [])
-          .map((tab) => {
-            const file = nextIndex.files.find((candidate) => candidate.relativePath === tab.path);
-            return file ? createTabFromFile(file, tab.mode) : undefined;
-          })
-          .filter((tab): tab is OpenTab => Boolean(tab))
-        : [];
+    const workspacePlan = planUniverseWorkspaceState({
+      nextIndex,
+      readRootPath: readResult.rootPath,
+      currentRootPath: index?.rootPath,
+      tabs,
+      activeTabPath,
+      selectedPath,
+      workspaceLayout,
+      sessions: settings.sessions,
+      persistTabs: settings.editor.persistTabs,
+      preferredPath,
+      pathChange,
+    });
 
-    const nextPath =
-      preferredPath && nextIndex.files.some((file) => file.relativePath === preferredPath)
-        ? preferredPath
-        : activePathAfterChange && nextIndex.files.some((file) => file.relativePath === activePathAfterChange)
-          ? activePathAfterChange
-          : selectedPathAfterChange && nextIndex.files.some((file) => file.relativePath === selectedPathAfterChange)
-            ? selectedPathAfterChange
-            : restoredSession?.activePath && nextIndex.files.some((file) => file.relativePath === restoredSession.activePath)
-              ? restoredSession.activePath
-              : undefined;
-
-    if (restoredTabs.length) {
-      setTabs(restoredTabs);
-      setActiveTabPath(nextPath);
-      setSelectedPath(nextPath);
-    } else if (nextPath) {
-      openDocument(nextIndex, nextPath);
+    setWorkspaceLayout(workspacePlan.layout);
+    setActiveWorkspacePreset("custom");
+    if (workspacePlan.tabs.length) {
+      setTabs(workspacePlan.tabs);
+      setActiveTabPath(workspacePlan.nextPath);
+      setSelectedPath(workspacePlan.nextPath);
+    } else if (workspacePlan.nextPath) {
+      openDocument(nextIndex, workspacePlan.nextPath);
     } else {
       setSelectedPath(undefined);
       setActiveTabPath(undefined);
@@ -2223,20 +1229,6 @@ function App() {
     }
   }
 
-  function createTabFromFile(file: VaultFile, mode = settings.editor.defaultMode): OpenTab {
-    return {
-      path: file.relativePath,
-      title: fileTitle(file.relativePath),
-      absolutePath: file.absolutePath,
-      rawMarkdown: file.content,
-      savedMarkdown: file.content,
-      modifiedMs: file.modifiedMs,
-      dirty: false,
-      mode,
-      isTemplate: file.relativePath.startsWith(".everend/templates/"),
-    };
-  }
-
   function openDocument(nextIndex: VaultIndex, path: string) {
     const file = nextIndex.files.find((candidate) => candidate.relativePath === path);
     if (!file) return;
@@ -2246,15 +1238,18 @@ function App() {
       if (settings.editor.reuseOpenTabs && current.some((tab) => tab.path === path)) {
         return current;
       }
-      return [...current, createTabFromFile(file)];
+      return [...current, createOpenTabFromFile(file, settings.editor.defaultMode)];
     });
     setActiveTabPath(path);
+    setActiveWorkspacePreset("custom");
+    setWorkspaceLayout((current) => addDocumentToLayout(current, path, fileTitle(path)));
   }
 
   function activateTab(path: string) {
     setActiveTabPath(path);
     setSelectedPath(path);
     rememberRecentFile(path);
+    setWorkspaceLayout((current) => activateDockTab(current, documentDockTabId(path)));
   }
 
   function openOrCreateTab(path: string, nextIndex = index) {
@@ -2262,69 +1257,14 @@ function App() {
     const existing = tabs.find((tab) => tab.path === path);
     if (existing) {
       activateTab(path);
-      
-      // Actualizar estadísticas de acceso
-      if (nextIndex?.rootPath) {
-        setSettings((current) => {
-          const currentSession = current.sessions[nextIndex.rootPath] || {
-            rootPath: nextIndex.rootPath,
-            tabs: [],
-          };
-          const updatedStats = incrementFileAccess(currentSession, path);
-          return {
-            ...current,
-            sessions: {
-              ...current.sessions,
-              [nextIndex.rootPath]: {
-                ...currentSession,
-                fileAccessStats: updatedStats,
-              },
-            },
-          };
-        });
-      }
+      setSettings((current) => recordFileAccessInSettings(current, nextIndex.rootPath, path));
       return;
     }
     openDocument(nextIndex, path);
-    
-    // Actualizar estadísticas de acceso
-    if (nextIndex?.rootPath) {
-      setSettings((current) => {
-        const currentSession = current.sessions[nextIndex.rootPath] || {
-          rootPath: nextIndex.rootPath,
-          tabs: [],
-        };
-        const updatedStats = incrementFileAccess(currentSession, path);
-        return {
-          ...current,
-          sessions: {
-            ...current.sessions,
-            [nextIndex.rootPath]: {
-              ...currentSession,
-              fileAccessStats: updatedStats,
-            },
-          },
-        };
-      });
-    }
+    setSettings((current) => recordFileAccessInSettings(current, nextIndex.rootPath, path));
   }
 
-  function resolveWikilink(label: string): ResolvedWikilink {
-    const normalized = label.trim().toLowerCase();
-    if (!index || !normalized) return { label, status: "missing" };
-    const entity = index.entities.find((candidate) => {
-      const candidates = [
-        candidate.id,
-        candidate.name,
-        fileTitle(candidate.path),
-        ...candidate.aliases,
-      ].map((value) => value.trim().toLowerCase());
-      return candidates.includes(normalized);
-    });
-    if (entity) return { label, targetPath: entity.path, status: "resolved" };
-    const file = index.markdownFiles.find((candidate) => fileTitle(candidate.relativePath).trim().toLowerCase() === normalized);
-    return file ? { label, targetPath: file.relativePath, status: "resolved" } : { label, status: "missing" };
-  }
+  const resolveWikilink = (label: string) => resolveWikilinkInIndex(index, label);
 
   async function createTemplate() {
     if (!index) return;
@@ -2485,11 +1425,10 @@ function App() {
     }
   }
 
-  function updateRawMarkdown(rawMarkdown: string) {
-    if (!activeTabPath) return;
+  function updateRawMarkdownForPath(path: string, rawMarkdown: string) {
     setTabs((current) =>
       current.map((tab) => {
-        if (tab.path !== activeTabPath) return tab;
+        if (tab.path !== path) return tab;
         const nextRawMarkdown = tab.mode === "write" ? bodyToRawMarkdown(tab, rawMarkdown) : rawMarkdown;
         return {
           ...tab,
@@ -2498,6 +1437,10 @@ function App() {
         };
       }),
     );
+  }
+
+  function setTabMode(path: string, mode: OpenTab["mode"]) {
+    setTabs((current) => current.map((tab) => (tab.path === path ? { ...tab, mode } : tab)));
   }
 
   function updateActiveFrontmatter(frontmatterRaw: string) {
@@ -2522,84 +1465,42 @@ function App() {
     const currentEntity = selectedEntity;
     if (!currentEntity) return;
 
-    // Merge updates with current entity
     const updatedEntity = { ...currentEntity, ...updates };
-
-    // Build YAML object
-    const yamlObj: Record<string, unknown> = {
-      id: updatedEntity.id,
-      type: updatedEntity.type,
-      status: updatedEntity.status,
-    };
-
-    // Only add tags and aliases if they have values
-    if (updatedEntity.tags.length > 0) {
-      yamlObj.tags = updatedEntity.tags;
-    }
-    if (updatedEntity.aliases.length > 0) {
-      yamlObj.aliases = updatedEntity.aliases;
-    }
-
-    // Add custom properties
-    Object.entries(updatedEntity.customProperties).forEach(([key, value]) => {
-      yamlObj[key] = value;
-    });
-
-    // Serialize to YAML using YAML library for proper formatting
-    const yamlContent = YAML.stringify(yamlObj);
-    const frontmatterRaw = `---\n${yamlContent}---`;
-
-    updateActiveFrontmatter(frontmatterRaw);
+    updateActiveFrontmatter(entityToFrontmatterRaw(updatedEntity));
   }
 
   async function saveEditor() {
-    if (!activeTab) return;
+    if (!activeTabPath) return;
+    await saveTab(activeTabPath);
+  }
+
+  async function saveTab(path: string) {
+    const tabToSave = tabs.find((tab) => tab.path === path);
+    if (!tabToSave) return;
     setErrorMessage("");
     try {
       if (browserRoot) {
-        if (activeTab.modifiedMs) {
-          const handle = await getBrowserFile(browserRoot, activeTab.path);
+        if (tabToSave.modifiedMs) {
+          const handle = await getBrowserFile(browserRoot, tabToSave.path);
           const currentFile = await handle.getFile();
-          if (currentFile.lastModified !== activeTab.modifiedMs) {
+          if (currentFile.lastModified !== tabToSave.modifiedMs) {
             showToast("File changed externally. Reload before saving.");
             return;
           }
         }
-        const modifiedMs = await writeBrowserFile(browserRoot, activeTab.path, activeTab.rawMarkdown);
-        setTabs((current) =>
-          current.map((tab) =>
-            tab.path === activeTab.path
-              ? { ...tab, savedMarkdown: tab.rawMarkdown, dirty: false, modifiedMs }
-              : tab,
-          ),
-        );
+        const modifiedMs = await writeBrowserFile(browserRoot, tabToSave.path, tabToSave.rawMarkdown);
+        setTabs((current) => markSavedTabInList(current, tabToSave.path, modifiedMs));
         showToast("Saved.");
         await reindexUniverseMetadata();
         return;
       }
 
-      if (!activeTab.absolutePath) throw new Error("This document does not have a writable path.");
-      const result = await invoke<WriteResult>("save_file", {
-        path: activeTab.absolutePath,
-        content: activeTab.rawMarkdown,
-        expectedModifiedMs: activeTab.modifiedMs ?? null,
-      });
+      const result = await invoke<WriteResult>("save_file", saveFilePayloadForTab(tabToSave));
       if (!result.ok) {
         showToast(result.message ?? "Save failed.");
         return;
       }
-      setTabs((current) =>
-        current.map((tab) =>
-          tab.path === activeTab.path
-            ? {
-                ...tab,
-                savedMarkdown: tab.rawMarkdown,
-                dirty: false,
-                modifiedMs: result.modifiedMs ?? tab.modifiedMs,
-              }
-            : tab,
-        ),
-      );
+      setTabs((current) => markSavedTabInList(current, tabToSave.path, result.modifiedMs));
       showToast("Saved.");
       await reindexUniverseMetadata();
     } catch (error) {
@@ -2612,10 +1513,14 @@ function App() {
     const view = editorViewRef.current;
     if (!view) return;
     const selection = view.state.selection.main;
-    const selected = view.state.sliceDoc(selection.from, selection.to) || placeholder;
+    const selected = view.state.sliceDoc(selection.from, selection.to);
+    const insertion = wrapSelectionText(selected, before, after, placeholder);
     view.dispatch({
-      changes: { from: selection.from, to: selection.to, insert: `${before}${selected}${after}` },
-      selection: { anchor: selection.from + before.length, head: selection.from + before.length + selected.length },
+      changes: { from: selection.from, to: selection.to, insert: insertion.text },
+      selection: {
+        anchor: selection.from + insertion.anchorOffset,
+        head: selection.from + (insertion.headOffset ?? insertion.anchorOffset),
+      },
     });
     view.focus();
   }
@@ -2624,12 +1529,13 @@ function App() {
     const view = editorViewRef.current;
     if (!view) return;
     const selection = view.state.selection.main;
-    const selected = view.state.sliceDoc(selection.from, selection.to) || "text";
-    const before = `<span style="font-family: ${fontFamily}">`;
-    const after = `</span>`;
+    const insertion = fontFamilyInsertion(view.state.sliceDoc(selection.from, selection.to), fontFamily);
     view.dispatch({
-      changes: { from: selection.from, to: selection.to, insert: `${before}${selected}${after}` },
-      selection: { anchor: selection.from + before.length, head: selection.from + before.length + selected.length },
+      changes: { from: selection.from, to: selection.to, insert: insertion.text },
+      selection: {
+        anchor: selection.from + insertion.anchorOffset,
+        head: selection.from + (insertion.headOffset ?? insertion.anchorOffset),
+      },
     });
     view.focus();
   }
@@ -2638,13 +1544,13 @@ function App() {
     const view = editorViewRef.current;
     if (!view) return;
     const selection = view.state.selection.main;
-    const selected = view.state.sliceDoc(selection.from, selection.to) || "Page Name";
-    const alias = selected === "Page Name" ? "Alias" : selected;
-    const insert = `[[${selected}|${alias}]]`;
-    const aliasFrom = selection.from + 2 + selected.length + 1;
+    const insertion = wikilinkInsertion(view.state.sliceDoc(selection.from, selection.to));
     view.dispatch({
-      changes: { from: selection.from, to: selection.to, insert },
-      selection: { anchor: aliasFrom, head: aliasFrom + alias.length },
+      changes: { from: selection.from, to: selection.to, insert: insertion.text },
+      selection: {
+        anchor: selection.from + insertion.anchorOffset,
+        head: selection.from + (insertion.headOffset ?? insertion.anchorOffset),
+      },
     });
     view.focus();
   }
@@ -2655,11 +1561,13 @@ function App() {
     const url = await promptUser("Insert link", "https://example.com", "https://");
     if (!url?.trim()) return;
     const selection = view.state.selection.main;
-    const selected = view.state.sliceDoc(selection.from, selection.to) || "link text";
-    const insert = `[${selected}](${url.trim()})`;
+    const insertion = markdownLinkInsertion(view.state.sliceDoc(selection.from, selection.to), url);
     view.dispatch({
-      changes: { from: selection.from, to: selection.to, insert },
-      selection: { anchor: selection.from + 1, head: selection.from + 1 + selected.length },
+      changes: { from: selection.from, to: selection.to, insert: insertion.text },
+      selection: {
+        anchor: selection.from + insertion.anchorOffset,
+        head: selection.from + (insertion.headOffset ?? insertion.anchorOffset),
+      },
     });
     view.focus();
   }
@@ -2693,23 +1601,11 @@ function App() {
   }
 
   function applyHeading(level: 1 | 2 | 3 | 4 | 5 | 6) {
-    replaceCurrentLines((line) => {
-      const clean = line.replace(/^#{1,6}\s+/, "").replace(/^(- \[[ xX]\]|\d+\.|[-*])\s+/, "");
-      return `${"#".repeat(level)} ${clean || `Heading ${level}`}`;
-    });
+    replaceCurrentLines((line) => headingLine(line, level));
   }
 
   function applyList(kind: "bullet" | "ordered" | "task") {
-    replaceCurrentLines((line, index) => {
-      const clean = line
-        .replace(/^(\s*)(- \[[ xX]\]|\d+\.|[-*])\s+/, "$1")
-        .replace(/^#{1,6}\s+/, "");
-      const indent = /^(\s*)/.exec(line)?.[1] ?? "";
-      const content = clean.trim() ? clean.trimStart() : "List item";
-      if (kind === "ordered") return `${indent}${index + 1}. ${content}`;
-      if (kind === "task") return `${indent}- [ ] ${content}`;
-      return `${indent}- ${content}`;
-    });
+    replaceCurrentLines((line, index) => listLine(line, index, kind));
   }
 
   function insertAtCursor(markdown: string) {
@@ -2723,17 +1619,28 @@ function App() {
     view.focus();
   }
 
+  async function scrollEditorTo(pos: number) {
+    const view = editorViewRef.current;
+    if (!view) return;
+    const { EditorView } = await import("@codemirror/view");
+    view.dispatch({
+      selection: { anchor: pos },
+      effects: EditorView.scrollIntoView(pos, { y: "center" }),
+    });
+    view.focus();
+  }
+
   // Helper to actually close a tab without confirmation
   function doCloseTab(path: string) {
+    setActiveWorkspacePreset("custom");
+    setWorkspaceLayout((current) => closeDockLayoutTab(current, documentDockTabId(path)));
     setTabs((current) => {
-      const next = current.filter((tab) => tab.path !== path);
-      if (activeTabPath === path) {
-        const currentIndex = current.findIndex((tab) => tab.path === path);
-        const replacement = next[Math.max(0, currentIndex - 1)] ?? next[0];
-        setActiveTabPath(replacement?.path);
-        setSelectedPath(replacement?.path);
+      const result = closeOpenTab(current, activeTabPath, path);
+      if (result.activePath !== activeTabPath) {
+        setActiveTabPath(result.activePath);
+        setSelectedPath(result.activePath);
       }
-      return next;
+      return result.tabs;
     });
   }
 
@@ -2752,15 +1659,10 @@ function App() {
   function handleUnsavedDialogDiscard() {
     if (!unsavedDialogPath) return;
     doCloseTab(unsavedDialogPath);
-    // Move to next in queue
     setPendingClosePaths((current) => {
-      const next = current.slice(1);
-      if (next.length > 0) {
-        setUnsavedDialogPath(next[0]);
-      } else {
-        setUnsavedDialogPath(null);
-      }
-      return next;
+      const next = advancePendingCloseQueue(current);
+      setUnsavedDialogPath(next.unsavedDialogPath);
+      return next.pendingClosePaths;
     });
   }
 
@@ -2775,36 +1677,16 @@ function App() {
       // The saveEditor function uses activeTab, so we need to ensure it's set
       const tabToSave = tabs.find(tab => tab.path === unsavedDialogPath);
       if (tabToSave && tabToSave.absolutePath) {
-        const result = await invoke<WriteResult>("save_file", {
-          path: tabToSave.absolutePath,
-          content: tabToSave.rawMarkdown,
-          expectedModifiedMs: tabToSave.modifiedMs ?? null,
-        });
+        const result = await invoke<WriteResult>("save_file", saveFilePayloadForTab(tabToSave));
         if (result.ok) {
-          setTabs((current) =>
-            current.map((tab) =>
-              tab.path === unsavedDialogPath
-                ? {
-                    ...tab,
-                    savedMarkdown: tab.rawMarkdown,
-                    dirty: false,
-                    modifiedMs: result.modifiedMs ?? tab.modifiedMs,
-                  }
-                : tab,
-            ),
-          );
+          setTabs((current) => markSavedTabInList(current, unsavedDialogPath, result.modifiedMs));
         }
       }
       doCloseTab(unsavedDialogPath);
-      // Move to next in queue
       setPendingClosePaths((current) => {
-        const next = current.slice(1);
-        if (next.length > 0) {
-          setUnsavedDialogPath(next[0]);
-        } else {
-          setUnsavedDialogPath(null);
-        }
-        return next;
+        const next = advancePendingCloseQueue(current);
+        setUnsavedDialogPath(next.unsavedDialogPath);
+        return next.pendingClosePaths;
       });
     } catch (error) {
       console.error("Error saving file:", error);
@@ -2824,13 +1706,12 @@ function App() {
     if (tabs.length === 0) return;
     
     // Get all dirty tabs
-    const dirtyTabs = tabs.filter((tab) => tab.dirty && settings.editor.confirmCloseDirtyTab);
+    const dirtyPaths = getDirtyTabPaths(tabs, settings.editor.confirmCloseDirtyTab);
     
-    if (dirtyTabs.length > 0) {
-      // Start the queue-based closing process
-      const dirtyPaths = dirtyTabs.map((tab) => tab.path);
-      setPendingClosePaths(dirtyPaths.slice(1));
-      setUnsavedDialogPath(dirtyPaths[0]);
+    if (dirtyPaths.length > 0) {
+      const queue = pendingCloseQueueFromDirtyPaths(dirtyPaths);
+      setPendingClosePaths(queue.pendingClosePaths);
+      setUnsavedDialogPath(queue.unsavedDialogPath);
       return;
     }
     
@@ -2845,18 +1726,17 @@ function App() {
     const tabsToClose = tabs.filter((tab) => tab.path !== path);
     
     // Get dirty tabs that need confirmation
-    const dirtyTabs = tabsToClose.filter((tab) => tab.dirty && settings.editor.confirmCloseDirtyTab);
+    const dirtyPaths = getDirtyTabPaths(tabsToClose, settings.editor.confirmCloseDirtyTab);
     
-    if (dirtyTabs.length > 0) {
-      // Start the queue-based closing process
-      const dirtyPaths = dirtyTabs.map((tab) => tab.path);
-      setPendingClosePaths(dirtyPaths.slice(1));
-      setUnsavedDialogPath(dirtyPaths[0]);
+    if (dirtyPaths.length > 0) {
+      const queue = pendingCloseQueueFromDirtyPaths(dirtyPaths);
+      setPendingClosePaths(queue.pendingClosePaths);
+      setUnsavedDialogPath(queue.unsavedDialogPath);
       return;
     }
     
     // Close all non-dirty tabs
-    setTabs((current) => current.filter((tab) => tab.path === path));
+    setTabs((current) => closeOtherOpenTabs(current, path));
     activateTab(path);
     setTabContextMenu(null);
   }
@@ -2867,48 +1747,44 @@ function App() {
     const rightTabs = tabs.slice(indexOfTab + 1);
     
     // Get dirty tabs that need confirmation
-    const dirtyTabs = rightTabs.filter((tab) => tab.dirty && settings.editor.confirmCloseDirtyTab);
+    const dirtyPaths = getDirtyTabPaths(rightTabs, settings.editor.confirmCloseDirtyTab);
     
-    if (dirtyTabs.length > 0) {
-      // Start the queue-based closing process
-      const dirtyPaths = dirtyTabs.map((tab) => tab.path);
-      setPendingClosePaths(dirtyPaths.slice(1));
-      setUnsavedDialogPath(dirtyPaths[0]);
+    if (dirtyPaths.length > 0) {
+      const queue = pendingCloseQueueFromDirtyPaths(dirtyPaths);
+      setPendingClosePaths(queue.pendingClosePaths);
+      setUnsavedDialogPath(queue.unsavedDialogPath);
       return;
     }
     
     // Close all clean tabs to the right
-    setTabs((current) => current.filter((_, idx) => idx <= indexOfTab));
+    setTabs((current) => closeTabsToRightOf(current, path));
     setTabContextMenu(null);
   }
 
   function closeSavedTabs() {
     setTabs((current) => {
-      const next = current.filter((tab) => tab.dirty);
-      if (activeTabPath && !next.some((tab) => tab.path === activeTabPath)) {
-        const fallback = next[0];
-        setActiveTabPath(fallback?.path);
-        setSelectedPath(fallback?.path);
+      const result = closeSavedOpenTabs(current, activeTabPath);
+      if (result.activePath !== activeTabPath) {
+        setActiveTabPath(result.activePath);
+        setSelectedPath(result.activePath);
       }
-      return next;
+      return result.tabs;
     });
     setTabContextMenu(null);
   }
 
   function activateAdjacentTab(direction: 1 | -1) {
-    if (!activeTabPath || !tabs.length) return;
-    const currentIndex = tabs.findIndex((tab) => tab.path === activeTabPath);
-    const nextIndex = (currentIndex + direction + tabs.length) % tabs.length;
-    const next = tabs[nextIndex];
-    setActiveTabPath(next.path);
-    setSelectedPath(next.path);
+    const nextPath = nextAdjacentTabPath(tabs, activeTabPath, direction);
+    if (!nextPath) return;
+    setActiveTabPath(nextPath);
+    setSelectedPath(nextPath);
   }
 
   async function createNoteFromTabButton() {
     if (!index) return;
     const name = await promptUser("New note", "Note name");
     if (!name) return;
-    const folderPath = activeCreationFolder();
+    const folderPath = getActiveCreationFolder(selectedExplorerTarget, selectedPath);
     const slug = slugify(name);
     const relativePath = folderPath ? `${folderPath}/${slug}.md` : `${slug}.md`;
     const content = `---\nid: ${slug}\ntype: concept\nname: ${name}\nstatus: draft\n---\n\n# ${name}\n`;
@@ -2934,72 +1810,63 @@ function App() {
   }
 
   async function executeCommand(commandId: EditorCommandId) {
-    switch (commandId) {
+    const action = editorCommandAction(commandId);
+    switch (action.type) {
       case "save":
         await saveEditor();
         break;
       case "search":
-        if (editorViewRef.current) openSearchPanel(editorViewRef.current);
+        if (editorViewRef.current) {
+          const { openSearchPanel } = await import("@codemirror/search");
+          openSearchPanel(editorViewRef.current);
+        }
         break;
-      case "bold":
-        replaceSelection("**");
+      case "find":
+        if (editorViewRef.current) {
+          const { findNext, findPrevious } = await import("@codemirror/search");
+          const command = action.direction === 1 ? findNext : findPrevious;
+          command(editorViewRef.current);
+        }
         break;
-      case "italic":
-        replaceSelection("*");
+      case "wrapSelection":
+        replaceSelection(action.before, action.after, action.placeholder);
         break;
-      case "inlineCode":
-        replaceSelection("`", "`", "code");
-        break;
-      case "codeBlock":
-        replaceSelection("```\n", "\n```", "code");
-        break;
-      case "heading1":
-        applyHeading(1);
-        break;
-      case "heading2":
-        applyHeading(2);
-        break;
-      case "heading3":
-        applyHeading(3);
-        break;
-      case "heading4":
-        applyHeading(4);
-        break;
-      case "heading5":
-        applyHeading(5);
-        break;
-      case "heading6":
-        applyHeading(6);
+      case "heading":
+        applyHeading(action.level);
         break;
       case "blockquote":
         replaceCurrentLines((line) => `> ${line.replace(/^>\s?/, "")}`);
         break;
-      case "unorderedList":
-        applyList("bullet");
+      case "list":
+        applyList(action.kind);
         break;
-      case "orderedList":
-        applyList("ordered");
-        break;
-      case "taskList":
-        applyList("task");
-        break;
-      case "link":
+      case "markdownLink":
         await insertMarkdownLinkAtSelection();
         break;
       case "wikilink":
         insertWikilinkAtSelection();
         break;
-      case "horizontalRule":
-        insertAtCursor("\n\n---\n\n");
+      case "insert":
+        insertAtCursor(action.markdown);
         break;
       case "foldBlock":
-        if (editorViewRef.current) foldCode(editorViewRef.current);
+        if (editorViewRef.current) {
+          const { foldCode } = await import("@codemirror/language");
+          foldCode(editorViewRef.current);
+        }
         break;
-      case "commandPalette":
-        setShowCommandPalette(true);
+      case "openPanel":
+        if (action.panel === "commandPalette") setShowCommandPalette(true);
+        if (action.panel === "quickSwitcher") setShowQuickSwitcher(true);
         break;
-      case "quickSwitcher":
-        setShowQuickSwitcher(true);
+      case "toggleOutline":
+        setSettings((current) => ({
+          ...current,
+          editor: {
+            ...current.editor,
+            outlineGuideEnabled: !current.editor.outlineGuideEnabled,
+          },
+        }));
         break;
       case "switchMode":
         if (activeTabPath) {
@@ -3015,11 +1882,8 @@ function App() {
       case "closeTab":
         await closeTab();
         break;
-      case "nextTab":
-        activateAdjacentTab(1);
-        break;
-      case "previousTab":
-        activateAdjacentTab(-1);
+      case "activateAdjacentTab":
+        activateAdjacentTab(action.direction);
         break;
     }
   }
@@ -3027,6 +1891,12 @@ function App() {
   async function handleNativeMenuCommand(commandId: string) {
     if (commandId.startsWith("wn:window:style:")) {
       setThemeById(themeForStyleCommand(commandId.replace("wn:window:style:", ""), settings.theme));
+      return;
+    }
+
+    const editorCommand = nativeMenuEditorCommand(commandId);
+    if (editorCommand) {
+      await executeCommand(editorCommand);
       return;
     }
 
@@ -3055,9 +1925,6 @@ function App() {
         }
         await openRecentUniverse();
         break;
-      case "wn:file:save":
-        await saveEditor();
-        break;
       case "wn:file:reveal-universe":
       case "wn:help:open-project-folder":
         if (!index) {
@@ -3066,38 +1933,16 @@ function App() {
         }
         await revealExplorerPath();
         break;
-      case "wn:file:close-tab":
-        await closeTab();
-        break;
-      case "wn:edit:find":
-        await executeCommand("search");
-        break;
-      case "wn:edit:bold":
-        await executeCommand("bold");
-        break;
-      case "wn:edit:italic":
-        await executeCommand("italic");
-        break;
-      case "wn:edit:link":
-        await executeCommand("link");
-        break;
-      case "wn:edit:wikilink":
-        await executeCommand("wikilink");
-        break;
       case "wn:view:toggle-sidebar":
-        setShowSidebar((current) => !current);
+        setActiveWorkspacePreset("custom");
+        setWorkspaceLayout((current) => togglePanelInLayout(current, "explorer"));
         break;
       case "wn:view:toggle-inspector":
-        setShowInspector((current) => !current);
+        setActiveWorkspacePreset("custom");
+        setWorkspaceLayout((current) => togglePanelInLayout(current, "inspector"));
         break;
       case "wn:view:toggle-light-dark":
         toggleBuiltinTheme();
-        break;
-      case "wn:view:command-palette":
-        setShowCommandPalette(true);
-        break;
-      case "wn:view:quick-switcher":
-        setShowQuickSwitcher(true);
         break;
       case "wn:view:reload":
         window.location.reload();
@@ -3155,27 +2000,6 @@ function App() {
   }, [activeTabPath, activeTab?.path, index?.rootPath, settings.recentUniverse, settings.theme, tabs]);
 
   const currentSession = index?.rootPath ? settings.sessions[index.rootPath] : undefined;
-
-  // Calculate outline and current header for breadcrumbs
-  const outline = useMemo(() => {
-    if (!activeTab) return [];
-    
-    // Always use activeEditorValue (what's displayed in the editor)
-    // This ensures line numbers match the actual editor content
-    const editorContent = activeTab.mode === "write" 
-      ? rawToEditorParts(activeTab.rawMarkdown).bodyMarkdown 
-      : activeTab.rawMarkdown;
-    
-    return extractOutline(editorContent);
-  }, [activeTab]);
-
-  const currentHeader = useMemo(() => {
-    if (!activeTab) return null;
-    return findCurrentHeader(outline, cursorLine, 0);
-  }, [outline, cursorLine]);
-
-  const activeEditorValue =
-    activeTab?.mode === "write" ? rawToEditorParts(activeTab.rawMarkdown).bodyMarkdown : activeTab?.rawMarkdown ?? "";
 
   const inputAndToastOverlays = (
     <>
@@ -3353,360 +2177,265 @@ function App() {
     );
   }
 
-  return (
-    <main className={`app-shell ${showSidebar ? "" : "sidebar-hidden"} ${showInspector ? "" : "inspector-hidden"}`}>
-      {showSidebar ? (
-      <aside className="sidebar">
-        <button type="button" className="universe-button" onClick={() => setShowSettings(true)}>
-          <UniverseIconFrame profile={index.universeProfile} />
-          <div>
-            <h1>{universeDisplayName(index)}</h1>
-            <p>{pathName(index.rootPath)}</p>
-          </div>
-          <Settings size={15} className="universe-button-control" />
+  const explorerPanel = (
+    <aside className="sidebar dock-panel-body">
+      <label className="search-box">
+        <Search size={15} />
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search files" />
+      </label>
+
+      <nav className="explorer-sections">
+        <button
+          type="button"
+          className={activeExplorerSection === "allFiles" ? "active" : ""}
+          onClick={() => updateExplorer({ activeSection: "allFiles" })}
+          title="All Files"
+        >
+          <Files size={16} />
         </button>
+        <button
+          type="button"
+          className={activeExplorerSection === "favorites" ? "active" : ""}
+          onClick={() => updateExplorer({ activeSection: "favorites" })}
+          title="Favorites"
+        >
+          <Star size={16} />
+        </button>
+        <button
+          type="button"
+          className={activeExplorerSection === "ecosystem" ? "active" : ""}
+          onClick={() => updateExplorer({ activeSection: "ecosystem" })}
+          title="Ecosystem"
+        >
+          <Hash size={16} />
+        </button>
+      </nav>
 
-        <div className="action-row">
-          <button type="button" onClick={() => setView("home")}>
-            <Home size={15} />
-            Home
-          </button>
-        </div>
-
-        <div className="explorer-toolbar" onContextMenu={(event) => handleContextMenu(event, "", "empty")}>
-          <button type="button" onClick={() => setExpandedPaths(new Set())} title="Collapse all">
-            <ChevronsDownUp size={14} />
-          </button>
-          <button type="button" onClick={() => refreshUniverse()} title="Refresh">
-            <RefreshCw size={14} />
-          </button>
-          <button
-            type="button"
-            onClick={() => revealExplorerPath(selectedPath)}
-            title={browserRoot ? "Reveal is available in the desktop app" : labels.revealItem}
-            disabled={Boolean(browserRoot)}
-          >
-            <ExternalLink size={14} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowGraphView((current) => !current)}
-            title="Toggle graph view"
-            className={showGraphView ? "active" : ""}
-          >
-            <Network size={14} />
-          </button>
-        </div>
-
-        <label className="search-box">
-          <Search size={15} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search files" />
-        </label>
-
-        <nav className="explorer-sections">
-          <button
-            type="button"
-            className={activeExplorerSection === "allFiles" ? "active" : ""}
-            onClick={() => updateExplorer({ activeSection: "allFiles" })}
-            title="All Files"
-          >
-            <Files size={16} />
-          </button>
-          <button
-            type="button"
-            className={activeExplorerSection === "favorites" ? "active" : ""}
-            onClick={() => updateExplorer({ activeSection: "favorites" })}
-            title="Favorites"
-          >
-            <Star size={16} />
-          </button>
-          <button
-            type="button"
-            className={activeExplorerSection === "ecosystem" ? "active" : ""}
-            onClick={() => updateExplorer({ activeSection: "ecosystem" })}
-            title="Ecosystem"
-          >
-            <Hash size={16} />
-          </button>
-        </nav>
-
-        <div className="sidebar-main" onContextMenu={(event) => handleContextMenu(event, "", "empty")}>
-          {activeExplorerSection === "favorites" && (
-            <section className="sidebar-section">
-              <h2>Favorites</h2>
-              <div className="template-list">
-                {favoriteItems.length ? (
-                  favoriteItems.map((favorite) => (
-                    <button
-                      key={favorite.path}
-                      type="button"
-                      className={`template-button ${selectedPath === favorite.path ? "active" : ""}`}
-                      onClick={() => favorite.kind === "file" && selectPath(favorite.path)}
-                      onContextMenu={(event) => handleContextMenu(event, favorite.path, favorite.kind)}
-                    >
-                      {favorite.kind === "folder" ? <Folder size={14} /> : <FileText size={14} />}
-                      {favorite.label}
-                    </button>
-                  ))
-                ) : (
-                  <p className="muted">No favorites yet.</p>
-                )}
-              </div>
-            </section>
-          )}
-
-          {activeExplorerSection === "ecosystem" && (
-            <section className="sidebar-section ecosystem-view">
-              <h2>Ecosystem</h2>
-              <div className="ecosystem-groups">
-                {ecosystemGroups.size > 0 ? (
-                  Array.from(ecosystemGroups.entries())
-                    .sort(([a], [b]) => {
-                      if (a === "_untagged") return 1;
-                      if (b === "_untagged") return -1;
-                      return a.localeCompare(b);
-                    })
-                    .map(([tagPath, entities]) => {
-                      const tagInfo = index?.taxonomyConfig?.tags.rootNodes.find(
-                        node => node.label === tagPath || node.fullPath === tagPath
-                      );
-                      const displayName = tagPath === "_untagged" ? "Sin etiquetas" : tagPath;
-                      const tagColor = tagInfo?.color;
-
-                      return (
-                        <div key={tagPath} className="ecosystem-group">
-                          <div className="ecosystem-group-header">
-                            {tagColor && (
-                              <span 
-                                className="ecosystem-group-color" 
-                                style={{ backgroundColor: tagColor }}
-                              />
-                            )}
-                            <Hash size={14} />
-                            <span className="ecosystem-group-name">{displayName}</span>
-                            <span className="ecosystem-group-count">{entities.length}</span>
-                          </div>
-                          <div className="ecosystem-group-items">
-                            {entities.map(entity => (
-                              <button
-                                key={entity.path}
-                                type="button"
-                                className={`ecosystem-item ${selectedPath === entity.path ? "active" : ""}`}
-                                onClick={() => selectPath(entity.path)}
-                                onContextMenu={(event) => handleContextMenu(event, entity.path, "file")}
-                              >
-                                {tagColor && (
-                                  <span 
-                                    className="ecosystem-item-color" 
-                                    style={{ backgroundColor: tagColor }}
-                                  />
-                                )}
-                                <FileText size={14} />
-                                <span className="ecosystem-item-name">{entity.name}</span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })
-                ) : (
-                  <p className="muted">No entities with tags yet.</p>
-                )}
-              </div>
-            </section>
-          )}
-
-          {activeExplorerSection === "allFiles" && (
-            <section className="sidebar-section">
-              <h2>All Files</h2>
-              <div
-                className={`tree-list ${pointerDragItem?.active ? "is-pointer-dragging" : ""}`}
-                data-tree-root-drop="true"
-                onContextMenu={(event) => handleContextMenu(event, "", "empty")}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  event.dataTransfer.dropEffect = "move";
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  const fromPath = event.dataTransfer.getData("text/plain");
-                  const fromKind = event.dataTransfer.getData("application/worldnotion-kind") as "file" | "folder" | "";
-                  if (fromPath) {
-                    void moveExplorerPath(fromPath, "", fromKind || undefined);
-                  }
-                }}
-              >
-                {visibleTree.length ? (
-                  visibleTree.map((node) => (
-                    <TreeNode
-                      key={node.path}
-                      node={node}
-                      selectedPath={selectedPath}
-                      openTabPaths={openTabPaths}
-                      dirtyTabPaths={dirtyTabPaths}
-                      favoritePaths={favoritePaths}
-                      onSelectPath={selectPath}
-                      onSelectFolder={selectFolder}
-                      expandedPaths={expandedPaths}
-                      onToggleExpand={toggleExpand}
-                      onContextMenu={handleContextMenu}
-                      onToggleFavorite={toggleFavorite}
-                      onDragMove={moveExplorerPath}
-                      onPointerDragStart={(path, kind, startX, startY) =>
-                        setPointerDragItem({ path, kind, startX, startY, active: false })
-                      }
-                      isPointerClickSuppressed={() => suppressTreeClickRef.current}
-                      entityTagColors={entityTagColors}
-                    />
-                  ))
-                ) : (
-                  <p className="muted">No files yet.</p>
-                )}
-              </div>
-            </section>
-          )}
-        </div>
-
-        <section className={`templates-dock ${templatesExpanded ? "expanded" : ""}`}>
-          <div className="templates-dock-header">
-            <button
-              type="button"
-              className="templates-dock-toggle"
-              onClick={() => setTemplatesExpanded((expanded) => !expanded)}
-            >
-              {templatesExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              <span>Templates</span>
-              <small>{index.templates.length}</small>
-            </button>
-            <button type="button" className="templates-dock-action" onClick={createTemplate} title="New template">
-              <Plus size={13} />
-            </button>
-          </div>
-          {templatesExpanded ? (
-            <div
-              className="template-list templates-dock-list"
-              onContextMenu={(event) => {
-                handleContextMenu(event, ".everend/templates", "folder");
-              }}
-            >
-              {index.templates.length ? (
-                index.templates.map((template) => (
+      <div className="sidebar-main" onContextMenu={(event) => handleContextMenu(event, "", "empty")}>
+        {activeExplorerSection === "favorites" && (
+          <section className="sidebar-section">
+            <h2>Favorites</h2>
+            <div className="template-list">
+              {favoriteItems.length ? (
+                favoriteItems.map((favorite) => (
                   <button
-                    key={template.path}
+                    key={favorite.path}
                     type="button"
-                    className={`template-button ${selectedPath === template.path ? "active" : ""}`}
-                    onClick={() => selectPath(template.path)}
-                    onContextMenu={(event) => handleContextMenu(event, template.path, "file")}
+                    className={`template-button ${selectedPath === favorite.path ? "active" : ""}`}
+                    onClick={() => favorite.kind === "file" && selectPath(favorite.path)}
+                    onContextMenu={(event) => handleContextMenu(event, favorite.path, favorite.kind)}
                   >
-                    <FileText size={14} />
-                    {template.type}
+                    {favorite.kind === "folder" ? <Folder size={14} /> : <FileText size={14} />}
+                    {favorite.label}
                   </button>
                 ))
               ) : (
-                <p className="muted">No templates in this universe.</p>
+                <p className="muted">No favorites yet.</p>
               )}
             </div>
-          ) : null}
-        </section>
-      </aside>
-      ) : null}
+          </section>
+        )}
 
-      <section className="editor-shell" ref={editorShellRef}>
-        <div className="tab-bar">
-          <div className="tab-strip">
-            {tabs.map((tab) => (
-              <div
-                key={tab.path}
-                role="button"
-                tabIndex={0}
-                className={`editor-tab ${tab.path === activeTabPath ? "active" : ""}`}
-                onClick={() => {
-                  setActiveTabPath(tab.path);
-                  setSelectedPath(tab.path);
-                }}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setTabContextMenu({ x: event.clientX, y: event.clientY, path: tab.path });
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setActiveTabPath(tab.path);
-                    setSelectedPath(tab.path);
-                  }
-                }}
-                title={tab.path}
-              >
-                <span>{tab.title}</span>
-                {tab.dirty ? <strong>*</strong> : null}
-                <button
-                  type="button"
-                  className="tab-close"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void closeTab(tab.path);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.stopPropagation();
-                      void closeTab(tab.path);
+        {activeExplorerSection === "ecosystem" && (
+          <section className="sidebar-section ecosystem-view">
+            <h2>Ecosystem</h2>
+            <div className="ecosystem-groups">
+              {ecosystemGroups.size > 0 ? (
+                Array.from(ecosystemGroups.entries())
+                  .sort(([a], [b]) => {
+                    if (a === "_untagged") return 1;
+                    if (b === "_untagged") return -1;
+                    return a.localeCompare(b);
+                  })
+                  .map(([tagPath, entities]) => {
+                    const tagInfo = index?.taxonomyConfig?.tags.rootNodes.find(
+                      (node) => node.label === tagPath || node.fullPath === tagPath,
+                    );
+                    const displayName = tagPath === "_untagged" ? "Sin etiquetas" : tagPath;
+                    const tagColor = tagInfo?.color;
+
+                    return (
+                      <div key={tagPath} className="ecosystem-group">
+                        <div className="ecosystem-group-header">
+                          {tagColor ? <span className="ecosystem-group-color" style={{ backgroundColor: tagColor }} /> : null}
+                          <Hash size={14} />
+                          <span className="ecosystem-group-name">{displayName}</span>
+                          <span className="ecosystem-group-count">{entities.length}</span>
+                        </div>
+                        <div className="ecosystem-group-items">
+                          {entities.map((entity) => (
+                            <button
+                              key={entity.path}
+                              type="button"
+                              className={`ecosystem-item ${selectedPath === entity.path ? "active" : ""}`}
+                              onClick={() => selectPath(entity.path)}
+                              onContextMenu={(event) => handleContextMenu(event, entity.path, "file")}
+                            >
+                              {tagColor ? <span className="ecosystem-item-color" style={{ backgroundColor: tagColor }} /> : null}
+                              <FileText size={14} />
+                              <span className="ecosystem-item-name">{entity.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })
+              ) : (
+                <p className="muted">No entities with tags yet.</p>
+              )}
+            </div>
+          </section>
+        )}
+
+        {activeExplorerSection === "allFiles" && (
+          <section className="sidebar-section">
+            <h2>All Files</h2>
+            <div
+              className={`tree-list ${pointerDragItem?.active ? "is-pointer-dragging" : ""}`}
+              data-tree-root-drop="true"
+              onContextMenu={(event) => handleContextMenu(event, "", "empty")}
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                const fromPath = event.dataTransfer.getData("text/plain");
+                const fromKind = event.dataTransfer.getData("application/worldnotion-kind") as "file" | "folder" | "";
+                if (fromPath) {
+                  void moveExplorerPath(fromPath, "", fromKind || undefined);
+                }
+              }}
+            >
+              {visibleTree.length ? (
+                visibleTree.map((node) => (
+                  <ExplorerTreeNode
+                    key={node.path}
+                    node={node}
+                    selectedPath={selectedPath}
+                    openTabPaths={openTabPaths}
+                    dirtyTabPaths={dirtyTabPaths}
+                    favoritePaths={favoritePaths}
+                    onSelectPath={selectPath}
+                    onSelectFolder={selectFolder}
+                    expandedPaths={expandedPaths}
+                    onToggleExpand={toggleExpand}
+                    onContextMenu={handleContextMenu}
+                    onToggleFavorite={toggleFavorite}
+                    onDragMove={moveExplorerPath}
+                    onPointerDragStart={(path, kind, startX, startY) =>
+                      setPointerDragItem({ path, kind, startX, startY, active: false })
                     }
-                  }}
-                  title="Close tab"
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            ))}
-          </div>
-          <button type="button" className="tab-add" onClick={() => setShowCommandPalette(true)} title="Open note">
-            <Plus size={14} />
+                    isPointerClickSuppressed={() => suppressTreeClickRef.current}
+                    entityTagColors={entityTagColors}
+                  />
+                ))
+              ) : (
+                <p className="muted">No files yet.</p>
+              )}
+            </div>
+          </section>
+        )}
+      </div>
+
+      <section className={`templates-dock ${templatesExpanded ? "expanded" : ""}`}>
+        <div className="templates-dock-header">
+          <button
+            type="button"
+            className="templates-dock-toggle"
+            onClick={() => setTemplatesExpanded((expanded) => !expanded)}
+          >
+            {templatesExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <span>Templates</span>
+            <small>{index.templates.length}</small>
+          </button>
+          <button type="button" className="templates-dock-action" onClick={createTemplate} title="New template">
+            <Plus size={13} />
           </button>
         </div>
+        {templatesExpanded ? (
+          <div
+            className="template-list templates-dock-list"
+            onContextMenu={(event) => {
+              handleContextMenu(event, ".everend/templates", "folder");
+            }}
+          >
+            {index.templates.length ? (
+              index.templates.map((template) => (
+                <button
+                  key={template.path}
+                  type="button"
+                  className={`template-button ${selectedPath === template.path ? "active" : ""}`}
+                  onClick={() => selectPath(template.path)}
+                  onContextMenu={(event) => handleContextMenu(event, template.path, "file")}
+                >
+                  <FileText size={14} />
+                  {template.type}
+                </button>
+              ))
+            ) : (
+              <p className="muted">No templates in this universe.</p>
+            )}
+          </div>
+        ) : null}
+      </section>
+    </aside>
+  );
 
+  function renderDocumentPanel(tabRef: DockTabRef) {
+    const documentTab = tabRef.path ? tabs.find((tab) => tab.path === tabRef.path) : undefined;
+    if (!documentTab) {
+      return (
+        <section className="empty-editor">
+          <FileText size={42} />
+          <h2>Document is not open</h2>
+          <button type="button" onClick={() => tabRef.path && openOrCreateTab(tabRef.path)}>
+            <Plus size={15} />
+            Reopen
+          </button>
+        </section>
+      );
+    }
+
+    const documentOutline = outlineForTab(documentTab);
+    const documentCurrentHeader = documentTab.path === activeTabPath ? currentHeaderForLine(documentTab, cursorLine) : null;
+
+    return (
+      <section
+        className="editor-shell dock-panel-body"
+        ref={documentTab.path === activeTabPath ? editorShellRef : undefined}
+        onMouseDownCapture={() => {
+          if (documentTab.path !== activeTabPath) activateTab(documentTab.path);
+        }}
+      >
         <div className="floating-control-panel">
           <div className="mode-toggle" aria-label="Editor mode">
             <button
               type="button"
-              className={activeTab?.mode === "write" ? "active" : ""}
-              onClick={() =>
-                activeTabPath &&
-                setTabs((current) =>
-                  current.map((tab) => (tab.path === activeTabPath ? { ...tab, mode: "write" } : tab)),
-                )
-              }
-              disabled={!activeTab}
+              className={documentTab.mode === "write" ? "active" : ""}
+              onClick={() => setTabMode(documentTab.path, "write")}
+              disabled={!documentTab}
             >
               Write
             </button>
             <button
               type="button"
-              className={activeTab?.mode === "source" ? "active" : ""}
-              onClick={() =>
-                activeTabPath &&
-                setTabs((current) =>
-                  current.map((tab) => (tab.path === activeTabPath ? { ...tab, mode: "source" } : tab)),
-                )
-              }
-              disabled={!activeTab}
+              className={documentTab.mode === "source" ? "active" : ""}
+              onClick={() => setTabMode(documentTab.path, "source")}
+              disabled={!documentTab}
             >
               Source
             </button>
           </div>
-          <button
-            type="button"
-            onClick={toggleBuiltinTheme}
-            title="Toggle theme"
-          >
+          <button type="button" onClick={toggleBuiltinTheme} title="Toggle theme">
             {isDarkTheme(settings.theme) ? <Sun size={15} /> : <Moon size={15} />}
           </button>
-          <button type="button" onClick={saveEditor} disabled={!activeTab || !canWrite} title="Save">
+          <button type="button" onClick={() => saveTab(documentTab.path)} disabled={!canWrite} title="Save">
             <Save size={15} />
           </button>
         </div>
 
-        {floatingToolbarRect && activeTab?.mode === "write" ? (
+        {floatingToolbarRect && documentTab.mode === "write" && documentTab.path === activeTabPath ? (
           <div
             className="floating-format-toolbar"
             style={(() => {
@@ -3719,10 +2448,7 @@ function App() {
               };
             })()}
           >
-            <FontSelector
-              availableFonts={fonts}
-              onSelectFont={applyFontFamily}
-            />
+            <FontSelector availableFonts={fonts} onSelectFont={applyFontFamily} />
             {FLOATING_FORMAT_COMMANDS.map((command) => (
               <button
                 key={command.id}
@@ -3753,24 +2479,24 @@ function App() {
 
         {loadState === "error" ? <div className="error-banner">{errorMessage}</div> : null}
         {loadState === "loading" ? <div className="loading-banner">Loading universe...</div> : null}
-        {activeTab ? (
-          <div
-            className={`editor-surface page-style-${settings.editor.pageStyle} mode-${activeTab.mode}`}
-            style={
-              settings.editor.pageStyle === "custom"
-                ? ({ "--wn-custom-page": settings.editor.customPageColor } as CSSProperties)
-                : undefined
-            }
-          >
+        <div
+          className={`editor-surface page-style-${settings.editor.pageStyle} mode-${documentTab.mode}${
+            settings.editor.showPaperShadow && documentTab.mode === "write" ? " paper-shadow" : ""
+          }`}
+          style={
+            settings.editor.pageStyle === "custom"
+              ? ({ "--wn-custom-page": settings.editor.customPageColor } as CSSProperties)
+              : undefined
+          }
+        >
+          <Suspense fallback={<LazyPanelFallback label="Loading editor..." />}>
             <CodeMirrorEditor
-              value={activeEditorValue}
-              onChange={(value) => {
-                updateRawMarkdown(value);
-              }}
+              value={editorDisplayValue(documentTab)}
+              onChange={(value) => updateRawMarkdownForPath(documentTab.path, value)}
               theme={settings.theme}
-              mode={activeTab.mode}
+              mode={documentTab.mode}
               settings={settings.editor}
-              documentName={activeTab?.title}
+              documentName={documentTab.title}
               projectName={index?.universeProfile?.name ?? (index?.rootPath ? pathName(index.rootPath) : undefined)}
               readOnly={!canWrite}
               resolveWikilink={resolveWikilink}
@@ -3782,239 +2508,476 @@ function App() {
               }}
               onRequestUrl={() => promptUser("Insert link", "https://example.com", "https://")}
               onCursorMove={() => {
-                // Update cursor line for outline on any cursor/selection movement
+                activateTab(documentTab.path);
                 if (editorViewRef.current) {
                   const pos = editorViewRef.current.state.selection.main.head;
                   const line = editorViewRef.current.state.doc.lineAt(pos);
-                  setCursorLine(line.number - 1); // 0-indexed
+                  setCursorLine(line.number - 1);
                 }
               }}
               onSelectionChange={(rect) => {
-                setFloatingToolbarRect(rect);
+                if (documentTab.path === activeTabPath) setFloatingToolbarRect(rect);
               }}
               onEditorReady={(view) => {
-                editorViewRef.current = view;
+                if (documentTab.path === activeTabPath) editorViewRef.current = view;
               }}
             />
+          </Suspense>
 
-            {/* Outline guide - visible when enabled */}
-            {settings.editor.outlineGuideEnabled && activeTab && (
-              <OutlineGuide
-                outline={outline}
-                currentHeader={currentHeader}
-                onNavigate={(line) => {
-                  if (editorViewRef.current) {
-                    // line is 0-indexed from extractOutline, convert to CodeMirror's 1-indexed
-                    const pos = editorViewRef.current.state.doc.line(line + 1).from;
-                    editorViewRef.current.dispatch({
-                      selection: { anchor: pos },
-                      effects: EditorView.scrollIntoView(pos, { y: "center" }),
-                    });
-                    // Update cursor line - keep it 0-indexed to match extractOutline
-                    setCursorLine(line);
-                    editorViewRef.current.focus();
-                  }
-                }}
-              />
-            )}
-          </div>
-        ) : (
-          <section className="empty-editor">
-            <FileText size={42} />
-            {selectedExplorerTarget?.kind === "folder" ? (
-              <>
-                <h2>Folder: {pathName(selectedExplorerTarget.path) || "Root"}</h2>
-                <p>View or create a note to describe this folder's contents.</p>
-                {(() => {
-                  const folderName = selectedExplorerTarget.path.split("/").pop() || pathName(index.rootPath);
-                  const parentPath = dirname(selectedExplorerTarget.path);
-                  const descriptionPath = parentPath ? `${parentPath}/${folderName}.md` : `${folderName}.md`;
-                  const hasDescription = index.files.some((file) => file.relativePath === descriptionPath);
-                  
-                  if (hasDescription) {
-                    return (
-                      <button type="button" onClick={() => selectPath(descriptionPath)}>
-                        <FileEdit size={15} />
-                        Edit folder note
-                      </button>
-                    );
-                  } else {
-                    return (
-                      <button type="button" onClick={() => createFolderDescription(selectedExplorerTarget.path)}>
-                        <Plus size={15} />
-                        Create folder note
-                      </button>
-                    );
-                  }
-                })()}
-              </>
-            ) : (
-              <>
-                <h2>No document selected</h2>
-                <p>Select a file from the explorer or start a new note.</p>
-                <button type="button" onClick={createNoteFromTabButton}>
-                  <Plus size={15} />
-                  New note
-                </button>
-              </>
-            )}
-          </section>
-        )}
+          {settings.editor.outlineGuideEnabled ? (
+            <OutlineGuide
+              outline={documentOutline}
+              currentHeader={documentCurrentHeader}
+              onNavigate={(line) => {
+                if (editorViewRef.current) {
+                  const pos = editorViewRef.current.state.doc.line(line + 1).from;
+                  void scrollEditorTo(pos);
+                  setCursorLine(line);
+                }
+              }}
+            />
+          ) : null}
+        </div>
       </section>
+    );
+  }
 
-      {showInspector ? (
-        <Inspector
-          entity={selectedEntity}
-          template={selectedTemplate}
-          index={index}
-          activeTab={activeTab}
-          onChangeFrontmatter={updateActiveFrontmatter}
-          onUpdateEntity={updateEntityMetadata}
-          onOpenEntity={(path) => {
-            openOrCreateTab(path);
-            setSelectedPath(path);
-          }}
-        />
-      ) : null}
+  const emptyDocumentPanel = (
+    <section className="empty-editor dock-panel-body">
+      <FileText size={42} />
+      {selectedExplorerTarget?.kind === "folder" ? (
+        <>
+          <h2>Folder: {pathName(selectedExplorerTarget.path) || "Root"}</h2>
+          <p>View or create a note to describe this folder's contents.</p>
+          {(() => {
+            const { descriptionPath, hasDescription } = folderDescriptionInfo(index, selectedExplorerTarget.path);
+            return hasDescription ? (
+              <button type="button" onClick={() => selectPath(descriptionPath)}>
+                <FileEdit size={15} />
+                Edit folder note
+              </button>
+            ) : (
+              <button type="button" onClick={() => createFolderDescription(selectedExplorerTarget.path)}>
+                <Plus size={15} />
+                Create folder note
+              </button>
+            );
+          })()}
+        </>
+      ) : (
+        <>
+          <h2>No document selected</h2>
+          <p>Select a file from the explorer or start a new note.</p>
+          <button type="button" onClick={createNoteFromTabButton}>
+            <Plus size={15} />
+            New note
+          </button>
+        </>
+      )}
+    </section>
+  );
 
-      {showGraphView ? (
-        <aside className="inspector graph-panel">
-          <div className="graph-panel-header">
-            <h2>Graph View</h2>
+  const inspectorPanel = (
+    <InspectorPanel
+      entity={selectedEntity}
+      template={selectedTemplate}
+      index={index}
+      activeTab={activeTab}
+      onChangeFrontmatter={updateActiveFrontmatter}
+      onUpdateEntity={updateEntityMetadata}
+      onOpenEntity={(path) => {
+        openOrCreateTab(path);
+        setSelectedPath(path);
+      }}
+    />
+  );
+
+  function handleGraphControlsPointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    const panel = event.currentTarget.closest<HTMLElement>(".graph-panel");
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    const handleElement = event.currentTarget;
+    const offsetX = event.clientX - rect.left - graphControlsPosition.x;
+    const offsetY = event.clientY - rect.top - graphControlsPosition.y;
+    handleElement.setPointerCapture(event.pointerId);
+    event.preventDefault();
+
+    function handlePointerMove(moveEvent: PointerEvent) {
+      const maxX = Math.max(0, rect.width - 280);
+      const maxY = Math.max(0, rect.height - 180);
+      setGraphControlsPosition({
+        x: Math.min(maxX, Math.max(0, moveEvent.clientX - rect.left - offsetX)),
+        y: Math.min(maxY, Math.max(0, moveEvent.clientY - rect.top - offsetY)),
+      });
+    }
+
+    function handlePointerUp(upEvent: PointerEvent) {
+      if (handleElement.hasPointerCapture(upEvent.pointerId)) {
+        handleElement.releasePointerCapture(upEvent.pointerId);
+      }
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp, { once: true });
+  }
+
+  const graphPanel = (
+    <aside className="inspector graph-panel dock-panel-body">
+      <Suspense fallback={<LazyPanelFallback label="Loading graph..." />}>
+        <div className="graph-panel-view">
+          <GraphView
+            graphData={graphData}
+            mode={graphViewMode}
+            centerNodeId={selectedEntity?.id}
+            onNodeClick={(path) => {
+              openOrCreateTab(path);
+              setSelectedPath(path);
+            }}
+            highlightedNodes={graphHighlightedNodes}
+          />
+        </div>
+        <div
+          className="graph-floating-controls"
+          style={{ transform: `translate(${graphControlsPosition.x}px, ${graphControlsPosition.y}px)` }}
+        >
+          <div className="graph-floating-controls-handle" onPointerDown={handleGraphControlsPointerDown}>
+            <span>Graph Controls</span>
+          </div>
+          <GraphControls
+            nodes={graphData.nodes}
+            availableTypes={availableTypes}
+            availableTags={availableTags}
+            mode={graphViewMode}
+            depth={graphDepth}
+            filterTypes={graphFilterTypes}
+            filterTags={graphFilterTags}
+            showWikilinks={graphShowWikilinks}
+            showHierarchy={graphShowHierarchy}
+            showTagRelations={graphShowTagRelations}
+            onModeChange={setGraphViewMode}
+            onDepthChange={setGraphDepth}
+            onFilterTypesChange={setGraphFilterTypes}
+            onFilterTagsChange={setGraphFilterTags}
+            onShowWikilinksChange={setGraphShowWikilinks}
+            onShowHierarchyChange={setGraphShowHierarchy}
+            onShowTagRelationsChange={setGraphShowTagRelations}
+            onSearchResultsChange={setGraphHighlightedNodes}
+          />
+        </div>
+      </Suspense>
+    </aside>
+  );
+
+  function renderDockTab(tab: DockTabRef) {
+    if (tab.kind === "document") return tab.path ? renderDocumentPanel(tab) : emptyDocumentPanel;
+    if (tab.kind === "explorer") return explorerPanel;
+    if (tab.kind === "inspector" || tab.kind === "backlinks") return inspectorPanel;
+    if (tab.kind === "graph") return graphPanel;
+    return emptyDocumentPanel;
+  }
+
+  function handleDockSelect(tab: DockTabRef) {
+    setWorkspaceLayout((current) => activateDockTab(current, tab.id));
+    if (tab.kind === "document" && tab.path) {
+      activateTab(tab.path);
+    }
+  }
+
+  function handleDockClose(tab: DockTabRef) {
+    setActiveWorkspacePreset("custom");
+    if (tab.kind === "document" && tab.path) {
+      void closeTab(tab.path);
+      return;
+    }
+    setWorkspaceLayout((current) => closeDockLayoutTab(current, tab.id));
+  }
+
+  function handleDockMove(request: DockMoveRequest) {
+    if (!isDockMoveAllowedAroundDocumentAnchor(request)) return;
+    setActiveWorkspacePreset("custom");
+    const nextLayout = moveDockTab(workspaceLayout, request);
+    setWorkspaceLayout(nextLayout);
+    setTabs((current) => orderOpenTabsByLayout(current, nextLayout));
+  }
+
+  function handleDockResize(splitId: string, ratio: number) {
+    setActiveWorkspacePreset("custom");
+    setWorkspaceLayout((current) => resizeDockSplit(current, { splitId, ratio }));
+  }
+
+  function applyDockPreset(preset: WorkspaceLayoutPreset) {
+    setActiveWorkspacePreset(preset);
+    setWorkspaceLayout(createWorkspaceLayoutPreset(preset, tabs, { activePath: activeTabPath }));
+  }
+
+  function layoutPresetLabel(preset: ActiveWorkspacePreset) {
+    if (preset === "default") return "Default";
+    if (preset === "writing") return "Writing";
+    if (preset === "graph") return "Flow Map";
+    if (preset === "focus") return "Focus";
+    return "Custom";
+  }
+
+  function toggleDockPanel(kind: "explorer" | "inspector" | "graph" | "outline") {
+    setActiveWorkspacePreset("custom");
+    setWorkspaceLayout((current) => togglePanelInLayout(current, kind));
+  }
+
+  function setDockPanelInContextGroup(kind: Exclude<DockPanelKind, "document" | "outline" | "backlinks">) {
+    if (!dockPanelContextMenu) return;
+    const enabled = !layoutHasPanel(workspaceLayout, kind);
+    setActiveWorkspacePreset("custom");
+    setWorkspaceLayout((current) => setPanelInGroup(current, kind, dockPanelContextMenu.groupId, enabled));
+    setDockPanelContextMenu(null);
+  }
+
+  function openSettingsAt(section: "overview" | "editor") {
+    setSettingsInitialSection(section);
+    setShowSettings(true);
+  }
+
+  return (
+    <main
+      className="app-shell dock-app-shell"
+      style={{ "--dock-tab-scale": settings.editor.dockTabScale } as CSSProperties}
+    >
+      <div className="dock-top-bar" aria-label="Workspace controls">
+        <div className={`forge-corner-menu ${forgeMenuOpen ? "open" : ""}`}>
+          <div className="forge-orbit-panel" aria-label="Everend Forge app selector">
+            <button type="button">Worldnotion</button>
+            <button type="button">Pathbranching</button>
+          </div>
+          <button
+            type="button"
+            className="forge-corner-button"
+            onClick={() => setForgeMenuOpen((open) => !open)}
+            aria-expanded={forgeMenuOpen}
+            title="Everend Forge"
+          >
+            <Crown size={16} />
+          </button>
+        </div>
+
+        <div className="dock-top-left">
+          <button type="button" className="dock-icon-button" onClick={() => setView("home")} title="Home">
+            <Home size={15} />
+          </button>
+
+          <div className="dock-top-divider" />
+
+          <button
+            type="button"
+            className="dock-universe-button"
+            onClick={() => openSettingsAt("overview")}
+            title="Universe settings"
+          >
+            <UniverseIconFrame profile={index.universeProfile} size={28} />
+            <span className="dock-universe-copy">
+              <strong>{universeDisplayName(index)}</strong>
+              <span>{pathName(index.rootPath)}</span>
+            </span>
+          </button>
+          <button
+            type="button"
+            className="dock-icon-button dock-settings-button"
+            onClick={() => openSettingsAt("editor")}
+            title="Application settings"
+          >
+            <Settings size={14} />
+          </button>
+          <button
+            type="button"
+            className="dock-icon-button"
+            onClick={() => revealExplorerPath()}
+            title={browserRoot ? "Reveal is available in the desktop app" : labels.revealUniverse}
+            disabled={Boolean(browserRoot)}
+          >
+            <ExternalLink size={14} />
+          </button>
+        </div>
+
+        <div className="dock-top-right">
+          <label className="dock-layout-select" title="Workspace layout">
+            <span>{layoutPresetLabel(activeWorkspacePreset)}</span>
+            <select
+              aria-label="Workspace layout"
+              value={activeWorkspacePreset === "custom" ? "custom" : activeWorkspacePreset}
+              onChange={(event) => {
+                const preset = event.target.value as ActiveWorkspacePreset;
+                if (preset !== "custom") applyDockPreset(preset);
+              }}
+            >
+              {activeWorkspacePreset === "custom" ? <option value="custom">Custom</option> : null}
+              <option value="default">Default</option>
+              <option value="writing">Writing</option>
+              <option value="graph">Flow Map</option>
+              <option value="focus">Focus</option>
+            </select>
+            <ChevronDown size={13} />
+          </label>
+
+          <div className="dock-command-group dock-panel-toggle-group" aria-label="Panels">
             <button
               type="button"
-              className="close-button"
-              onClick={() => setShowGraphView(false)}
-              title="Close graph view"
+              className={isExplorerPanelOpen ? "active" : ""}
+              onClick={() => toggleDockPanel("explorer")}
+              title="Toggle Explorer"
             >
-              <X size={16} />
+              Explorer
+            </button>
+            <button
+              type="button"
+              className={isInspectorPanelOpen ? "active" : ""}
+              onClick={() => toggleDockPanel("inspector")}
+              title="Toggle Inspector"
+            >
+              Inspector
+            </button>
+            <button
+              type="button"
+              className={isGraphPanelOpen ? "active" : ""}
+              onClick={() => toggleDockPanel("graph")}
+              title="Toggle Flow Map"
+            >
+              Flow Map
             </button>
           </div>
-          <div className="graph-panel-controls">
-            <GraphControls
-              nodes={graphData.nodes}
-              availableTypes={availableTypes}
-              availableTags={availableTags}
-              mode={graphViewMode}
-              depth={graphDepth}
-              filterTypes={graphFilterTypes}
-              filterTags={graphFilterTags}
-              showWikilinks={graphShowWikilinks}
-              showHierarchy={graphShowHierarchy}
-              showTagRelations={graphShowTagRelations}
-              onModeChange={setGraphViewMode}
-              onDepthChange={setGraphDepth}
-              onFilterTypesChange={setGraphFilterTypes}
-              onFilterTagsChange={setGraphFilterTags}
-              onShowWikilinksChange={setGraphShowWikilinks}
-              onShowHierarchyChange={setGraphShowHierarchy}
-              onShowTagRelationsChange={setGraphShowTagRelations}
-              onSearchResultsChange={setGraphHighlightedNodes}
-            />
-          </div>
-          <div className="graph-panel-view">
-            <GraphView
-              graphData={graphData}
-              mode={graphViewMode}
-              centerNodeId={selectedEntity?.id}
-              onNodeClick={(path) => {
-                openOrCreateTab(path);
-                setSelectedPath(path);
-              }}
-              highlightedNodes={graphHighlightedNodes}
-              width={800}
-              height={600}
-            />
-          </div>
-        </aside>
-      ) : null}
 
+          <button type="button" className="dock-icon-button" onClick={toggleBuiltinTheme} title="Toggle theme">
+            {isDarkTheme(settings.theme) ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
+        </div>
+      </div>
+      <DockWorkspace
+        layout={workspaceLayout}
+        renderTab={renderDockTab}
+        onSelectTab={handleDockSelect}
+        onCloseTab={handleDockClose}
+        onTabContextMenu={(tab, x, y) => {
+          if (tab.kind === "document" && tab.path) {
+            setTabContextMenu({ x, y, path: tab.path });
+          }
+        }}
+        onGroupContextMenu={(groupId, x, y) => setDockPanelContextMenu({ groupId, x, y })}
+        onMoveTab={handleDockMove}
+        onResizeSplit={handleDockResize}
+        onOpenDocument={() => setShowCommandPalette(true)}
+      />
+      {dockPanelContextMenu ? (
+        <div
+          className="context-menu dock-panel-context-menu"
+          style={{ left: `${dockPanelContextMenu.x}px`, top: `${dockPanelContextMenu.y}px` }}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          {[
+            ["explorer", "Explorer", isExplorerPanelOpen],
+            ["graph", "Flow Map", isGraphPanelOpen],
+            ["inspector", "Inspector", isInspectorPanelOpen],
+          ].map(([kind, label, checked]) => (
+            <button
+              key={kind as string}
+              type="button"
+              className="context-menu-item"
+              onClick={() => setDockPanelInContextGroup(kind as Exclude<DockPanelKind, "document" | "outline" | "backlinks">)}
+            >
+              <span className="dock-panel-check">{checked ? <Check size={12} /> : null}</span>
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
       {showSettings ? (
-        <SettingsModal
-          settings={settings}
-          universe={universeSettings}
-          onChange={setSettings}
-          onSaveUniverseProfile={saveUniverseProfile}
-          onClose={() => setShowSettings(false)}
-          onRevealUniverse={() => {
-            void revealExplorerPath();
-          }}
-          onOpenUniverseNote={openUniverseNote}
-          revealUniverseLabel={labels.revealUniverse}
-        />
+        <Suspense fallback={<LazyPanelFallback label="Loading settings..." />}>
+          <SettingsModal
+            settings={settings}
+            universe={universeSettings}
+            initialSection={settingsInitialSection}
+            onChange={setSettings}
+            onSaveUniverseProfile={saveUniverseProfile}
+            onClose={() => setShowSettings(false)}
+            onRevealUniverse={() => {
+              void revealExplorerPath();
+            }}
+            onOpenUniverseNote={openUniverseNote}
+            revealUniverseLabel={labels.revealUniverse}
+          />
+        </Suspense>
       ) : null}
 
       {showTaxonomyMigration && generatedTaxonomy && index ? (
-        <TaxonomyMigrationDialog
-          isOpen={showTaxonomyMigration}
-          generatedTaxonomy={generatedTaxonomy}
-          entityCount={index.entities.length}
-          onAccept={handleAcceptTaxonomy}
-          onDecline={handleDeclineTaxonomy}
-          onCustomize={handleCustomizeTaxonomy}
-        />
+        <Suspense fallback={<LazyPanelFallback />}>
+          <TaxonomyMigrationDialog
+            isOpen={showTaxonomyMigration}
+            generatedTaxonomy={generatedTaxonomy}
+            entityCount={index.entities.length}
+            onAccept={handleAcceptTaxonomy}
+            onDecline={handleDeclineTaxonomy}
+            onCustomize={handleCustomizeTaxonomy}
+          />
+        </Suspense>
       ) : null}
 
       {showCommandPalette ? (
-        <CommandPalette
-          isOpen={showCommandPalette}
-          onClose={() => setShowCommandPalette(false)}
-          fileResults={buildFileResults(index)}
-          commandResults={buildCommandResults(settings.keybindings)}
-          headerResults={buildHeaderResults(activeTab?.rawMarkdown || "")}
-          tagResults={buildTagResults(index)}
-          recentFiles={settings.explorer.recentFiles}
-          favorites={settings.explorer.favorites.map((f) => f.path)}
-          fileAccessStats={currentSession?.fileAccessStats}
-          taxonomyConfig={index?.taxonomyConfig}
-          onSelectFile={(path) => {
-            openOrCreateTab(path);
-            setShowCommandPalette(false);
-          }}
-          onSelectCommand={(commandId) => {
-            setShowCommandPalette(false);
-            void executeCommand(commandId);
-          }}
-          onSelectHeader={(line) => {
-            // Scroll to line in editor
-            if (editorViewRef.current) {
-              const state = editorViewRef.current.state;
-              const lineInfo = state.doc.line(line);
-              editorViewRef.current.dispatch({
-                selection: { anchor: lineInfo.from },
-                effects: EditorView.scrollIntoView(lineInfo.from, { y: "center" }),
-              });
-              editorViewRef.current.focus();
-            }
-            setShowCommandPalette(false);
-          }}
-          onSelectTag={(tag) => {
-            // Search for files with this tag
-            setQuery(tag);
-            setShowCommandPalette(false);
-          }}
-        />
+        <Suspense fallback={<LazyPanelFallback label="Loading command palette..." />}>
+          <CommandPalette
+            isOpen={showCommandPalette}
+            onClose={() => setShowCommandPalette(false)}
+            fileResults={buildFileResults(index)}
+            commandResults={buildCommandResults(settings.keybindings)}
+            headerResults={buildHeaderResults(activeTab?.rawMarkdown || "")}
+            tagResults={buildTagResults(index)}
+            recentFiles={settings.explorer.recentFiles}
+            favorites={settings.explorer.favorites.map((f) => f.path)}
+            fileAccessStats={currentSession?.fileAccessStats}
+            taxonomyConfig={index?.taxonomyConfig}
+            onSelectFile={(path) => {
+              openOrCreateTab(path);
+              setShowCommandPalette(false);
+            }}
+            onSelectCommand={(commandId) => {
+              setShowCommandPalette(false);
+              void executeCommand(commandId);
+            }}
+            onSelectHeader={(line) => {
+              if (editorViewRef.current) {
+                const state = editorViewRef.current.state;
+                const lineInfo = state.doc.line(line);
+                void scrollEditorTo(lineInfo.from);
+              }
+              setShowCommandPalette(false);
+            }}
+            onSelectTag={(tag) => {
+              setQuery(tag);
+              setShowCommandPalette(false);
+            }}
+          />
+        </Suspense>
       ) : null}
 
       {showQuickSwitcher ? (
-        <CommandPalette
-          isOpen={showQuickSwitcher}
-          onClose={() => setShowQuickSwitcher(false)}
-          fileResults={buildFileResults(index)}
-          commandResults={[]}
-          headerResults={[]}
-          tagResults={[]}
-          fileAccessStats={currentSession?.fileAccessStats}
-          quickSwitcherMode={true}
-          taxonomyConfig={index?.taxonomyConfig}
-          onSelectFile={(path) => {
-            openOrCreateTab(path);
-            setShowQuickSwitcher(false);
-          }}
-          onSelectCommand={() => {}}
-          onSelectHeader={() => {}}
-          onSelectTag={() => {}}
-        />
+        <Suspense fallback={<LazyPanelFallback label="Loading quick switcher..." />}>
+          <CommandPalette
+            isOpen={showQuickSwitcher}
+            onClose={() => setShowQuickSwitcher(false)}
+            fileResults={buildFileResults(index)}
+            commandResults={[]}
+            headerResults={[]}
+            tagResults={[]}
+            fileAccessStats={currentSession?.fileAccessStats}
+            quickSwitcherMode={true}
+            taxonomyConfig={index?.taxonomyConfig}
+            onSelectFile={(path) => {
+              openOrCreateTab(path);
+              setShowQuickSwitcher(false);
+            }}
+            onSelectCommand={() => {}}
+            onSelectHeader={() => {}}
+            onSelectTag={() => {}}
+          />
+        </Suspense>
       ) : null}
 
       {contextMenu && (

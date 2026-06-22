@@ -37,7 +37,7 @@ The MVP editor is intentionally simple:
 
 ## Done criteria
 
-- Opens a synthetic demo vault.
+- Opens a local universe folder.
 - Opens an Obsidian-compatible vault.
 - Navigates through file tree and wikilinks.
 - Shows backlinks.

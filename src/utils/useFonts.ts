@@ -101,8 +101,6 @@ export function useFonts() {
                 allFonts.add(`"${cleanFamily}", ${fallback}`);
               }
             });
-
-            console.log(`Loaded ${fontFamilies.size} local fonts`);
           } catch (err) {
             console.warn("Could not access local fonts:", err);
             // Continue with common/system fonts only
