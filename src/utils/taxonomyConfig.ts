@@ -15,21 +15,12 @@ export type TaxonomyEntityInput = {
   customProperties: Record<string, unknown>;
 };
 
-const PROTECTED_BASE_PROPERTY_IDS = ["folder", "id", "name", "type"] as const;
-const VISIBLE_CORE_PROPERTY_IDS = ["id", "name", "type"] as const;
+const PROTECTED_BASE_PROPERTY_IDS = ["id", "name", "type"] as const;
+const VISIBLE_CORE_PROPERTY_IDS = ["type"] as const;
+const NON_PROPERTY_FIELD_IDS = new Set(["folder", "tags"]);
 
 function createCoreBaseProperties(): BasePropertyDefinition[] {
   return [
-    {
-      id: "folder",
-      label: "Folder",
-      description: "WorldNotion system property that marks a note as the description for a folder.",
-      type: "text",
-      immutable: true,
-      readOnly: true,
-      hidden: true,
-      order: 0,
-    },
     {
       id: "id",
       label: "ID",
@@ -38,7 +29,7 @@ function createCoreBaseProperties(): BasePropertyDefinition[] {
       immutable: true,
       readOnly: true,
       required: true,
-      order: 1,
+      order: 0,
     },
     {
       id: "name",
@@ -47,7 +38,7 @@ function createCoreBaseProperties(): BasePropertyDefinition[] {
       type: "text",
       immutable: true,
       required: true,
-      order: 2,
+      order: 1,
     },
     {
       id: "type",
@@ -56,7 +47,7 @@ function createCoreBaseProperties(): BasePropertyDefinition[] {
       type: "select",
       immutable: true,
       required: true,
-      order: 3,
+      order: 2,
     },
   ];
 }
@@ -67,7 +58,7 @@ export function normalizeCoreBaseProperties(config: TaxonomyConfig): TaxonomyCon
   const existingBaseDefinitions = config.baseProperties?.definitions ?? [];
   const movableDefinitions: CustomFieldDefinition[] = existingBaseDefinitions
     .filter((definition) => !allowedIds.has(definition.id))
-    .filter((definition) => definition.id !== "tags")
+    .filter((definition) => !NON_PROPERTY_FIELD_IDS.has(definition.id))
     .map((definition) => {
       const { immutable: _immutable, readOnly: _readOnly, order: _order, hidden: _hidden, ...customDefinition } = definition;
       return {
@@ -77,12 +68,12 @@ export function normalizeCoreBaseProperties(config: TaxonomyConfig): TaxonomyCon
     });
   const existingCustomIds = new Set(config.customFields.definitions.map((definition) => definition.id));
   const nextCustomDefinitions = [
-    ...config.customFields.definitions,
+    ...config.customFields.definitions.filter((definition) => !NON_PROPERTY_FIELD_IDS.has(definition.id)),
     ...movableDefinitions.filter((definition) => !existingCustomIds.has(definition.id)),
   ];
   const previousVisible = config.baseProperties?.visibleByDefault ?? [...VISIBLE_CORE_PROPERTY_IDS];
   const visibleCore = previousVisible.filter((id) => allowedIds.has(id));
-  const visibleCustom = previousVisible.filter((id) => !allowedIds.has(id) && id !== "tags");
+  const visibleCustom = previousVisible.filter((id) => !allowedIds.has(id) && !NON_PROPERTY_FIELD_IDS.has(id));
 
   return {
     ...config,
@@ -94,7 +85,9 @@ export function normalizeCoreBaseProperties(config: TaxonomyConfig): TaxonomyCon
     customFields: {
       ...config.customFields,
       definitions: nextCustomDefinitions,
-      globalFields: [...new Set([...(config.customFields.globalFields ?? []), ...visibleCustom])].filter((id) => id !== "tags"),
+      globalFields: [...new Set([...(config.customFields.globalFields ?? []), ...visibleCustom])].filter(
+        (id) => !NON_PROPERTY_FIELD_IDS.has(id),
+      ),
     },
   };
 }

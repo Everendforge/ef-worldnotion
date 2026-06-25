@@ -1,5 +1,6 @@
 import YAML from "yaml";
 import type { Entity } from "../domain";
+import { FOLDER_SYSTEM_PROPERTY_COMMENT } from "./contentTemplates";
 
 export type TextInsertion = {
   text: string;
@@ -37,7 +38,7 @@ export function entityToFrontmatterRaw(entity: Entity): string {
     return `---\n${yamlBody}---`;
   }
 
-  return `---\n# WorldNotion system property: indicates whether this note corresponds to a folder.\nfolder: ${YAML.stringify(entity.folder).trim()}\n${yamlBody}---`;
+  return `---\nfolder: ${YAML.stringify(entity.folder).trim()} # ${FOLDER_SYSTEM_PROPERTY_COMMENT}\n${yamlBody}---`;
 }
 
 export function wrapSelectionText(

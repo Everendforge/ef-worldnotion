@@ -25,6 +25,7 @@ export function buildTree(
   directories: string[] = [],
   includeHiddenMetadata = false,
   hiddenRootFile?: string,
+  ignoreFolderDescriptions = false,
 ): VaultTreeNode[] {
   const roots: VaultTreeNode[] = [];
   const folders = new Map<string, VaultTreeNode>();
@@ -69,7 +70,7 @@ export function buildTree(
       const folderName = fileName.replace(/\.md$/, "");
       const potentialFolderPath = parentPath ? `${parentPath}/${folderName}` : folderName;
 
-      if (folderPaths.has(potentialFolderPath) && isFolderDescriptionFile(file, folderName)) {
+      if (!ignoreFolderDescriptions && folderPaths.has(potentialFolderPath) && isFolderDescriptionFile(file, folderName)) {
         descriptionFiles.add(file.relativePath);
       }
     }

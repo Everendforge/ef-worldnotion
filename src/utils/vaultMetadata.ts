@@ -1,4 +1,4 @@
-import type { PropertiesConfig, TaxonomyConfig } from "../editorTypes";
+import type { PropertiesConfig } from "../editorTypes";
 import type { EntityTemplate, UniverseIcon, UniverseProfile, ValidationFinding, VaultFile } from "../domain";
 import { normalizeCoreBaseProperties } from "./taxonomyConfig";
 
@@ -61,45 +61,8 @@ export function parseUniverseProfile(files: VaultFile[], findings: ValidationFin
   }
 }
 
-export function parseTaxonomyConfig(files: VaultFile[], findings: ValidationFinding[]): TaxonomyConfig | undefined {
-  const taxonomyFile = files.find((file) => file.relativePath === ".everend/taxonomy.json");
-  if (!taxonomyFile) return undefined;
-
-  try {
-    const parsed = JSON.parse(taxonomyFile.content);
-    if (!parsed || typeof parsed !== "object") return undefined;
-
-    const config = parsed as TaxonomyConfig;
-    if (!config.version || !config.tags || !config.entityTypes || !config.statuses || !config.customFields) {
-      findings.push(
-        createFinding(
-          "missing_runtime_asset",
-          "warning",
-          "Taxonomy config is missing required fields.",
-          ".everend/taxonomy.json",
-        ),
-      );
-      return undefined;
-    }
-
-    return normalizeCoreBaseProperties(config);
-  } catch (error) {
-    findings.push(
-      createFinding(
-        "missing_runtime_asset",
-        "warning",
-        `Taxonomy config must be valid JSON: ${error instanceof Error ? error.message : String(error)}`,
-        ".everend/taxonomy.json",
-      ),
-    );
-    return undefined;
-  }
-}
-
 export function parsePropertiesConfig(files: VaultFile[], findings: ValidationFinding[]): PropertiesConfig | undefined {
-  const propertiesFile =
-    files.find((file) => file.relativePath === ".everend/properties.json") ??
-    files.find((file) => file.relativePath === ".everend/taxonomy.json");
+  const propertiesFile = files.find((file) => file.relativePath === ".everend/properties.json");
   if (!propertiesFile) return undefined;
 
   try {

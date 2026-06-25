@@ -1,8 +1,21 @@
 import type { VaultFile } from "../domain";
-import type { DocumentTabGroup, OpenTab, WorkspaceLayoutV1, WorkspaceSession } from "../editorTypes";
+import type { DocumentTabGroup, OpenTab, SourceViewMode, WorkspaceLayoutV1, WorkspaceSession } from "../editorTypes";
 import { fileTitle, pathAfterChanges, pathIsAffectedByChanges, type PathChangeSet } from "./pathUtils";
 
-export function createOpenTabFromFile(file: VaultFile, mode: OpenTab["mode"]): OpenTab {
+function isJsonPath(path: string) {
+  return path.toLowerCase().endsWith(".json");
+}
+
+function defaultSourceView(path: string): SourceViewMode {
+  return isJsonPath(path) ? "json" : "raw";
+}
+
+export function createOpenTabFromFile(
+  file: VaultFile,
+  mode: OpenTab["mode"],
+  sourceView?: SourceViewMode,
+): OpenTab {
+  const opensAsJson = isJsonPath(file.relativePath);
   return {
     path: file.relativePath,
     title: fileTitle(file.relativePath),
@@ -11,7 +24,8 @@ export function createOpenTabFromFile(file: VaultFile, mode: OpenTab["mode"]): O
     savedMarkdown: file.content,
     modifiedMs: file.modifiedMs,
     dirty: false,
-    mode,
+    mode: opensAsJson ? "source" : mode,
+    sourceView: sourceView ?? defaultSourceView(file.relativePath),
     isTemplate: file.relativePath.startsWith(".everend/templates/"),
   };
 }
@@ -26,10 +40,11 @@ export function serializeWorkspaceSession(
   return {
     rootPath,
     activePath,
-    tabs: tabs.map((tab) => ({
+      tabs: tabs.map((tab) => ({
       path: tab.path,
       title: tab.title,
       mode: tab.mode,
+      sourceView: tab.sourceView,
       modifiedMs: tab.modifiedMs,
       isTemplate: tab.isTemplate,
     })),

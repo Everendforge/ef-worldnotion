@@ -1,4 +1,5 @@
 export type EditorMode = "write" | "source";
+export type SourceViewMode = "raw" | "json";
 export type EditorPageStyle = "theme" | "white" | "warm-paper" | "system" | "custom";
 export type ThemeId =
   | "worldnotion-light"
@@ -128,6 +129,7 @@ export type OpenTab = {
   title: string;
   dirty: boolean;
   mode: EditorMode;
+  sourceView?: SourceViewMode;
   modifiedMs?: number | null;
   isTemplate: boolean;
   absolutePath?: string;
@@ -135,7 +137,7 @@ export type OpenTab = {
   savedMarkdown: string;
 };
 
-export type PersistedOpenTab = Pick<OpenTab, "path" | "title" | "mode" | "modifiedMs" | "isTemplate">;
+export type PersistedOpenTab = Pick<OpenTab, "path" | "title" | "mode" | "sourceView" | "modifiedMs" | "isTemplate">;
 
 export type DocumentTabGroup = {
   id: string;
@@ -224,6 +226,7 @@ export type ExplorerSettings = {
   activeSection: ExplorerSection;
   confirmDragMove: boolean;
   showHiddenEverend: boolean;
+  ignoreFolderNoteMetadata: boolean;
   customIcons?: Record<string, string>;
   focusedFoldersByUniverse?: Record<string, string>;
 };
@@ -485,6 +488,7 @@ export const DEFAULT_EXPLORER_SETTINGS: ExplorerSettings = {
   activeSection: "allFiles",
   confirmDragMove: true,
   showHiddenEverend: false,
+  ignoreFolderNoteMetadata: false,
   customIcons: {},
   focusedFoldersByUniverse: {},
 };

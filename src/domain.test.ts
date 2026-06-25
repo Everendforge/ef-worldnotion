@@ -62,4 +62,26 @@ describe("vault indexing", () => {
     expect(index.findings.some((finding) => finding.code === "broken_wikilink" && finding.file === "Characters/Mara.md")).toBe(true);
     expect(index.findings.some((finding) => finding.code === "missing_required_field" && finding.field === "id")).toBe(true);
   });
+
+  it("does not use taxonomy.json as a properties fallback", () => {
+    const index = indexVault({
+      rootPath: "demo",
+      directories: [],
+      errors: [],
+      files: [
+        {
+          relativePath: ".everend/taxonomy.json",
+          content: JSON.stringify({
+            version: "1.0",
+            tags: { rootNodes: [], allowCustomTags: true, autoDetectSlashNotation: true },
+            entityTypes: { definitions: [], defaultType: "concept", allowCustomTypes: true },
+            statuses: { definitions: [], defaultStatus: "draft", allowCustomStatuses: true },
+            customFields: { definitions: [], globalFields: [] },
+          }),
+        },
+      ],
+    });
+
+    expect(index.propertiesConfig).toBeUndefined();
+  });
 });

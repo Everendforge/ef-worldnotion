@@ -54,8 +54,10 @@ describe("content template helpers", () => {
     const content = folderDescriptionContent("Characters");
 
     expect(folderDescriptionPath("World/Characters")).toBe("World/Characters.md");
-    expect(content).toContain("folder: Characters");
-    expect(updateFolderDescriptionContent(content, "Characters", "Cast")).toContain("folder: Cast");
+    expect(content).toContain(
+      "folder: Characters # Don't delete; it's a WorldNotion system property: indicates whether this note corresponds to a folder.",
+    );
+    expect(updateFolderDescriptionContent(content, "Characters", "Cast")).toContain("folder: Cast #");
   });
 
   it("detects folder description info from vault files", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ValidationFinding, VaultFile } from "../domain";
-import { parsePropertiesConfig, parseTaxonomyConfig, parseTemplates, parseUniverseProfile } from "./vaultMetadata";
+import { parsePropertiesConfig, parseTemplates, parseUniverseProfile } from "./vaultMetadata";
 
 describe("vault metadata parsers", () => {
   it("parses Markdown templates from .everend/templates", () => {
@@ -41,34 +41,6 @@ describe("vault metadata parsers", () => {
     ]);
   });
 
-  it("parses taxonomy config JSON and reports malformed configs", () => {
-    const valid: VaultFile = {
-      relativePath: ".everend/taxonomy.json",
-      content: JSON.stringify({
-        version: "1.0",
-        tags: { rootNodes: [], allowCustomTags: true, autoDetectSlashNotation: true },
-        entityTypes: { definitions: [], defaultType: "concept", allowCustomTypes: true },
-        statuses: { definitions: [], defaultStatus: "draft", allowCustomStatuses: true },
-        customFields: { definitions: [] },
-      }),
-    };
-    const findings: ValidationFinding[] = [];
-
-    expect(parseTaxonomyConfig([valid], findings)?.version).toBe("1.0");
-    expect(findings).toEqual([]);
-
-    const badFindings: ValidationFinding[] = [];
-    expect(
-      parseTaxonomyConfig([{ relativePath: ".everend/taxonomy.json", content: '{"version":"1.0"}' }], badFindings),
-    ).toBeUndefined();
-    expect(badFindings).toEqual([
-      expect.objectContaining({
-        code: "missing_runtime_asset",
-        message: "Taxonomy config is missing required fields.",
-      }),
-    ]);
-  });
-
   it("parses properties config JSON from .everend/properties.json", () => {
     const valid: VaultFile = {
       relativePath: ".everend/properties.json",
@@ -83,6 +55,28 @@ describe("vault metadata parsers", () => {
     const findings: ValidationFinding[] = [];
 
     expect(parsePropertiesConfig([valid], findings)?.version).toBe("1.0");
+    expect(findings).toEqual([]);
+  });
+
+  it("does not use taxonomy.json as a fallback properties config", () => {
+    const findings: ValidationFinding[] = [];
+    expect(
+      parsePropertiesConfig(
+        [
+          {
+            relativePath: ".everend/taxonomy.json",
+            content: JSON.stringify({
+              version: "1.0",
+              tags: { rootNodes: [], allowCustomTags: true, autoDetectSlashNotation: true },
+              entityTypes: { definitions: [], defaultType: "concept", allowCustomTypes: true },
+              statuses: { definitions: [], defaultStatus: "draft", allowCustomStatuses: true },
+              customFields: { definitions: [], globalFields: [] },
+            }),
+          },
+        ],
+        findings,
+      ),
+    ).toBeUndefined();
     expect(findings).toEqual([]);
   });
 });

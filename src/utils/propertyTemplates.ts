@@ -15,6 +15,10 @@ export type PropertyTemplate = {
    * Custom field definitions to add
    */
   customFields: CustomFieldDefinition[];
+  /**
+   * Optional per-type property visibility and order.
+   */
+  typeProperties?: Record<string, string[]>;
 };
 
 /**
@@ -25,7 +29,7 @@ export const MINIMAL_TEMPLATE: PropertyTemplate = {
   id: "minimal",
   label: "Minimal",
   description: "Only essential fields (id, name, type)",
-  visibleBaseProperties: ["id", "name", "type"],
+  visibleBaseProperties: ["type"],
   customFields: [],
 };
 
@@ -37,7 +41,7 @@ export const STANDARD_TEMPLATE: PropertyTemplate = {
   id: "standard",
   label: "Standard",
   description: "Common fields for most use cases (+ status)",
-  visibleBaseProperties: ["id", "name", "type"],
+  visibleBaseProperties: ["type"],
   customFields: [
     {
       id: "status",
@@ -57,7 +61,7 @@ export const COLLABORATIVE_TEMPLATE: PropertyTemplate = {
   id: "collaborative",
   label: "Collaborative",
   description: "Team collaboration with author tracking and assignments",
-  visibleBaseProperties: ["id", "name", "type"],
+  visibleBaseProperties: ["type"],
   customFields: [
     {
       id: "status",
@@ -97,8 +101,8 @@ export const COLLABORATIVE_TEMPLATE: PropertyTemplate = {
 export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
   id: "worldbuilding",
   label: "Worldbuilding",
-  description: "Narrative universe with hierarchies and lore tracking",
-  visibleBaseProperties: ["id", "name", "type"],
+  description: "Narrative universe with type-aware properties for characters, places, items, events and stories",
+  visibleBaseProperties: ["type"],
   customFields: [
     {
       id: "status",
@@ -106,6 +110,13 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
       type: "select",
       description: "Editorial state for this note",
       required: false,
+      options: [
+        { value: "idea", label: "Idea", color: "#94a3b8" },
+        { value: "draft", label: "Draft", color: "#64748b" },
+        { value: "semi-canon", label: "Semi-canon", color: "#f59e0b" },
+        { value: "canon", label: "Canon", color: "#10b981" },
+        { value: "archived", label: "Archived", color: "#6b7280" },
+      ],
     },
     {
       id: "aliases",
@@ -156,7 +167,157 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
         { value: "idea", label: "Idea" },
       ],
     },
+    {
+      id: "role",
+      label: "Role",
+      type: "select",
+      description: "Narrative function for a character or organization",
+      required: false,
+      options: [
+        { value: "protagonist", label: "Protagonist" },
+        { value: "antagonist", label: "Antagonist" },
+        { value: "ally", label: "Ally" },
+        { value: "mentor", label: "Mentor" },
+        { value: "supporting", label: "Supporting" },
+      ],
+    },
+    {
+      id: "affiliation",
+      label: "Affiliation",
+      type: "entity-ref",
+      description: "Organization, faction, house, or group connected to this note",
+      required: false,
+      targetTypes: ["organization"],
+    },
+    {
+      id: "home",
+      label: "Home",
+      type: "entity-ref",
+      description: "Primary place connected to this note",
+      required: false,
+      targetTypes: ["location"],
+    },
+    {
+      id: "arc",
+      label: "Arc",
+      type: "select",
+      description: "Narrative arc state",
+      required: false,
+      options: [
+        { value: "setup", label: "Setup" },
+        { value: "rising", label: "Rising" },
+        { value: "turning-point", label: "Turning Point" },
+        { value: "climax", label: "Climax" },
+        { value: "resolution", label: "Resolution" },
+      ],
+    },
+    {
+      id: "scale",
+      label: "Scale",
+      type: "select",
+      description: "Physical or social scale",
+      required: false,
+      options: [
+        { value: "room", label: "Room" },
+        { value: "building", label: "Building" },
+        { value: "settlement", label: "Settlement" },
+        { value: "region", label: "Region" },
+        { value: "world", label: "World" },
+      ],
+    },
+    {
+      id: "region",
+      label: "Region",
+      type: "entity-ref",
+      description: "Parent or surrounding location",
+      required: false,
+      targetTypes: ["location"],
+    },
+    {
+      id: "population",
+      label: "Population",
+      type: "text",
+      description: "Population estimate or known inhabitants",
+      required: false,
+    },
+    {
+      id: "rarity",
+      label: "Rarity",
+      type: "select",
+      description: "How common or legendary an item is",
+      required: false,
+      options: [
+        { value: "common", label: "Common" },
+        { value: "uncommon", label: "Uncommon" },
+        { value: "rare", label: "Rare" },
+        { value: "legendary", label: "Legendary" },
+        { value: "unique", label: "Unique" },
+      ],
+    },
+    {
+      id: "material",
+      label: "Material",
+      type: "text",
+      description: "Primary material, component, or substance",
+      required: false,
+    },
+    {
+      id: "owner",
+      label: "Owner",
+      type: "entity-ref",
+      description: "Current or notable owner",
+      required: false,
+      targetTypes: ["character", "organization"],
+    },
+    {
+      id: "date",
+      label: "Date",
+      type: "date",
+      description: "In-world or planning date",
+      required: false,
+    },
+    {
+      id: "location",
+      label: "Location",
+      type: "entity-ref",
+      description: "Place where this event, scene, or object belongs",
+      required: false,
+      targetTypes: ["location"],
+    },
+    {
+      id: "participants",
+      label: "Participants",
+      type: "entity-ref-list",
+      description: "Characters or organizations involved",
+      required: false,
+      targetTypes: ["character", "organization"],
+    },
+    {
+      id: "theme",
+      label: "Theme",
+      type: "text",
+      description: "Major idea, motif, or concept family",
+      required: false,
+    },
+    {
+      id: "rules",
+      label: "Rules",
+      type: "text",
+      description: "Important constraints, laws, or operating rules",
+      required: false,
+    },
   ],
+  typeProperties: {
+    character: ["type", "status", "aliases", "role", "affiliation", "home", "arc", "lore-level"],
+    location: ["type", "status", "aliases", "scale", "region", "population", "lore-level"],
+    organization: ["type", "status", "aliases", "role", "home", "parentId", "childrenIds", "lore-level"],
+    item: ["type", "status", "aliases", "rarity", "material", "owner", "location", "lore-level"],
+    event: ["type", "status", "aliases", "date", "location", "participants", "lore-level"],
+    concept: ["type", "status", "aliases", "theme", "rules", "category", "lore-level"],
+    story: ["type", "status", "aliases", "arc", "participants", "location", "lore-level"],
+    scene: ["type", "status", "aliases", "arc", "location", "participants", "lore-level"],
+    quest: ["type", "status", "aliases", "arc", "location", "participants", "lore-level"],
+  },
 };
 
 /**
@@ -167,7 +328,7 @@ export const TASK_MANAGEMENT_TEMPLATE: PropertyTemplate = {
   id: "task-management",
   label: "Task Management",
   description: "Project and task tracking with priorities and deadlines",
-  visibleBaseProperties: ["id", "name", "type"],
+  visibleBaseProperties: ["type"],
   customFields: [
     {
       id: "status",
@@ -236,6 +397,9 @@ export function applyPropertyTemplate(
     ...template.customFields.filter((field) => !existingCustomFieldIds.has(field.id)),
   ];
   const templateFieldIds = template.customFields.map((field) => field.id);
+  const globalTemplateFieldIds = templateFieldIds.filter((id) =>
+    Object.values(template.typeProperties ?? {}).every((properties) => properties.includes(id)),
+  );
 
   return {
     ...taxonomyConfig,
@@ -244,9 +408,27 @@ export function applyPropertyTemplate(
       visibleByDefault: newVisibleByDefault,
       order: [...newVisibleByDefault],
     },
+    entityTypes: template.typeProperties
+      ? {
+          ...taxonomyConfig.entityTypes,
+          definitions: taxonomyConfig.entityTypes.definitions.map((definition) => {
+            const typePropertyIds = template.typeProperties?.[definition.id];
+            if (!typePropertyIds) return definition;
+            const customFields = typePropertyIds.filter((id) => templateFieldIds.includes(id));
+            return {
+              ...definition,
+              customFields,
+              visibleProperties: typePropertyIds.filter((id) => template.visibleBaseProperties.includes(id)),
+              propertyOrder: typePropertyIds,
+            };
+          }),
+        }
+      : taxonomyConfig.entityTypes,
     customFields: {
       definitions: newCustomFields,
-      globalFields: [...new Set([...(taxonomyConfig.customFields?.globalFields || []), ...templateFieldIds])],
+      globalFields: [
+        ...new Set([...(taxonomyConfig.customFields?.globalFields || []), ...(template.typeProperties ? globalTemplateFieldIds : templateFieldIds)]),
+      ],
     },
   };
 }

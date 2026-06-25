@@ -13,6 +13,12 @@ const BASE_ENTITY_FIELDS = new Set([
   "id",
   "type",
   "name",
+  "status",
+  "tags",
+  "aliases",
+  "parentId",
+  "childrenIds",
+  "folder",
 ]);
 
 export type EntityIndexResult = {

@@ -45,7 +45,9 @@ describe("frontmatter normalizer", () => {
       folder: "Characters",
       kind: "folder-description",
     });
-    expect(item?.nextContent).toContain("folder: Characters");
+    expect(item?.nextContent).toContain(
+      "folder: Characters # Don't delete; it's a WorldNotion system property: indicates whether this note corresponds to a folder.",
+    );
   });
 
   it("preserves malformed frontmatter as raw body content", () => {

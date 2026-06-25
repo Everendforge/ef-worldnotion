@@ -1,6 +1,6 @@
 import type { MouseEvent } from "react";
 import { useState } from "react";
-import { ChevronDown, ChevronRight, FileEdit, FileText, Folder, FolderOpen, Star, Target } from "lucide-react";
+import { ChevronDown, ChevronRight, FileEdit, FileText, Folder, FolderOpen, Plus, Star, Target } from "lucide-react";
 import type { VaultTreeNode } from "../domain";
 import { getIconComponent } from "./IconPicker";
 
@@ -11,6 +11,7 @@ export type ExplorerTreeNodeProps = {
   dirtyTabPaths: Set<string>;
   favoritePaths: Set<string>;
   focusedFolderPath?: string;
+  folderNotesEnabled?: boolean;
   onSelectPath: (path: string) => void;
   onSelectFolder: (path: string) => void;
   expandedPaths: Set<string>;
@@ -33,6 +34,7 @@ export function ExplorerTreeNode({
   dirtyTabPaths,
   favoritePaths,
   focusedFolderPath,
+  folderNotesEnabled = true,
   onSelectPath,
   onSelectFolder,
   expandedPaths,
@@ -195,7 +197,7 @@ export function ExplorerTreeNode({
               <Target size={12} />
             </button>
           ) : null}
-          {node.kind === "folder" ? (
+          {node.kind === "folder" && folderNotesEnabled ? (
             <button
               type="button"
               className={`tree-inline-button folder-description-button ${descriptionIsOpen ? "active" : node.hasDescription ? "available" : "inactive"}`}
@@ -205,7 +207,7 @@ export function ExplorerTreeNode({
               }}
               title={node.hasDescription ? `Open ${node.name} folder note` : `Create ${node.name} folder note`}
             >
-              <FileEdit size={12} />
+              {node.hasDescription ? <FileEdit size={12} /> : <Plus size={12} />}
             </button>
           ) : null}
           <button
@@ -232,6 +234,7 @@ export function ExplorerTreeNode({
               dirtyTabPaths={dirtyTabPaths}
               favoritePaths={favoritePaths}
               focusedFolderPath={focusedFolderPath}
+              folderNotesEnabled={folderNotesEnabled}
               onSelectPath={onSelectPath}
               onSelectFolder={onSelectFolder}
               expandedPaths={expandedPaths}

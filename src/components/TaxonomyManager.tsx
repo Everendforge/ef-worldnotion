@@ -10,17 +10,22 @@ type PropertiesTab = "tags" | "properties";
 type PropertiesManagerProps = {
   config: TaxonomyConfig;
   onChange: (config: TaxonomyConfig) => void;
+  activeTab?: PropertiesTab;
+  showTabs?: boolean;
 };
 
-export function TaxonomyManager({ config, onChange }: PropertiesManagerProps) {
-  const [activeTab, setActiveTab] = useState<PropertiesTab>("properties");
+export function TaxonomyManager({ config, onChange, activeTab: controlledActiveTab, showTabs = true }: PropertiesManagerProps) {
+  const [localActiveTab, setLocalActiveTab] = useState<PropertiesTab>("properties");
+  const activeTab = controlledActiveTab ?? localActiveTab;
+  const setActiveTab = controlledActiveTab ? undefined : setLocalActiveTab;
 
   return (
     <div className="ecosystem-manager">
+      {showTabs ? (
       <div className="ecosystem-tabs">
         <button
           className={`ecosystem-tab ${activeTab === "properties" ? "active" : ""}`}
-          onClick={() => setActiveTab("properties")}
+          onClick={() => setActiveTab?.("properties")}
           type="button"
         >
           <Wand2 size={18} />
@@ -33,7 +38,7 @@ export function TaxonomyManager({ config, onChange }: PropertiesManagerProps) {
         </button>
         <button
           className={`ecosystem-tab ${activeTab === "tags" ? "active" : ""}`}
-          onClick={() => setActiveTab("tags")}
+          onClick={() => setActiveTab?.("tags")}
           type="button"
         >
           <Hash size={18} />
@@ -43,18 +48,11 @@ export function TaxonomyManager({ config, onChange }: PropertiesManagerProps) {
           </div>
         </button>
       </div>
+      ) : null}
 
       <div className="ecosystem-content">
         {activeTab === "tags" && (
           <div className="ecosystem-panel">
-            <div className="panel-header">
-              <div>
-                <h3>Jerarquía de Etiquetas</h3>
-                <p className="panel-description">
-                  Organiza tus notas con etiquetas jerárquicas. Puedes usar notación de barra diagonal (ej: "personaje/protagonista/principal").
-                </p>
-              </div>
-            </div>
             <div className="panel-settings">
               <label className="setting-toggle">
                 <input
@@ -103,14 +101,6 @@ export function TaxonomyManager({ config, onChange }: PropertiesManagerProps) {
 
         {activeTab === "properties" && (
           <div className="ecosystem-panel">
-            <div className="panel-header">
-              <div>
-                <h3>Propiedades</h3>
-                <p className="panel-description">
-                  Administra las propiedades base y personalizadas del sistema. Controla visibilidad, orden y configuración de cada propiedad.
-                </p>
-              </div>
-            </div>
             <PropertyConfigPanel
               taxonomyConfig={config}
               onChange={onChange}

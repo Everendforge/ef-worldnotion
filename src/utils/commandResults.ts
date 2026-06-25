@@ -69,10 +69,10 @@ export function buildTagResults(index: VaultIndex | null): TagResult[] {
   });
 
   const findTagNode = (fullPath: string) => {
-    if (!index.taxonomyConfig) return null;
+    if (!index.propertiesConfig) return null;
     const findInNodes = (
-      nodes: typeof index.taxonomyConfig.tags.rootNodes,
-    ): (typeof index.taxonomyConfig.tags.rootNodes)[number] | null => {
+      nodes: typeof index.propertiesConfig.tags.rootNodes,
+    ): (typeof index.propertiesConfig.tags.rootNodes)[number] | null => {
       for (const node of nodes) {
         if (node.fullPath === fullPath) return node;
         if (node.children.length > 0) {
@@ -82,7 +82,7 @@ export function buildTagResults(index: VaultIndex | null): TagResult[] {
       }
       return null;
     };
-    return findInNodes(index.taxonomyConfig.tags.rootNodes);
+    return findInNodes(index.propertiesConfig.tags.rootNodes);
   };
 
   return Array.from(tagCounts.entries()).map(([tag, count]) => {

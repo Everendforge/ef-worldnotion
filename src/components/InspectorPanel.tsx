@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import { SlidersHorizontal, Sparkles } from "lucide-react";
 import type { Entity, EntityTemplate, VaultIndex } from "../domain";
 import type { CustomFieldDefinition, OpenTab, PropertiesConfig } from "../editorTypes";
 import { rawToEditorParts } from "../utils/contentTemplates";
@@ -18,6 +19,7 @@ export type InspectorPanelProps = {
   onAddFrontmatter?: () => void;
   onAddPropertyToUniverse?: (property: CustomFieldDefinition) => void | Promise<void>;
   onUpdatePropertiesConfig?: (properties: PropertiesConfig) => void | Promise<void>;
+  onApplyPropertiesTemplate?: () => void | Promise<void>;
   onOpenPropertiesSettings?: () => void;
 };
 
@@ -31,6 +33,7 @@ export function InspectorPanel({
   onAddFrontmatter,
   onAddPropertyToUniverse,
   onUpdatePropertiesConfig,
+  onApplyPropertiesTemplate,
   onOpenPropertiesSettings,
 }: InspectorPanelProps) {
   if (!index) {
@@ -64,7 +67,7 @@ export function InspectorPanel({
             <div className="no-frontmatter-notice">
               <p className="muted">This note has no frontmatter.</p>
               <button className="btn btn-primary" onClick={onAddFrontmatter}>
-                Add Frontmatter
+                Add WorldNotion frontmatter
               </button>
             </div>
           </section>
@@ -82,9 +85,40 @@ export function InspectorPanel({
     );
   }
 
-  const propertiesConfig = index.propertiesConfig ?? index.taxonomyConfig;
+  const propertiesConfig = index.propertiesConfig;
   const editableFrontmatter = activeTab?.path === entity.path ? rawToEditorParts(activeTab.rawMarkdown).frontmatterRaw : "";
   const hasFrontmatter = editableFrontmatter.trim().length > 0;
+
+  if (!propertiesConfig) {
+    return (
+      <aside className="inspector">
+        <section>
+          <div className="inspector-setup-card">
+            <div className="inspector-setup-icon">
+              <Sparkles size={18} />
+            </div>
+            <div>
+              <h3>Set up properties</h3>
+              <p>
+                This universe does not have `.everend/properties.json` yet. Apply a starter template or create your
+                own property system from settings.
+              </p>
+            </div>
+            <div className="inspector-setup-actions">
+              <button type="button" className="btn btn-primary" onClick={() => void onApplyPropertiesTemplate?.()}>
+                <Sparkles size={14} />
+                Apply template
+              </button>
+              <button type="button" className="btn" onClick={onOpenPropertiesSettings}>
+                <SlidersHorizontal size={14} />
+                Create from zero
+              </button>
+            </div>
+          </div>
+        </section>
+      </aside>
+    );
+  }
 
   return (
     <aside className="inspector">
@@ -95,7 +129,7 @@ export function InspectorPanel({
               <div className="no-frontmatter-notice">
                 <p className="muted">This note has no frontmatter.</p>
                 <button className="btn btn-primary" onClick={onAddFrontmatter}>
-                  Add Frontmatter
+                  Add WorldNotion frontmatter
                 </button>
               </div>
             ) : (

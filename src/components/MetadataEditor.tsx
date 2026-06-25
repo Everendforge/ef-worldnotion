@@ -27,7 +27,6 @@ type MetadataEditorProps = {
 type EditableOption = { value: string; label: string; color?: string };
 
 const ENTITY_FRONTMATTER_FIELD_IDS = new Set(["id", "name", "type", "status", "tags", "aliases", "parentId", "childrenIds", "folder"]);
-const PROTECTED_INSPECTOR_PROPERTY_IDS = new Set(["id", "name", "type"]);
 const HIDDEN_FROM_INSPECTOR_PROPERTY_IDS = new Set(["folder", "tags"]);
 
 function formatPreviewValue(value: unknown): string {
@@ -280,18 +279,21 @@ export function MetadataEditor({
     const currentVisible = inspectorProperties.map((property) => property.id);
     if (currentVisible.includes(propertyId)) return;
     const nextVisible = [...currentVisible, propertyId];
+    const isBaseProperty = taxonomyConfig.baseProperties.definitions.some((definition) => definition.id === propertyId);
 
     saveConfig({
       ...taxonomyConfig,
       baseProperties: {
         ...taxonomyConfig.baseProperties,
-        visibleByDefault: PROTECTED_INSPECTOR_PROPERTY_IDS.has(propertyId)
+        visibleByDefault: isBaseProperty
           ? [...new Set([...(taxonomyConfig.baseProperties.visibleByDefault ?? []), propertyId])]
           : taxonomyConfig.baseProperties.visibleByDefault ?? [],
       },
       customFields: {
         ...taxonomyConfig.customFields,
-        globalFields: [...new Set([...(taxonomyConfig.customFields.globalFields ?? []), propertyId])],
+        globalFields: isBaseProperty
+          ? taxonomyConfig.customFields.globalFields ?? []
+          : [...new Set([...(taxonomyConfig.customFields.globalFields ?? []), propertyId])],
       },
       entityTypes: {
         ...taxonomyConfig.entityTypes,
@@ -309,7 +311,6 @@ export function MetadataEditor({
   };
 
   const togglePropertyVisibility = (propertyId: string) => {
-    if (PROTECTED_INSPECTOR_PROPERTY_IDS.has(propertyId)) return;
     if (visiblePropertyIds.has(propertyId)) {
       hideProperty(propertyId);
     } else {
@@ -457,13 +458,11 @@ export function MetadataEditor({
         <div className="context-menu-separator" />
         {allInspectableProperties.map((property) => {
           const visible = visiblePropertyIds.has(property.id);
-          const protectedProperty = PROTECTED_INSPECTOR_PROPERTY_IDS.has(property.id);
           return (
             <button
               key={property.id}
               type="button"
               className="context-menu-item"
-              disabled={protectedProperty}
               onClick={() => {
                 togglePropertyVisibility(property.id);
                 setPropertyContextMenu(null);
@@ -491,7 +490,12 @@ export function MetadataEditor({
       }}
       onContextMenu={(event) => {
         event.preventDefault();
-        setPropertyContextMenu({ x: event.clientX, y: event.clientY });
+        const menuWidth = 260;
+        const menuHeight = Math.min(420, 48 + allInspectableProperties.length * 36);
+        setPropertyContextMenu({
+          x: Math.max(8, Math.min(event.clientX, window.innerWidth - menuWidth - 8)),
+          y: Math.max(8, Math.min(event.clientY, window.innerHeight - menuHeight - 8)),
+        });
       }}>
         {renderOptionsPopup()}
         {renderPropertyContextMenu()}
@@ -543,11 +547,9 @@ export function MetadataEditor({
                       <SlidersHorizontal size={14} />
                     </button>
                   ) : null}
-                  {!PROTECTED_INSPECTOR_PROPERTY_IDS.has(property.id) ? (
-                    <button type="button" onClick={() => hideProperty(property.id)} title="Hide property">
-                      <EyeOff size={14} />
-                    </button>
-                  ) : null}
+                  <button type="button" onClick={() => hideProperty(property.id)} title="Hide property">
+                    <EyeOff size={14} />
+                  </button>
                 </div>
               </div>
             );

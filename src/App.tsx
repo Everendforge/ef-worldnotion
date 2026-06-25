@@ -39,6 +39,7 @@ import { Toast } from "./components/Toast";
 import { UnsavedChangesDialog } from "./components/UnsavedChangesDialog";
 import { ExplorerTreeNode } from "./components/ExplorerTreeNode";
 import { InspectorPanel } from "./components/InspectorPanel";
+import { JsonReader } from "./components/JsonReader";
 import { LazyPanelFallback } from "./components/LazyPanelFallback";
 import { UniverseIconFrame } from "./components/UniverseIconFrame";
 import { DockWorkspace, type DockMoveRequest } from "./components/DockWorkspace";
@@ -91,6 +92,7 @@ import { buildCommandResults, buildFileResults, buildHeaderResults, buildTagResu
 import {
   bodyToRawMarkdown,
   contentFromTemplate,
+  createEntityFrontmatter,
   folderDescriptionContent,
   folderDescriptionInfo,
   folderDescriptionPath,
@@ -275,7 +277,8 @@ function App() {
   const [workspaceLayout, setWorkspaceLayout] = useState(() => createDefaultWorkspaceLayout());
   const [activeWorkspacePreset, setActiveWorkspacePreset] = useState<ActiveWorkspacePreset>("default");
   const [showSettings, setShowSettings] = useState(false);
-  const [settingsInitialSection, setSettingsInitialSection] = useState<"overview" | "properties" | "editor">("overview");
+  const [settingsInitialSection, setSettingsInitialSection] = useState<"overview" | "properties" | "tags" | "editor">("overview");
+  const [settingsInitialPropertiesMode, setSettingsInitialPropertiesMode] = useState<"template" | "blank">("template");
   const [forgeMenuOpen, setForgeMenuOpen] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showQuickSwitcher, setShowQuickSwitcher] = useState(false);
@@ -291,6 +294,7 @@ function App() {
   const editorViewRef = useRef<EditorView | null>(null);
   const editorShellRef = useRef<HTMLDivElement | null>(null);
   const propertiesOnboardingPromptedRef = useRef<Set<string>>(new Set());
+  const ignoreFolderNoteMetadataBootstrappedRef = useRef(false);
   
   // Font detection hook
   const { fonts } = useFonts();
@@ -552,11 +556,23 @@ function App() {
     setWorkspaceLayout((current) => closeDockLayoutTab(current, panelDockTabId("outline")));
   }, [workspaceLayout]);
 
+  useEffect(() => {
+    if (!ignoreFolderNoteMetadataBootstrappedRef.current) {
+      ignoreFolderNoteMetadataBootstrappedRef.current = true;
+      return;
+    }
+    if (!index) return;
+    void refreshUniverse();
+  }, [settings.explorer.ignoreFolderNoteMetadata]);
+
   const selectedEntity = useMemo(() => {
     return selectLiveEntity(index, selectedPath, tabs);
   }, [index, selectedPath, tabs]);
+  const inspectorEntity = useMemo(() => {
+    return selectLiveEntity(index, activeTabPath, tabs);
+  }, [activeTabPath, index, tabs]);
   
-  const selectedTemplate = index?.templates.find((template) => template.path === selectedPath);
+  const inspectorTemplate = activeTab?.isTemplate ? index?.templates.find((template) => template.path === activeTab.path) : undefined;
   const canWrite = Boolean(index);
 
   const graphSettings = settings.graph;
@@ -578,8 +594,20 @@ function App() {
   const activeExplorerSection = settings.explorer.activeSection;
   const focusedFolderPath = index ? settings.explorer.focusedFoldersByUniverse?.[index.rootPath] : undefined;
   const visibleTree = useMemo(() => {
-    return selectVisibleTree(index, query, settings.explorer.showHiddenEverend, focusedFolderPath);
-  }, [focusedFolderPath, index, query, settings.explorer.showHiddenEverend]);
+    return selectVisibleTree(
+      index,
+      query,
+      settings.explorer.showHiddenEverend,
+      focusedFolderPath,
+      settings.explorer.ignoreFolderNoteMetadata,
+    );
+  }, [
+    focusedFolderPath,
+    index,
+    query,
+    settings.explorer.ignoreFolderNoteMetadata,
+    settings.explorer.showHiddenEverend,
+  ]);
   const folderDescriptionPaths = useMemo(() => {
     const paths = new Set<string>();
     function collect(nodes: VaultIndex["tree"]) {
@@ -1263,9 +1291,7 @@ function App() {
         });
         if (!result.ok) throw new Error(result.message ?? "Could not save properties configuration.");
       }
-      setIndex((current) =>
-        current ? { ...current, propertiesConfig: normalizedProperties, taxonomyConfig: normalizedProperties } : current,
-      );
+      setIndex((current) => (current ? { ...current, propertiesConfig: normalizedProperties } : current));
       await reindexUniverseMetadata();
       showToast("Properties configuration saved.");
     } catch (error) {
@@ -1377,7 +1403,9 @@ function App() {
   }
 
   function applyUniverse(readResult: VaultReadResult, preferredPath?: string, pathChange?: PathChangeSet) {
-    const nextIndex = indexVault(readResult);
+    const nextIndex = indexVault(readResult, {
+      ignoreFolderNoteMetadata: settings.explorer.ignoreFolderNoteMetadata,
+    });
     setIndex(nextIndex);
     setView("workspace");
     setLoadState("ready");
@@ -1439,7 +1467,9 @@ function App() {
   async function reindexUniverseMetadata() {
     const readResult = await readCurrentUniverse();
     if (!readResult) return;
-    const nextIndex = indexVault(readResult);
+    const nextIndex = indexVault(readResult, {
+      ignoreFolderNoteMetadata: settings.explorer.ignoreFolderNoteMetadata,
+    });
     setIndex(nextIndex);
     setView("workspace");
     setLoadState("ready");
@@ -1552,7 +1582,6 @@ function App() {
   function selectFolder(path: string) {
     setSelectedExplorerTarget({ path, kind: "folder" });
     setSelectedPath(path);
-    setActiveTabPath(undefined); // Clear active tab to show folder view
   }
 
   async function openUniverse() {
@@ -1720,7 +1749,21 @@ function App() {
   }
 
   function setTabMode(path: string, mode: OpenTab["mode"]) {
-    setTabs((current) => current.map((tab) => (tab.path === path ? { ...tab, mode } : tab)));
+    setTabs((current) =>
+      current.map((tab) =>
+        tab.path === path
+          ? {
+              ...tab,
+              mode: tab.path.toLowerCase().endsWith(".json") ? "source" : mode,
+              sourceView: mode === "source" ? tab.sourceView ?? (tab.path.toLowerCase().endsWith(".json") ? "json" : "raw") : tab.sourceView,
+            }
+          : tab,
+      ),
+    );
+  }
+
+  function setTabSourceView(path: string, sourceView: NonNullable<OpenTab["sourceView"]>) {
+    setTabs((current) => current.map((tab) => (tab.path === path ? { ...tab, mode: "source", sourceView } : tab)));
   }
 
   function updateActiveFrontmatter(frontmatterRaw: string) {
@@ -1733,7 +1776,8 @@ function App() {
         return {
           ...tab,
           rawMarkdown: nextRawMarkdown,
-          dirty: nextRawMarkdown !== tab.savedMarkdown,
+          savedMarkdown: nextRawMarkdown,
+          dirty: false,
         };
       }),
     );
@@ -1742,7 +1786,7 @@ function App() {
   function updateEntityMetadata(updates: Partial<Entity>) {
     if (!activeTabPath || !activeTab) return;
     
-    const currentEntity = selectedEntity;
+    const currentEntity = inspectorEntity;
     if (!currentEntity) return;
 
     const updatedEntity = { ...currentEntity, ...updates };
@@ -1753,14 +1797,18 @@ function App() {
     if (!activeTabPath || !activeTab) return;
     
     let frontmatterRaw: string;
-    if (selectedEntity) {
+    if (inspectorEntity) {
       // If we have an indexed entity, use its metadata
-      frontmatterRaw = entityToFrontmatterRaw(selectedEntity);
+      frontmatterRaw = entityToFrontmatterRaw(inspectorEntity);
     } else {
       // If no entity (note without frontmatter), generate basic frontmatter
       const fileName = activeTab.path.split("/").pop()?.replace(/\.md$/, "") || "untitled";
       const slug = slugify(fileName);
-      frontmatterRaw = `---\nid: ${slug}\ntype: concept\nname: ${fileName}\nstatus: draft\n---`;
+      frontmatterRaw = createEntityFrontmatter({
+        id: slug,
+        type: "concept",
+        name: fileName,
+      });
     }
     updateActiveFrontmatter(frontmatterRaw);
   }
@@ -2700,7 +2748,7 @@ function App() {
                     return a.localeCompare(b);
                   })
                   .map(([tagPath, entities]) => {
-                    const tagInfo = (index?.propertiesConfig ?? index?.taxonomyConfig)?.tags.rootNodes.find(
+                    const tagInfo = index?.propertiesConfig?.tags.rootNodes.find(
                       (node) => node.label === tagPath || node.fullPath === tagPath,
                     );
                     const displayName = tagPath === "_untagged" ? "Sin etiquetas" : tagPath;
@@ -2768,6 +2816,7 @@ function App() {
                     dirtyTabPaths={dirtyTabPaths}
                     favoritePaths={favoritePaths}
                     focusedFolderPath={focusedFolderPath}
+                    folderNotesEnabled={!settings.explorer.ignoreFolderNoteMetadata}
                     onSelectPath={selectPath}
                     onSelectFolder={selectFolder}
                     expandedPaths={expandedPaths}
@@ -2860,6 +2909,8 @@ function App() {
 
     const documentOutline = outlineForTab(documentTab);
     const documentCurrentHeader = documentTab.path === activeTabPath ? currentHeaderForLine(documentTab, cursorLine) : null;
+    const isJsonDocument = documentTab.path.toLowerCase().endsWith(".json");
+    const sourceView = documentTab.sourceView ?? (isJsonDocument ? "json" : "raw");
 
     return (
       <section
@@ -2875,7 +2926,7 @@ function App() {
               type="button"
               className={documentTab.mode === "write" ? "active" : ""}
               onClick={() => setTabMode(documentTab.path, "write")}
-              disabled={!documentTab}
+              disabled={!documentTab || isJsonDocument}
             >
               Write
             </button>
@@ -2888,6 +2939,24 @@ function App() {
               Source
             </button>
           </div>
+          {documentTab.mode === "source" ? (
+            <div className="source-view-toggle" aria-label="Source view">
+              <button
+                type="button"
+                className={sourceView === "raw" ? "active" : ""}
+                onClick={() => setTabSourceView(documentTab.path, "raw")}
+              >
+                Raw
+              </button>
+              <button
+                type="button"
+                className={sourceView === "json" ? "active" : ""}
+                onClick={() => setTabSourceView(documentTab.path, "json")}
+              >
+                JSON
+              </button>
+            </div>
+          ) : null}
           <button type="button" onClick={() => saveTab(documentTab.path)} disabled={!canWrite} title="Save">
             <Save size={15} />
           </button>
@@ -2977,40 +3046,44 @@ function App() {
               : undefined
           }
         >
-          <Suspense fallback={<LazyPanelFallback label="Loading editor..." />}>
-            <CodeMirrorEditor
-              value={editorDisplayValue(documentTab)}
-              onChange={(value) => updateRawMarkdownForPath(documentTab.path, value)}
-              theme={settings.theme}
-              mode={documentTab.mode}
-              settings={settings.editor}
-              documentName={documentTab.title}
-              projectName={index?.universeProfile?.name ?? (index?.rootPath ? pathName(index.rootPath) : undefined)}
-              readOnly={!canWrite}
-              resolveWikilink={resolveWikilink}
-              noteSuggestions={noteSuggestions}
-              onOpenWikilink={(targetPath) => openOrCreateTab(targetPath)}
-              onMissingWikilink={(label) => showToast(`Missing wikilink: ${label}`)}
-              onOpenUrl={(url) => {
-                void openUrl(url);
-              }}
-              onRequestUrl={() => promptUser("Insert link", "https://example.com", "https://")}
-              onCursorMove={() => {
-                if (documentTab.path !== activeTabPath) return;
-                if (editorViewRef.current) {
-                  const pos = editorViewRef.current.state.selection.main.head;
-                  const line = editorViewRef.current.state.doc.lineAt(pos);
-                  setCursorLine(line.number - 1);
-                }
-              }}
-              onSelectionChange={(rect) => {
-                if (documentTab.path === activeTabPath) setFloatingToolbarRect(rect);
-              }}
-              onEditorReady={(view) => {
-                if (documentTab.path === activeTabPath) editorViewRef.current = view;
-              }}
-            />
-          </Suspense>
+          {documentTab.mode === "source" && sourceView === "json" ? (
+            <JsonReader value={documentTab.rawMarkdown} />
+          ) : (
+            <Suspense fallback={<LazyPanelFallback label="Loading editor..." />}>
+              <CodeMirrorEditor
+                value={editorDisplayValue(documentTab)}
+                onChange={(value) => updateRawMarkdownForPath(documentTab.path, value)}
+                theme={settings.theme}
+                mode={documentTab.mode}
+                settings={settings.editor}
+                documentName={documentTab.title}
+                projectName={index?.universeProfile?.name ?? (index?.rootPath ? pathName(index.rootPath) : undefined)}
+                readOnly={!canWrite}
+                resolveWikilink={resolveWikilink}
+                noteSuggestions={noteSuggestions}
+                onOpenWikilink={(targetPath) => openOrCreateTab(targetPath)}
+                onMissingWikilink={(label) => showToast(`Missing wikilink: ${label}`)}
+                onOpenUrl={(url) => {
+                  void openUrl(url);
+                }}
+                onRequestUrl={() => promptUser("Insert link", "https://example.com", "https://")}
+                onCursorMove={() => {
+                  if (documentTab.path !== activeTabPath) return;
+                  if (editorViewRef.current) {
+                    const pos = editorViewRef.current.state.selection.main.head;
+                    const line = editorViewRef.current.state.doc.lineAt(pos);
+                    setCursorLine(line.number - 1);
+                  }
+                }}
+                onSelectionChange={(rect) => {
+                  if (documentTab.path === activeTabPath) setFloatingToolbarRect(rect);
+                }}
+                onEditorReady={(view) => {
+                  if (documentTab.path === activeTabPath) editorViewRef.current = view;
+                }}
+              />
+            </Suspense>
+          )}
 
           {settings.editor.outlineGuideEnabled ? (
             <OutlineGuide
@@ -3068,8 +3141,8 @@ function App() {
 
   const inspectorPanel = (
     <InspectorPanel
-      entity={selectedEntity}
-      template={selectedTemplate}
+      entity={inspectorEntity}
+      template={inspectorTemplate}
       index={index}
       activeTab={activeTab}
       onChangeFrontmatter={updateActiveFrontmatter}
@@ -3077,9 +3150,11 @@ function App() {
       onAddFrontmatter={addFrontmatterToActiveTab}
       onAddPropertyToUniverse={addPropertyToUniverse}
       onUpdatePropertiesConfig={savePropertiesConfig}
+      onApplyPropertiesTemplate={() =>
+        initializeUniverseProperties(applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE))
+      }
       onOpenPropertiesSettings={() => {
-        setSettingsInitialSection("properties");
-        setShowSettings(true);
+        openSettingsAt("properties", "blank");
       }}
       onOpenEntity={(path) => {
         openOrCreateTab(path);
@@ -3285,8 +3360,9 @@ function App() {
     setDockPanelContextMenu(null);
   }
 
-  function openSettingsAt(section: "overview" | "editor") {
+  function openSettingsAt(section: "overview" | "properties" | "tags" | "editor", propertiesMode: "template" | "blank" = "template") {
     setSettingsInitialSection(section);
+    setSettingsInitialPropertiesMode(propertiesMode);
     setShowSettings(true);
   }
 
@@ -3507,6 +3583,7 @@ function App() {
             settings={settings}
             universe={universeSettings}
             initialSection={settingsInitialSection}
+            initialPropertiesMode={settingsInitialPropertiesMode}
             onChange={setSettings}
             onSaveUniverseProfile={saveUniverseProfile}
             onSavePropertiesConfig={savePropertiesConfig}
@@ -3535,7 +3612,7 @@ function App() {
             recentFiles={settings.explorer.recentFiles}
             favorites={settings.explorer.favorites.map((f) => f.path)}
             fileAccessStats={currentSession?.fileAccessStats}
-            taxonomyConfig={index?.propertiesConfig ?? index?.taxonomyConfig}
+            taxonomyConfig={index?.propertiesConfig}
             onSelectFile={(path) => {
               openOrCreateTab(path);
               setShowCommandPalette(false);
@@ -3571,7 +3648,7 @@ function App() {
             tagResults={[]}
             fileAccessStats={currentSession?.fileAccessStats}
             quickSwitcherMode={true}
-            taxonomyConfig={index?.propertiesConfig ?? index?.taxonomyConfig}
+            taxonomyConfig={index?.propertiesConfig}
             onSelectFile={(path) => {
               openOrCreateTab(path);
               setShowQuickSwitcher(false);

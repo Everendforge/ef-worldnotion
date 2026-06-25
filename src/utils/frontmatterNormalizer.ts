@@ -1,7 +1,7 @@
-import YAML from "yaml";
 import type { VaultFile } from "../domain";
 import { dirname, joinMarkdown } from "../domain";
 import { parseMarkdownFrontmatter, slugify, splitMarkdown } from "./markdownFrontmatter";
+import { createEntityFrontmatter } from "./contentTemplates";
 import { isHiddenMetadata } from "./treeBuilder";
 import { pathName } from "./pathUtils";
 
@@ -50,14 +50,6 @@ function normalizationReason(content: string): FrontmatterNormalizationReason {
   return content.startsWith("---") ? "invalid_frontmatter" : "missing_frontmatter";
 }
 
-function yamlFrontmatter(data: Record<string, unknown>) {
-  if (typeof data.folder === "string" && data.folder.trim()) {
-    const { folder, ...rest } = data;
-    return `---\n# WorldNotion system property: indicates whether this note corresponds to a folder.\nfolder: ${YAML.stringify(folder).trim()}\n${YAML.stringify(rest).trimEnd()}\n---`;
-  }
-  return `---\n${YAML.stringify(data).trimEnd()}\n---`;
-}
-
 function folderDescriptionData(name: string) {
   const idBase = slugify(name) || "folder";
   return {
@@ -99,7 +91,7 @@ export function planFrontmatterNormalization({
       const isFolderDescription = directorySet.has(siblingFolderPath);
       const data = isFolderDescription ? folderDescriptionData(name) : noteData(name, defaultType);
       const bodyMarkdown = splitMarkdown(file.content).bodyMarkdown;
-      const frontmatter = yamlFrontmatter(data);
+      const frontmatter = createEntityFrontmatter(data);
 
       return {
         path: file.relativePath,

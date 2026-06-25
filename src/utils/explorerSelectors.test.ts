@@ -89,7 +89,7 @@ function index(overrides: Partial<VaultIndex> = {}): VaultIndex {
     findings: [],
     readErrors: [],
     typeCounts: {},
-    taxonomyConfig,
+    propertiesConfig: taxonomyConfig,
     ...overrides,
   };
 }
@@ -132,6 +132,24 @@ describe("explorer selectors", () => {
 
   it("includes hidden metadata only when requested", () => {
     expect(selectVisibleTree(index(), "", true).map((item) => item.path)).toEqual([".everend", "World"]);
+  });
+
+  it("can render folder notes as regular files when rebuilding the visible tree", () => {
+    const withFolderNote = index({
+      files: [
+        {
+          relativePath: "World.md",
+          content: "---\nfolder: World\nid: world-folder\ntype: folder-description\nname: World\n---\n",
+        },
+        { relativePath: "World/Ada.md", content: "" },
+      ],
+      directories: ["World"],
+    });
+
+    const visible = selectVisibleTree(withFolderNote, "", true, undefined, true);
+
+    expect(visible.map((item) => item.path)).toEqual(["World", "World.md"]);
+    expect(visible.find((item) => item.path === "World")?.hasDescription).toBeUndefined();
   });
 
   it("filters favorites to files and folders still present in the vault", () => {

@@ -3,6 +3,7 @@ import {
   createDefaultTaxonomyConfig,
   generateTaxonomyFromEntities,
   mergeTagHierarchy,
+  normalizeCoreBaseProperties,
   type TaxonomyEntityInput,
 } from "./taxonomyConfig";
 
@@ -14,6 +15,20 @@ describe("taxonomy config helpers", () => {
     expect(taxonomy.entityTypes.defaultType).toBe("concept");
     expect(taxonomy.entityTypes.definitions.map((definition) => definition.id)).toContain("character");
     expect(taxonomy.statuses.definitions.map((definition) => definition.id)).toContain("draft");
+  });
+
+  it("keeps folder out of properties while preserving type as the default visible base field", () => {
+    const taxonomy = normalizeCoreBaseProperties({
+      ...createDefaultTaxonomyConfig(),
+      customFields: {
+        definitions: [{ id: "folder", label: "Folder", type: "text" }],
+        globalFields: ["folder"],
+      },
+    });
+
+    expect(taxonomy.baseProperties?.definitions.map((definition) => definition.id)).toEqual(["id", "name", "type"]);
+    expect(taxonomy.baseProperties?.visibleByDefault).toEqual(["type"]);
+    expect(taxonomy.customFields.definitions.some((definition) => definition.id === "folder")).toBe(false);
   });
 
   it("generates hierarchy, entity types, statuses, and frequent custom fields from entities", () => {

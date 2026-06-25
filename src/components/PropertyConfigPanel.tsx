@@ -63,20 +63,24 @@ function propertyRows(config: PropertiesConfig): PropertyRow[] {
   const baseVisible = new Set(config.baseProperties?.visibleByDefault ?? []);
   const customVisible = new Set(config.customFields.globalFields ?? []);
   const baseIds = new Set((config.baseProperties?.definitions ?? []).map((definition) => definition.id));
-  const baseRows: PropertyRow[] = (config.baseProperties?.definitions ?? []).map((definition) => ({
-    id: definition.id,
-    label: definition.label ?? definition.id,
-    type: definition.type,
-    description: definition.description,
-    visible: baseVisible.has(definition.id),
-    required: definition.required ?? false,
-    readOnly: definition.readOnly ?? false,
-    immutable: definition.immutable ?? false,
-    source: "base",
-    definition,
-  }));
+  const hiddenPropertyIds = new Set(["folder", "tags"]);
+  const baseRows: PropertyRow[] = (config.baseProperties?.definitions ?? [])
+    .filter((definition) => !hiddenPropertyIds.has(definition.id))
+    .map((definition) => ({
+      id: definition.id,
+      label: definition.label ?? definition.id,
+      type: definition.type,
+      description: definition.description,
+      visible: baseVisible.has(definition.id),
+      required: definition.required ?? false,
+      readOnly: definition.readOnly ?? false,
+      immutable: definition.immutable ?? false,
+      source: "base",
+      definition,
+    }));
   const customRows: PropertyRow[] = (config.customFields.definitions ?? [])
     .filter((definition) => !baseIds.has(definition.id))
+    .filter((definition) => !hiddenPropertyIds.has(definition.id))
     .map((definition) => ({
       id: definition.id,
       label: definition.label,
@@ -107,6 +111,7 @@ export function PropertyConfigPanel({ taxonomyConfig, onChange }: PropertyConfig
   const [editingProperty, setEditingProperty] = useState<PropertyRow | null>(null);
   const [addingProperty, setAddingProperty] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [draggedPropertyId, setDraggedPropertyId] = useState<string | null>(null);
   const rows = useMemo(() => propertyRows(taxonomyConfig), [taxonomyConfig]);
 
   function setBaseVisible(id: string, visible: boolean) {
@@ -184,13 +189,27 @@ export function PropertyConfigPanel({ taxonomyConfig, onChange }: PropertyConfig
     setShowTemplates(false);
   }
 
+  function reorderProperty(targetId: string) {
+    if (!draggedPropertyId || draggedPropertyId === targetId || !taxonomyConfig.baseProperties) return;
+    const currentOrder = rows.map((row) => row.id);
+    const withoutDragged = currentOrder.filter((id) => id !== draggedPropertyId);
+    const targetIndex = withoutDragged.indexOf(targetId);
+    if (targetIndex === -1) return;
+    withoutDragged.splice(targetIndex, 0, draggedPropertyId);
+    const remaining = (taxonomyConfig.baseProperties.order ?? []).filter((id) => !withoutDragged.includes(id));
+    onChange({
+      ...taxonomyConfig,
+      baseProperties: {
+        ...taxonomyConfig.baseProperties,
+        order: [...withoutDragged, ...remaining],
+      },
+    });
+    setDraggedPropertyId(null);
+  }
+
   return (
     <div className="property-config-panel">
       <div className="property-config-header">
-        <div>
-          <h3>Properties</h3>
-          <p>Choose what appears in the Inspector and how each field behaves.</p>
-        </div>
         <div className="property-config-actions">
           <button type="button" onClick={() => setShowTemplates(true)}>
             <Sparkles size={14} />
@@ -212,8 +231,19 @@ export function PropertyConfigPanel({ taxonomyConfig, onChange }: PropertyConfig
           <span />
         </div>
         {rows.map((row) => (
-          <div className={`property-row ${!row.visible ? "muted-row" : ""}`} key={`${row.source}:${row.id}`}>
-            <span className="property-drag-handle">
+          <div
+            className={`property-row ${!row.visible ? "muted-row" : ""} ${draggedPropertyId === row.id ? "dragging" : ""}`}
+            key={`${row.source}:${row.id}`}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={() => reorderProperty(row.id)}
+          >
+            <span
+              className="property-drag-handle"
+              draggable
+              onDragStart={() => setDraggedPropertyId(row.id)}
+              onDragEnd={() => setDraggedPropertyId(null)}
+              title="Drag to reorder"
+            >
               <GripVertical size={14} />
             </span>
             <div className="property-main-cell">

@@ -115,6 +115,40 @@ describe("live entity selector", () => {
     });
   });
 
+  it("builds a temporary live entity from an open tab that is not indexed yet", () => {
+    const live = selectLiveEntity(
+      index([]),
+      "Loose Note.md",
+      [
+        tab(
+          "Loose Note.md",
+          [
+            "---",
+            "type: item",
+            "name: Loose Artifact",
+            "status: canon",
+            "folder: Items",
+            "rarity: rare",
+            "---",
+            "",
+            "Mentions [[Other Note]].",
+          ].join("\n"),
+        ),
+      ],
+    );
+
+    expect(live).toMatchObject({
+      id: "loose-note",
+      type: "item",
+      name: "Loose Artifact",
+      status: "canon",
+      folder: "Items",
+      customProperties: { rarity: "rare" },
+      wikilinks: ["Other Note"],
+      path: "Loose Note.md",
+    });
+  });
+
   it("returns the indexed entity when live frontmatter cannot be parsed", () => {
     const indexed = entity();
 

@@ -36,10 +36,11 @@ export function selectVisibleTree(
   query: string,
   showHiddenEverend: boolean,
   focusedFolderPath?: string,
+  ignoreFolderNoteMetadata = false,
 ): VaultTreeNode[] {
   if (!index) return [];
   const tree = showHiddenEverend
-    ? buildTree(index.files, index.directories, true, `${pathName(index.rootPath)}.md`)
+    ? buildTree(index.files, index.directories, true, `${pathName(index.rootPath)}.md`, ignoreFolderNoteMetadata)
     : index.tree;
   const focusedRoot = focusedFolderPath ? findTreeNode(tree, focusedFolderPath) : undefined;
   const scopedTree = focusedFolderPath ? (focusedRoot ? [focusedRoot] : tree) : tree;
@@ -84,11 +85,11 @@ function flattenTags(nodes: TagHierarchyNode[], tagMap: Map<string, { color?: st
 }
 
 export function selectEcosystemGroups(index: VaultIndex | undefined): Map<string, Entity[]> {
-  if (!index?.taxonomyConfig) return new Map<string, Entity[]>();
+  if (!index?.propertiesConfig) return new Map<string, Entity[]>();
 
   const groups = new Map<string, Entity[]>();
   const tagMap = new Map<string, { color?: string; fullPath: string }>();
-  flattenTags(index.taxonomyConfig.tags.rootNodes, tagMap);
+  flattenTags(index.propertiesConfig.tags.rootNodes, tagMap);
 
   index.entities.forEach((entity) => {
     if (entity.tags.length > 0) {
@@ -126,11 +127,11 @@ function findTagColor(nodes: TagHierarchyNode[], tag: string): string | undefine
 
 export function selectEntityTagColors(index: VaultIndex | undefined): Map<string, string> {
   const colorMap = new Map<string, string>();
-  if (!index?.taxonomyConfig) return colorMap;
+  if (!index?.propertiesConfig) return colorMap;
 
   index.entities.forEach((entity) => {
     if (entity.tags.length > 0) {
-      const color = findTagColor(index.taxonomyConfig!.tags.rootNodes, entity.tags[0]);
+      const color = findTagColor(index.propertiesConfig!.tags.rootNodes, entity.tags[0]);
       if (color) {
         colorMap.set(entity.path, color);
       }

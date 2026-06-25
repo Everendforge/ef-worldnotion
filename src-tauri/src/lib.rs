@@ -826,18 +826,6 @@ fn save_file(
 }
 
 #[tauri::command]
-fn save_taxonomy(
-    vault_path: String,
-    taxonomy_yaml: String,
-    expected_modified_ms: Option<u128>,
-) -> Result<WriteResult, String> {
-    let root = PathBuf::from(&vault_path);
-    let path = root.join(".everend").join("taxonomy.yaml");
-    ensure_inside(&root, &path)?;
-    write_file_checked(&path, &taxonomy_yaml, expected_modified_ms)
-}
-
-#[tauri::command]
 fn save_template(
     vault_path: String,
     entity_type: String,
@@ -1076,7 +1064,6 @@ pub fn run() {
             create_folder,
             create_entity,
             save_file,
-            save_taxonomy,
             save_template,
             rename_path,
             move_path,
