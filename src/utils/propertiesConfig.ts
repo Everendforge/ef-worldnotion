@@ -11,6 +11,10 @@ export type UnconfiguredProperty = {
 
 const BASE_FRONTMATTER_KEYS = ["id", "type", "name", "status", "tags", "aliases", "parentId", "childrenIds", "folder"];
 
+// System property comment for folder field
+const FOLDER_SYSTEM_PROPERTY_COMMENT =
+  "Don't delete; it's a WorldNotion system property: indicates whether this note corresponds to a folder.";
+
 export function knownPropertyIds(config?: PropertiesConfig): Set<string> {
   const ids = new Set<string>(BASE_FRONTMATTER_KEYS);
   config?.baseProperties?.definitions.forEach((property) => ids.add(property.id));
@@ -147,6 +151,48 @@ export function adaptFrontmatterProperty(frontmatterRaw: string, fromKey: string
   data[toKey] = data[fromKey];
   delete data[fromKey];
   return frontmatterDataToRaw(data);
+}
+
+/**
+ * Reorders frontmatter fields according to expected order
+ * Ensures folder field always has its system property comment
+ * @param frontmatterRaw The raw YAML frontmatter string
+ * @param expectedOrder Array of field keys in desired order
+ * @returns Reordered frontmatter string with folder comment preserved/added
+ */
+export function reorderFrontmatter(frontmatterRaw: string, expectedOrder: string[]): string {
+  const data = parseFrontmatterRaw(frontmatterRaw);
+  const reordered: Record<string, unknown> = {};
+  
+  // Add fields in expected order
+  expectedOrder.forEach((key) => {
+    if (key in data) {
+      reordered[key] = data[key];
+    }
+  });
+  
+  // Add any remaining fields not in expected order
+  Object.entries(data).forEach(([key, value]) => {
+    if (!(key in reordered)) {
+      reordered[key] = value;
+    }
+  });
+  
+  let result = frontmatterDataToRaw(reordered);
+  
+  // Ensure folder field has system property comment if it exists
+  if ("folder" in reordered && reordered.folder) {
+    const folderValue = reordered.folder;
+    const yamlScalarValue = typeof folderValue === "string" && /^[A-Za-z0-9 _.-]+$/.test(folderValue) 
+      ? folderValue 
+      : JSON.stringify(folderValue);
+    
+    // Replace folder line with commented version
+    const folderLineRegex = /^folder:\s*.+?(?=\n|$)/m;
+    result = result.replace(folderLineRegex, `folder: ${yamlScalarValue} # ${FOLDER_SYSTEM_PROPERTY_COMMENT}`);
+  }
+  
+  return result;
 }
 
 export function sanitizePropertyId(value: string): string {

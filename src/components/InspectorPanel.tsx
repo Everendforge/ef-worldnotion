@@ -21,6 +21,8 @@ export type InspectorPanelProps = {
   onUpdatePropertiesConfig?: (properties: PropertiesConfig) => void | Promise<void>;
   onApplyPropertiesTemplate?: () => void | Promise<void>;
   onOpenPropertiesSettings?: () => void;
+  onConserveField?: (fieldName: string, value: unknown) => void | Promise<void>;
+  onDeleteField?: (fieldName: string) => void;
 };
 
 export function InspectorPanel({
@@ -35,6 +37,8 @@ export function InspectorPanel({
   onUpdatePropertiesConfig,
   onApplyPropertiesTemplate,
   onOpenPropertiesSettings,
+  onConserveField,
+  onDeleteField,
 }: InspectorPanelProps) {
   if (!index) {
     return (
@@ -144,6 +148,8 @@ export function InspectorPanel({
                     onAddPropertyToUniverse={onAddPropertyToUniverse}
                     onUpdatePropertiesConfig={onUpdatePropertiesConfig}
                     onOpenPropertiesSettings={onOpenPropertiesSettings}
+                    onConserveField={onConserveField}
+                    onDeleteField={onDeleteField}
                   />
                 </Suspense>
               </>

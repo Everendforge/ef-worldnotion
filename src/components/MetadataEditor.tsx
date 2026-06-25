@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { EyeOff, GripVertical, Plus, SlidersHorizontal, Trash2, Wand2, X } from "lucide-react";
+import { AlertCircle, EyeOff, GripVertical, Plus, SlidersHorizontal, Trash2, Wand2, X, ArrowRightLeft } from "lucide-react";
 import type { Entity } from "../domain";
-import type { PropertiesConfig, BasePropertyDefinition, CustomFieldDefinition } from "../editorTypes";
+import type { PropertiesConfig, BasePropertyDefinition, CustomFieldDefinition, PropertyDefinition } from "../editorTypes";
 import {
   adaptFrontmatterProperty,
   inferPropertyDefinition,
@@ -10,7 +10,10 @@ import {
   listVisibleProperties,
   parseFrontmatterRaw,
   removeFrontmatterProperty,
+  reorderFrontmatter,
 } from "../utils/propertiesConfig";
+import { isPropertyVisible } from "../utils/propertyTreeUtils";
+import { detectOrphanedFields, inferValueType, getExpectedFieldOrder } from "../utils/frontmatterValidator";
 import { PropertyFieldRenderer } from "./PropertyFieldRenderer";
 
 type MetadataEditorProps = {
@@ -22,6 +25,8 @@ type MetadataEditorProps = {
   onAddPropertyToUniverse?: (property: CustomFieldDefinition) => void | Promise<void>;
   onUpdatePropertiesConfig?: (properties: PropertiesConfig) => void | Promise<void>;
   onOpenPropertiesSettings?: () => void;
+  onConserveField?: (fieldName: string, value: unknown) => void | Promise<void>;
+  onDeleteField?: (fieldName: string) => void;
 };
 
 type EditableOption = { value: string; label: string; color?: string };
@@ -45,6 +50,8 @@ export function MetadataEditor({
   onAddPropertyToUniverse,
   onUpdatePropertiesConfig,
   onOpenPropertiesSettings,
+  onConserveField,
+  onDeleteField,
 }: MetadataEditorProps) {
   const [adaptTargets, setAdaptTargets] = useState<Record<string, string>>({});
   const [draggedPropertyId, setDraggedPropertyId] = useState<string | null>(null);
@@ -57,6 +64,14 @@ export function MetadataEditor({
   const basePropertyDefs = taxonomyConfig?.baseProperties?.definitions ?? [];
   const frontmatterData = useMemo(() => parseFrontmatterRaw(rawYaml), [rawYaml]);
   const configuredProperties = useMemo(() => listAllProperties(taxonomyConfig), [taxonomyConfig]);
+
+  // Detect orphaned fields (new validator-based detection)
+  const orphanedFields = useMemo(() => detectOrphanedFields(frontmatterData, taxonomyConfig), [frontmatterData, taxonomyConfig]);
+
+  // Categorize issues by type
+  const missingFields = useMemo(() => orphanedFields.filter(i => i.type === "missing"), [orphanedFields]);
+  const extraFields = useMemo(() => orphanedFields.filter(i => i.type === "extra"), [orphanedFields]);
+  const misorderedFields = useMemo(() => orphanedFields.filter(i => i.type === "misorder"), [orphanedFields]);
 
   // Get entity type definition
   const entityTypeDef = entityTypes.find((t) => t.id === entity.type);
@@ -358,6 +373,135 @@ export function MetadataEditor({
     setOptionDraft({ propertyId: property.id, options: getEditableOptions(property) });
   };
 
+  const handleAutoReorder = () => {
+    const frontmatterKeys = Object.keys(frontmatterData);
+    const expectedOrder = getExpectedFieldOrder(frontmatterKeys, taxonomyConfig);
+    const reorderedYaml = reorderFrontmatter(rawYaml, expectedOrder);
+    onUpdateRawYaml?.(reorderedYaml);
+  };
+
+  /**
+   * Get all current property values for visibleWhen evaluation
+   */
+  const getPropertyValues = (): Record<string, unknown> => {
+    const values: Record<string, unknown> = {};
+    
+    // Collect all frontmatter properties
+    Object.entries(frontmatterData).forEach(([key, value]) => {
+      values[key] = value;
+    });
+    
+    // Collect custom properties
+    Object.entries(entity.customProperties).forEach(([key, value]) => {
+      values[key] = value;
+    });
+    
+    return values;
+  };
+
+  /**
+   * Recursively render property tree, handling visibility and grouping
+   */
+  const renderPropertyTree = (
+    properties: PropertyDefinition[] | undefined,
+    depth: number = 0,
+    parentValues?: Record<string, unknown>,
+  ): React.ReactNode[] => {
+    if (!properties || properties.length === 0) return [];
+
+    const values = parentValues || getPropertyValues();
+    const nodes: React.ReactNode[] = [];
+
+    properties.forEach((property) => {
+      // Check if property should be visible
+      if (!isPropertyVisible(property, values)) {
+        return;
+      }
+
+      // Handle group type: render as fieldset
+      if (property.type === "group") {
+        nodes.push(
+          <fieldset
+            key={property.id}
+            className={`metadata-field-group metadata-field-group-depth-${depth}`}
+          >
+            <legend className="metadata-group-legend">{property.label}</legend>
+            <div className="metadata-group-children">
+              {renderPropertyTree(property.children, depth + 1, values)}
+            </div>
+          </fieldset>,
+        );
+        return;
+      }
+
+      // Regular property rendering
+      const value = getPropertyValue(property as BasePropertyDefinition | CustomFieldDefinition);
+      const options = getPropertyOptions(property as BasePropertyDefinition | CustomFieldDefinition);
+      const isReadOnly = "readOnly" in property && property.readOnly;
+
+      nodes.push(
+        <div
+          key={property.id}
+          className={`metadata-field metadata-field-row metadata-field-depth-${depth} ${
+            draggedPropertyId === property.id ? "dragging" : ""
+          }`}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={() => reorderProperty(property.id)}
+        >
+          <button
+            type="button"
+            className="metadata-field-handle"
+            draggable
+            onDragStart={() => setDraggedPropertyId(property.id)}
+            onDragEnd={() => setDraggedPropertyId(null)}
+            title="Drag to reorder"
+          >
+            <GripVertical size={14} />
+          </button>
+          <label>
+            <span>
+              {property.label || property.id}
+              {property.required && <span className="required-star">*</span>}
+            </span>
+            <PropertyFieldRenderer
+              property={property as BasePropertyDefinition | CustomFieldDefinition}
+              value={value}
+              onChange={(newValue) => handlePropertyChange(property.id, newValue)}
+              readOnly={isReadOnly}
+              entityType={entity.type}
+              availableOptions={options}
+            />
+          </label>
+          <div className="metadata-field-actions">
+            {propertyCanEditOptions(property as BasePropertyDefinition | CustomFieldDefinition) ? (
+              <button
+                type="button"
+                className="metadata-field-options"
+                aria-expanded={optionDraft?.propertyId === property.id}
+                onClick={() =>
+                  optionDraft?.propertyId === property.id ? closeOptionsPopup() : openOptionsPopup(property as BasePropertyDefinition | CustomFieldDefinition)
+                }
+                title="Edit dropdown options"
+              >
+                <SlidersHorizontal size={14} />
+              </button>
+            ) : null}
+            <button type="button" onClick={() => hideProperty(property.id)} title="Hide property">
+              <EyeOff size={14} />
+            </button>
+          </div>
+        </div>,
+      );
+
+      // Render children if any
+      if (property.children && property.children.length > 0) {
+        nodes.push(...renderPropertyTree(property.children, depth + 1, values));
+      }
+    });
+
+    return nodes;
+  };
+
   const renderOptionsPopup = () => {
     if (!optionDraft || !inspectorProperties) return null;
     const property = inspectorProperties.find((candidate) => candidate.id === optionDraft.propertyId);
@@ -500,60 +644,120 @@ export function MetadataEditor({
         {renderOptionsPopup()}
         {renderPropertyContextMenu()}
         <div className="metadata-fields">
-          {inspectorProperties.map((property) => {
-            const value = getPropertyValue(property);
-            const options = getPropertyOptions(property);
-            const isReadOnly = "readOnly" in property && property.readOnly;
+          {renderPropertyTree(inspectorProperties as PropertyDefinition[] | undefined)}
 
-            return (
-              <div
-                key={property.id}
-                className={`metadata-field metadata-field-row ${draggedPropertyId === property.id ? "dragging" : ""}`}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={() => reorderProperty(property.id)}
-              >
-                <button
-                  type="button"
-                  className="metadata-field-handle"
-                  draggable
-                  onDragStart={() => setDraggedPropertyId(property.id)}
-                  onDragEnd={() => setDraggedPropertyId(null)}
-                  title="Drag to reorder"
-                >
-                  <GripVertical size={14} />
-                </button>
-                <label>
-                  <span>{property.label || property.id}{property.required && <span className="required-star">*</span>}</span>
-                  <PropertyFieldRenderer
-                    property={property}
-                    value={value}
-                    onChange={(newValue) => handlePropertyChange(property.id, newValue)}
-                    readOnly={isReadOnly}
-                    entityType={entity.type}
-                    availableOptions={options}
-                  />
-                </label>
-                <div className="metadata-field-actions">
-                  {propertyCanEditOptions(property) ? (
+          {orphanedFields.length > 0 ? (
+            <div className="metadata-orphaned-fields">
+              <div className="metadata-section-divider metadata-section-divider-error">
+                <AlertCircle size={16} />
+                <span>Schema issues ({orphanedFields.length})</span>
+              </div>
+              <p className="field-hint">
+                Your metadata does not match the universe schema. Review and fix these issues.
+              </p>
+
+              {/* Extra fields */}
+              {extraFields.length > 0 && (
+                <div className="metadata-issue-group">
+                  <h4 className="metadata-issue-group-title metadata-issue-extra">
+                    <AlertCircle size={14} /> Extra fields ({extraFields.length})
+                  </h4>
+                  <p className="field-hint">Fields not defined in the universe schema.</p>
+                  {extraFields.map((field) => (
+                    <div key={field.fieldName} className="metadata-orphaned-item metadata-issue-extra-item">
+                      <div className="metadata-orphaned-content">
+                        <div className="metadata-orphaned-header">
+                          <strong className="metadata-orphaned-name">{field.fieldName}</strong>
+                          <span className="metadata-orphaned-type">{inferValueType(field.value)}</span>
+                        </div>
+                        <code className="metadata-orphaned-value">{formatPreviewValue(field.value)}</code>
+                      </div>
+                      <div className="metadata-orphaned-actions">
+                        <button
+                          type="button"
+                          className="metadata-action-primary"
+                          onClick={() => onConserveField?.(field.fieldName, field.value)}
+                          title="Add to universe schema"
+                        >
+                          <Plus size={13} />
+                          Conserve
+                        </button>
+                        {field.fieldName !== "folder" && (
+                          <button
+                            type="button"
+                            className="metadata-action-danger"
+                            onClick={() => {
+                              onDeleteField?.(field.fieldName);
+                              if (onUpdateRawYaml) {
+                                onUpdateRawYaml(removeFrontmatterProperty(rawYaml, field.fieldName));
+                              }
+                            }}
+                            title="Remove from this note"
+                          >
+                            <Trash2 size={13} />
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Misorder fields */}
+              {misorderedFields.length > 0 && (
+                <div className="metadata-issue-group">
+                  <div className="metadata-issue-header">
+                    <h4 className="metadata-issue-group-title metadata-issue-misorder">
+                      <AlertCircle size={14} /> Wrong order ({misorderedFields.length})
+                    </h4>
                     <button
                       type="button"
-                      className="metadata-field-options"
-                      aria-expanded={optionDraft?.propertyId === property.id}
-                      onClick={() =>
-                        optionDraft?.propertyId === property.id ? closeOptionsPopup() : openOptionsPopup(property)
-                      }
-                      title="Edit dropdown options"
+                      className="metadata-action-primary"
+                      onClick={handleAutoReorder}
+                      title="Reorder fields to match schema"
                     >
-                      <SlidersHorizontal size={14} />
+                      <ArrowRightLeft size={13} />
+                      Auto-reorder
                     </button>
-                  ) : null}
-                  <button type="button" onClick={() => hideProperty(property.id)} title="Hide property">
-                    <EyeOff size={14} />
-                  </button>
+                  </div>
+                  <p className="field-hint">Fields should follow the schema order for consistency.</p>
+                  {misorderedFields.map((field) => (
+                    <div key={field.fieldName} className="metadata-orphaned-item metadata-issue-misorder-item">
+                      <div className="metadata-orphaned-content">
+                        <div className="metadata-orphaned-header">
+                          <strong className="metadata-orphaned-name">{field.fieldName}</strong>
+                          <span className="metadata-orphaned-type">
+                            Position {field.actualPosition} → {field.expectedPosition}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            );
-          })}
+              )}
+
+              {/* Missing fields */}
+              {missingFields.length > 0 && (
+                <div className="metadata-issue-group">
+                  <h4 className="metadata-issue-group-title metadata-issue-missing">
+                    <AlertCircle size={14} /> Missing fields ({missingFields.length})
+                  </h4>
+                  <p className="field-hint">Required or important fields defined in schema are not present.</p>
+                  {missingFields.map((field) => (
+                    <div key={field.fieldName} className="metadata-orphaned-item metadata-issue-missing-item">
+                      <div className="metadata-orphaned-content">
+                        <div className="metadata-orphaned-header">
+                          <strong className="metadata-orphaned-name">{field.fieldName}</strong>
+                          <span className="metadata-orphaned-type">{field.expectedType || "unknown"}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
 
           {unconfiguredProperties.length > 0 ? (
             <div className="metadata-unconfigured">

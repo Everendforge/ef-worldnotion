@@ -72,6 +72,7 @@ import {
 } from "./domain";
 import { isDarkTheme, themeById, themeForStyleCommand, toggledThemeMode } from "./themes";
 import { addPropertyToConfig } from "./utils/propertiesConfig";
+import { addCustomFieldToSchema } from "./utils/propertiesSerializer";
 import { applyPropertyTemplate, WORLDBUILDING_TEMPLATE } from "./utils/propertyTemplates";
 import { normalizeCoreBaseProperties } from "./utils/taxonomyConfig";
 import { recordFileAccessInSettings } from "./utils/fileAccessStats";
@@ -905,7 +906,7 @@ function App() {
           const fileName = name.endsWith(".md") ? name : `${name}.md`;
           const filePath = parentPath ? `${parentPath}/${fileName}` : fileName;
           const cleanName = name.replace(/\.md$/i, "");
-          const content = `---\nid: ${slugify(cleanName)}\ntype: concept\nname: ${cleanName}\nstatus: draft\n---\n`;
+          const content = `${contentFromTemplate(index, "concept", cleanName)}\n`;
 
           if (browserRoot) {
             await writeBrowserFile(browserRoot, filePath, content);
@@ -1326,6 +1327,25 @@ function App() {
     showToast(`Added property ${property.label || property.id}.`);
   }
 
+  async function handleConserveField(fieldName: string, value: unknown) {
+    const currentConfig =
+      index?.propertiesConfig ?? applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE);
+    // Infer type from value
+    let inferredType = "text";
+    if (typeof value === "boolean") inferredType = "boolean";
+    else if (typeof value === "number") inferredType = "number";
+    else if (Array.isArray(value)) inferredType = "multiselect";
+    
+    const nextConfig = addCustomFieldToSchema(currentConfig, fieldName, inferredType);
+    await savePropertiesConfig(nextConfig);
+    showToast(`Field "${fieldName}" added to universe properties.`);
+  }
+
+  function handleDeleteField(_fieldName: string) {
+    // Field deletion is handled by MetadataEditor (removes from YAML)
+    // This handler is here for future extensibility (e.g., logging)
+  }
+
   function scanFrontmatterNormalization() {
     if (!index) return [];
     return planFrontmatterNormalization({
@@ -1520,7 +1540,7 @@ function App() {
     const templateType = slugify(type);
     if (!templateType) return;
     const relativePath = `.everend/templates/${templateType}.md`;
-    const content = `---\nid: {{id}}\ntype: ${templateType}\nname: {{name}}\nstatus: {{status}}\ntags: []\naliases: []\n---\n\n# {{name}}\n\n`;
+    const content = `---\nid: {{id}}\ntype: ${templateType}\nname: {{name}}\nstatus: {{status}}\ntags: []\naliases: []\n---\n\n# {{name}}\n`;
     try {
       if (browserRoot) {
         await writeBrowserFile(browserRoot, relativePath, content);
@@ -2255,7 +2275,7 @@ function App() {
     const folderPath = getActiveCreationFolder(selectedExplorerTarget, selectedPath);
     const slug = slugify(name);
     const relativePath = folderPath ? `${folderPath}/${slug}.md` : `${slug}.md`;
-    const content = `---\nid: ${slug}\ntype: concept\nname: ${name}\nstatus: draft\n---\n`;
+    const content = `${contentFromTemplate(index, "concept", name)}\n`;
 
     try {
       if (browserRoot) {
@@ -3160,6 +3180,8 @@ function App() {
         openOrCreateTab(path);
         setSelectedPath(path);
       }}
+      onConserveField={handleConserveField}
+      onDeleteField={handleDeleteField}
     />
   );
 

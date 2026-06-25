@@ -342,7 +342,8 @@ export type CustomFieldType =
   | "email"
   | "phone"
   | "file"
-  | "image";
+  | "image"
+  | "group";
 
 export type CustomFieldDefinition = {
   id: string; // Unique identifier (e.g., "hp", "alignment")
@@ -359,6 +360,11 @@ export type CustomFieldDefinition = {
   min?: number; // For number type
   max?: number; // For number type
   pattern?: string; // For text type (regex)
+  // Hierarchical properties support (v2.0)
+  children?: PropertyDefinition[]; // Child properties for this field
+  visibleWhen?: Record<string, string[]>; // Conditional visibility: { parentFieldId: ['value1', 'value2'] }
+  group?: string; // Grouping category for UI organization
+  order?: number; // Display order within parent or global scope
 };
 
 export type ContentTypeDefinition = {
@@ -414,12 +420,16 @@ export type BasePropertyDefinition = {
   min?: number;
   max?: number;
   pattern?: string;
+  // Hierarchical properties support (v2.0)
+  children?: PropertyDefinition[]; // Child properties for this field
+  visibleWhen?: Record<string, string[]>; // Conditional visibility: { parentFieldId: ['value1', 'value2'] }
+  group?: string; // Grouping category for UI organization
 };
 
 export type PropertyDefinition = BasePropertyDefinition | CustomFieldDefinition;
 
 export type TaxonomyConfig = {
-  version: string; // Schema version (e.g., "1.0")
+  version: string; // Schema version (e.g., "1.0", "2.0")
   baseProperties?: {
     definitions: BasePropertyDefinition[]; // Configurable base properties
     visibleByDefault?: string[]; // Which properties appear in UI by default

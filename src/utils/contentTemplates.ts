@@ -16,16 +16,37 @@ export function createEntityFrontmatter({
   type,
   name,
   status = "draft",
+  tags = [],
+  aliases = [],
+  parentId,
+  childrenIds,
   folder,
 }: {
   id: string;
   type: string;
   name: string;
   status?: string;
+  tags?: string[];
+  aliases?: string[];
+  parentId?: string;
+  childrenIds?: string[];
   folder?: string;
 }) {
-  const folderLine = folder ? `folder: ${yamlScalar(folder)} # ${FOLDER_SYSTEM_PROPERTY_COMMENT}\n` : "";
-  return `---\n${folderLine}id: ${yamlScalar(id)}\ntype: ${yamlScalar(type)}\nname: ${yamlScalar(name)}\nstatus: ${yamlScalar(status)}\n---`;
+  // Build frontmatter in Spec v0.1 order: folder (system), id, type, name, status, tags, aliases, parentId, childrenIds
+  const lines: string[] = [];
+  lines.push("---");
+  if (folder) lines.push(`folder: ${yamlScalar(folder)} # ${FOLDER_SYSTEM_PROPERTY_COMMENT}`);
+  lines.push(`id: ${yamlScalar(id)}`);
+  lines.push(`type: ${yamlScalar(type)}`);
+  lines.push(`name: ${yamlScalar(name)}`);
+  lines.push(`status: ${yamlScalar(status)}`);
+  lines.push(`tags: [${tags.map((t) => yamlScalar(t)).join(", ")}]`);
+  lines.push(`aliases: [${aliases.map((a) => yamlScalar(a)).join(", ")}]`);
+  if (parentId) lines.push(`parentId: ${yamlScalar(parentId)}`);
+  if (childrenIds && childrenIds.length > 0)
+    lines.push(`childrenIds: [${childrenIds.map((c) => yamlScalar(c)).join(", ")}]`);
+  lines.push("---");
+  return lines.join("\n");
 }
 
 export function contentFromTemplate(index: VaultIndex, entityType: string, name: string) {

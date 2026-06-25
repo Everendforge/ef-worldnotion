@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Eye, EyeOff, GripVertical, Plus, Settings2, Sparkles, Trash2, X } from "lucide-react";
+import { Eye, EyeOff, GripVertical, Plus, Settings2, Sparkles, Trash2, X, Zap } from "lucide-react";
 import type {
   BasePropertyDefinition,
   CustomFieldDefinition,
@@ -14,6 +14,7 @@ import {
   sanitizePropertyId,
   valuesToOptions,
 } from "../utils/propertiesConfig";
+import { CustomFieldEditor } from "./CustomFieldEditor";
 
 type PropertyConfigPanelProps = {
   taxonomyConfig: PropertiesConfig;
@@ -111,6 +112,7 @@ export function PropertyConfigPanel({ taxonomyConfig, onChange }: PropertyConfig
   const [editingProperty, setEditingProperty] = useState<PropertyRow | null>(null);
   const [addingProperty, setAddingProperty] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showAdvancedEditor, setShowAdvancedEditor] = useState(false);
   const [draggedPropertyId, setDraggedPropertyId] = useState<string | null>(null);
   const rows = useMemo(() => propertyRows(taxonomyConfig), [taxonomyConfig]);
 
@@ -215,6 +217,10 @@ export function PropertyConfigPanel({ taxonomyConfig, onChange }: PropertyConfig
             <Sparkles size={14} />
             Template
           </button>
+          <button type="button" onClick={() => setShowAdvancedEditor(true)} title="Advanced hierarchy editor for custom properties">
+            <Zap size={14} />
+            Advanced
+          </button>
           <button type="button" className="primary" onClick={() => setAddingProperty(true)}>
             <Plus size={14} />
             Add property
@@ -314,6 +320,37 @@ export function PropertyConfigPanel({ taxonomyConfig, onChange }: PropertyConfig
                   <small>{template.visibleBaseProperties.join(", ")}</small>
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showAdvancedEditor ? (
+        <div className="property-modal-backdrop">
+          <div className="property-modal very-wide">
+            <header>
+              <h3>Advanced Property Editor</h3>
+              <p className="modal-subtitle">Create hierarchical properties with conditional visibility and templates</p>
+              <button type="button" onClick={() => setShowAdvancedEditor(false)}>
+                <X size={15} />
+              </button>
+            </header>
+            <div className="property-advanced-content">
+              <CustomFieldEditor
+                fields={taxonomyConfig.customFields.definitions}
+                onChange={(updatedFields) => {
+                  onChange({
+                    ...taxonomyConfig,
+                    customFields: {
+                      ...taxonomyConfig.customFields,
+                      definitions: updatedFields as CustomFieldDefinition[],
+                      globalFields: [
+                        ...new Set([...(taxonomyConfig.customFields.globalFields ?? []), ...updatedFields.map((f) => f.id)]),
+                      ],
+                    },
+                  });
+                }}
+              />
             </div>
           </div>
         </div>
