@@ -1,38 +1,72 @@
 import { useMemo, useState } from "react";
-import { AlertCircle, EyeOff, GripVertical, Plus, SlidersHorizontal, Trash2, Wand2, X, ArrowRightLeft } from "lucide-react";
+import { AlertCircle, Copy, Edit3, EyeOff, GitBranch, GripVertical, MoreHorizontal, Plus, SlidersHorizontal, Trash2, Wand2, X, ArrowRightLeft } from "lucide-react";
 import type { Entity } from "../domain";
 import type { PropertiesConfig, BasePropertyDefinition, CustomFieldDefinition, PropertyDefinition } from "../editorTypes";
 import {
   adaptFrontmatterProperty,
   inferPropertyDefinition,
   listAllProperties,
+  listInspectableProperties,
   listUnconfiguredProperties,
   listVisibleProperties,
+  NON_INSPECTOR_PROPERTY_IDS,
   parseFrontmatterRaw,
   removeFrontmatterProperty,
+  getConfiguredFrontmatterOrder,
+  reorderInspectorPropertySiblings,
+  removeInspectorProperty,
   reorderFrontmatter,
+  sanitizePropertyId,
+  labelFromPropertyId,
+  upsertInspectorProperty,
+  valuesToOptions,
 } from "../utils/propertiesConfig";
 import { isPropertyVisible } from "../utils/propertyTreeUtils";
-import { detectOrphanedFields, inferValueType, getExpectedFieldOrder } from "../utils/frontmatterValidator";
+import { detectOrphanedFields, inferValueType } from "../utils/frontmatterValidator";
 import { PropertyFieldRenderer } from "./PropertyFieldRenderer";
 
 type MetadataEditorProps = {
   entity: Entity;
-  taxonomyConfig?: PropertiesConfig;
+  propertiesConfig?: PropertiesConfig;
   rawYaml: string;
   onUpdate: (updates: Partial<Entity>) => void;
   onUpdateRawYaml?: (yaml: string) => void;
-  onAddPropertyToUniverse?: (property: CustomFieldDefinition) => void | Promise<void>;
   onUpdatePropertiesConfig?: (properties: PropertiesConfig) => void | Promise<void>;
-  onOpenPropertiesSettings?: () => void;
   onConserveField?: (fieldName: string, value: unknown) => void | Promise<void>;
   onDeleteField?: (fieldName: string) => void;
 };
 
 type EditableOption = { value: string; label: string; color?: string };
+type PropertyModalMode = "add" | "add-child" | "edit" | "group";
+type PropertyModalState = {
+  mode: PropertyModalMode;
+  property?: BasePropertyDefinition | CustomFieldDefinition;
+  parentId?: string;
+  sourceValue?: unknown;
+};
+type ConditionDraftState = {
+  propertyId: string;
+  parentId: string;
+  values: string[];
+};
 
 const ENTITY_FRONTMATTER_FIELD_IDS = new Set(["id", "name", "type", "status", "tags", "aliases", "parentId", "childrenIds", "folder"]);
-const HIDDEN_FROM_INSPECTOR_PROPERTY_IDS = new Set(["folder", "tags"]);
+const PROPERTY_TYPES: Array<{ value: CustomFieldDefinition["type"]; label: string }> = [
+  { value: "text", label: "Text" },
+  { value: "number", label: "Number" },
+  { value: "boolean", label: "Boolean" },
+  { value: "date", label: "Date" },
+  { value: "select", label: "Select" },
+  { value: "multiselect", label: "Multi-select" },
+  { value: "entity-ref", label: "Entity ref" },
+  { value: "entity-ref-list", label: "Entity ref list" },
+  { value: "url", label: "URL" },
+  { value: "email", label: "Email" },
+  { value: "phone", label: "Phone" },
+  { value: "file", label: "File" },
+  { value: "image", label: "Image" },
+  { value: "group", label: "Group" },
+];
 
 function formatPreviewValue(value: unknown): string {
   if (Array.isArray(value)) return value.join(", ");
@@ -43,30 +77,31 @@ function formatPreviewValue(value: unknown): string {
 
 export function MetadataEditor({
   entity,
-  taxonomyConfig,
+  propertiesConfig,
   rawYaml,
   onUpdate,
   onUpdateRawYaml,
-  onAddPropertyToUniverse,
   onUpdatePropertiesConfig,
-  onOpenPropertiesSettings,
   onConserveField,
   onDeleteField,
 }: MetadataEditorProps) {
   const [adaptTargets, setAdaptTargets] = useState<Record<string, string>>({});
   const [draggedPropertyId, setDraggedPropertyId] = useState<string | null>(null);
   const [optionDraft, setOptionDraft] = useState<{ propertyId: string; options: EditableOption[] } | null>(null);
-  const [propertyContextMenu, setPropertyContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [propertyContextMenu, setPropertyContextMenu] = useState<{ x: number; y: number; propertyId?: string } | null>(null);
+  const [propertyModal, setPropertyModal] = useState<PropertyModalState | null>(null);
+  const [conditionDraft, setConditionDraft] = useState<ConditionDraftState | null>(null);
+  const [showHiddenProperties, setShowHiddenProperties] = useState(false);
 
-  const entityTypes = taxonomyConfig?.entityTypes.definitions ?? [];
-  const statuses = taxonomyConfig?.statuses.definitions ?? [];
-  const customFieldDefs = taxonomyConfig?.customFields.definitions ?? [];
-  const basePropertyDefs = taxonomyConfig?.baseProperties?.definitions ?? [];
+  const entityTypes = propertiesConfig?.entityTypes.definitions ?? [];
+  const statuses = propertiesConfig?.statuses.definitions ?? [];
+  const customFieldDefs = propertiesConfig?.customFields.definitions ?? [];
+  const basePropertyDefs = propertiesConfig?.baseProperties?.definitions ?? [];
   const frontmatterData = useMemo(() => parseFrontmatterRaw(rawYaml), [rawYaml]);
-  const configuredProperties = useMemo(() => listAllProperties(taxonomyConfig), [taxonomyConfig]);
+  const configuredProperties = useMemo(() => listAllProperties(propertiesConfig), [propertiesConfig]);
 
   // Detect orphaned fields (new validator-based detection)
-  const orphanedFields = useMemo(() => detectOrphanedFields(frontmatterData, taxonomyConfig), [frontmatterData, taxonomyConfig]);
+  const orphanedFields = useMemo(() => detectOrphanedFields(frontmatterData, propertiesConfig, entity.type), [frontmatterData, propertiesConfig, entity.type]);
 
   // Categorize issues by type
   const missingFields = useMemo(() => orphanedFields.filter(i => i.type === "missing"), [orphanedFields]);
@@ -79,21 +114,21 @@ export function MetadataEditor({
   // Determine which properties to show
   const visibleProperties = useMemo(() => {
     if (basePropertyDefs.length > 0) {
-      return listVisibleProperties(taxonomyConfig, entity.type);
+      return listVisibleProperties(propertiesConfig, entity.type);
     }
 
     // Backward compatibility: no baseProperties defined, use legacy behavior
     return null;
-  }, [basePropertyDefs.length, entity.type, taxonomyConfig]);
+  }, [basePropertyDefs.length, entity.type, propertiesConfig]);
 
   const inspectorProperties = useMemo(
-    () => visibleProperties?.filter((property) => !HIDDEN_FROM_INSPECTOR_PROPERTY_IDS.has(property.id)) ?? null,
+    () => visibleProperties?.filter((property) => !NON_INSPECTOR_PROPERTY_IDS.has(property.id)) ?? null,
     [visibleProperties],
   );
 
   const unconfiguredProperties = useMemo(
-    () => listUnconfiguredProperties(frontmatterData, taxonomyConfig),
-    [frontmatterData, taxonomyConfig],
+    () => listUnconfiguredProperties(frontmatterData, propertiesConfig),
+    [frontmatterData, propertiesConfig],
   );
 
   const handlePropertyChange = (propertyId: string, value: unknown) => {
@@ -110,29 +145,21 @@ export function MetadataEditor({
   };
 
   const getPropertyValue = (property: BasePropertyDefinition | CustomFieldDefinition): unknown => {
-    if (ENTITY_FRONTMATTER_FIELD_IDS.has(property.id)) {
-      return (entity as any)[property.id];
-    }
-    
-    // Otherwise get from customProperties
+    if (property.id in frontmatterData) return frontmatterData[property.id];
+    if (ENTITY_FRONTMATTER_FIELD_IDS.has(property.id)) return (entity as any)[property.id];
     return entity.customProperties[property.id];
   };
 
   const removeUnconfiguredProperty = (key: string) => {
     if (!onUpdateRawYaml) return;
-    onUpdateRawYaml(removeFrontmatterProperty(rawYaml, key));
+    onUpdateRawYaml(removeFrontmatterProperty(rawYaml, key, propertiesConfig, entity.type));
   };
 
   const adaptUnconfiguredProperty = (key: string) => {
     if (!onUpdateRawYaml) return;
     const target = adaptTargets[key];
     if (!target || target === key) return;
-    onUpdateRawYaml(adaptFrontmatterProperty(rawYaml, key, target));
-  };
-
-  const addUnconfiguredPropertyToUniverse = (key: string, value: unknown) => {
-    const property = inferPropertyDefinition(key, value);
-    void onAddPropertyToUniverse?.(property);
+    onUpdateRawYaml(adaptFrontmatterProperty(rawYaml, key, target, propertiesConfig, entity.type));
   };
 
   const saveConfig = (nextConfig: PropertiesConfig) => {
@@ -140,14 +167,95 @@ export function MetadataEditor({
   };
 
   const allInspectableProperties = useMemo(
-    () => configuredProperties.filter((property) => !HIDDEN_FROM_INSPECTOR_PROPERTY_IDS.has(property.id)),
-    [configuredProperties],
+    () => listInspectableProperties(propertiesConfig),
+    [propertiesConfig],
+  );
+
+  const contextProperty = useMemo(
+    () => allInspectableProperties.find((property) => property.id === propertyContextMenu?.propertyId),
+    [allInspectableProperties, propertyContextMenu?.propertyId],
   );
 
   const visiblePropertyIds = useMemo(
     () => new Set(inspectorProperties?.map((property) => property.id) ?? []),
     [inspectorProperties],
   );
+
+  const createDefaultProperty = (mode: PropertyModalMode, parentId?: string, sourceValue?: unknown): CustomFieldDefinition => {
+    const label = typeof sourceValue === "string" && sourceValue.trim() ? labelFromPropertyId(sourceValue) : mode === "group" ? "New group" : "New property";
+    const id = sanitizePropertyId(label) || (mode === "group" ? "new-group" : "new-property");
+    return {
+      id,
+      label,
+      type: mode === "group" ? "group" : inferPropertyDefinition(id, sourceValue).type,
+      required: false,
+      ...(parentId ? { visibleWhen: undefined } : {}),
+    };
+  };
+
+  const openPropertyModal = (mode: PropertyModalMode, property?: BasePropertyDefinition | CustomFieldDefinition, parentId?: string, sourceValue?: unknown) => {
+    setPropertyModal({
+      mode,
+      property: property ?? createDefaultProperty(mode, parentId, sourceValue),
+      parentId,
+      sourceValue,
+    });
+    setPropertyContextMenu(null);
+  };
+
+  const savePropertyDefinition = (property: CustomFieldDefinition, parentId?: string) => {
+    if (!propertiesConfig) return;
+    const nextConfig = upsertInspectorProperty(propertiesConfig, property, entity.type, parentId);
+    saveConfig(nextConfig);
+    setPropertyModal(null);
+  };
+
+  const deletePropertyFromUniverse = (propertyId: string) => {
+    if (!propertiesConfig) return;
+    const confirmed = window.confirm("Delete this property from universe properties? Existing note values will stay until removed from frontmatter.");
+    if (!confirmed) return;
+    saveConfig(removeInspectorProperty(propertiesConfig, propertyId));
+    setPropertyContextMenu(null);
+  };
+
+  const duplicateProperty = (property: BasePropertyDefinition | CustomFieldDefinition) => {
+    const label = `${property.label || property.id} copy`;
+    const id = sanitizePropertyId(label);
+    const { immutable: _immutable, readOnly: _readOnly, order: _order, hidden: _hidden, ...propertyForCopy } =
+      property as BasePropertyDefinition & CustomFieldDefinition;
+    const copy = {
+      ...propertyForCopy,
+      id,
+      label,
+      children: property.children?.map((child) => ({
+        ...child,
+        id: `${id}-${child.id}`,
+      })),
+    } as CustomFieldDefinition;
+    savePropertyDefinition(copy);
+    setPropertyContextMenu(null);
+  };
+
+  const removePropertyFromNote = (propertyId: string) => {
+    if (!onUpdateRawYaml) return;
+    onUpdateRawYaml(removeFrontmatterProperty(rawYaml, propertyId, propertiesConfig, entity.type));
+    setPropertyContextMenu(null);
+  };
+
+  const saveUnlockCondition = () => {
+    if (!conditionDraft || !propertiesConfig) return;
+    const property = allInspectableProperties.find((candidate) => candidate.id === conditionDraft.propertyId);
+    if (!property || !("type" in property)) return;
+    const nextProperty = {
+      ...property,
+      visibleWhen: {
+        ...(property.visibleWhen ?? {}),
+        [conditionDraft.parentId]: conditionDraft.values,
+      },
+    } as CustomFieldDefinition;
+    saveConfig(upsertInspectorProperty(propertiesConfig, nextProperty, entity.type));
+    setConditionDraft(null);
+  };
 
   const getPropertyOptions = (property: BasePropertyDefinition | CustomFieldDefinition) => {
     if (property.type === "select" || property.type === "multiselect") {
@@ -182,7 +290,7 @@ export function MetadataEditor({
     property: BasePropertyDefinition | CustomFieldDefinition,
     options: EditableOption[],
   ) => {
-    if (!taxonomyConfig) return;
+    if (!propertiesConfig) return;
     const normalizedOptions = options
       .map((option) => ({
         value: option.value.trim(),
@@ -192,7 +300,7 @@ export function MetadataEditor({
       .filter((option) => option.value.length > 0);
 
     if (property.id === "type") {
-      const existingById = new Map(taxonomyConfig.entityTypes.definitions.map((definition) => [definition.id, definition]));
+      const existingById = new Map(propertiesConfig.entityTypes.definitions.map((definition) => [definition.id, definition]));
       const definitions = normalizedOptions.map((option) => ({
         ...(existingById.get(option.value) ?? { id: option.value, customFields: [] }),
         id: option.value,
@@ -200,20 +308,20 @@ export function MetadataEditor({
         color: option.color,
       }));
       saveConfig({
-        ...taxonomyConfig,
+        ...propertiesConfig,
         entityTypes: {
-          ...taxonomyConfig.entityTypes,
+          ...propertiesConfig.entityTypes,
           definitions,
-          defaultType: definitions.some((definition) => definition.id === taxonomyConfig.entityTypes.defaultType)
-            ? taxonomyConfig.entityTypes.defaultType
-            : definitions[0]?.id ?? taxonomyConfig.entityTypes.defaultType,
+          defaultType: definitions.some((definition) => definition.id === propertiesConfig.entityTypes.defaultType)
+            ? propertiesConfig.entityTypes.defaultType
+            : definitions[0]?.id ?? propertiesConfig.entityTypes.defaultType,
         },
       });
       return;
     }
 
     if (property.id === "status") {
-      const existingById = new Map(taxonomyConfig.statuses.definitions.map((definition) => [definition.id, definition]));
+      const existingById = new Map(propertiesConfig.statuses.definitions.map((definition) => [definition.id, definition]));
       const definitions = normalizedOptions.map((option, index) => ({
         ...(existingById.get(option.value) ?? { id: option.value }),
         id: option.value,
@@ -222,13 +330,13 @@ export function MetadataEditor({
         order: index,
       }));
       saveConfig({
-        ...taxonomyConfig,
+        ...propertiesConfig,
         statuses: {
-          ...taxonomyConfig.statuses,
+          ...propertiesConfig.statuses,
           definitions,
-          defaultStatus: definitions.some((definition) => definition.id === taxonomyConfig.statuses.defaultStatus)
-            ? taxonomyConfig.statuses.defaultStatus
-            : definitions[0]?.id ?? taxonomyConfig.statuses.defaultStatus,
+          defaultStatus: definitions.some((definition) => definition.id === propertiesConfig.statuses.defaultStatus)
+            ? propertiesConfig.statuses.defaultStatus
+            : definitions[0]?.id ?? propertiesConfig.statuses.defaultStatus,
         },
       });
       return;
@@ -236,24 +344,24 @@ export function MetadataEditor({
 
     if ("immutable" in property) {
       saveConfig({
-        ...taxonomyConfig,
-        baseProperties: taxonomyConfig.baseProperties
+        ...propertiesConfig,
+        baseProperties: propertiesConfig.baseProperties
           ? {
-              ...taxonomyConfig.baseProperties,
-              definitions: taxonomyConfig.baseProperties.definitions.map((definition) =>
+              ...propertiesConfig.baseProperties,
+              definitions: propertiesConfig.baseProperties.definitions.map((definition) =>
                 definition.id === property.id ? { ...definition, options: normalizedOptions } : definition,
               ),
             }
-          : taxonomyConfig.baseProperties,
+          : propertiesConfig.baseProperties,
       });
       return;
     }
 
     saveConfig({
-      ...taxonomyConfig,
+      ...propertiesConfig,
       customFields: {
-        ...taxonomyConfig.customFields,
-        definitions: taxonomyConfig.customFields.definitions.map((definition) =>
+        ...propertiesConfig.customFields,
+        definitions: propertiesConfig.customFields.definitions.map((definition) =>
           definition.id === property.id ? { ...definition, options: normalizedOptions } : definition,
         ),
       },
@@ -261,22 +369,22 @@ export function MetadataEditor({
   };
 
   const hideProperty = (propertyId: string) => {
-    if (!taxonomyConfig?.baseProperties) return;
+    if (!propertiesConfig?.baseProperties) return;
     const currentVisible = inspectorProperties?.map((property) => property.id).filter((id) => id !== propertyId) ?? [];
 
     saveConfig({
-      ...taxonomyConfig,
+      ...propertiesConfig,
       baseProperties: {
-        ...taxonomyConfig.baseProperties,
-        visibleByDefault: (taxonomyConfig.baseProperties.visibleByDefault ?? []).filter((id) => id !== propertyId),
+        ...propertiesConfig.baseProperties,
+        visibleByDefault: (propertiesConfig.baseProperties.visibleByDefault ?? []).filter((id) => id !== propertyId),
       },
       customFields: {
-        ...taxonomyConfig.customFields,
-        globalFields: (taxonomyConfig.customFields.globalFields ?? []).filter((id) => id !== propertyId),
+        ...propertiesConfig.customFields,
+        globalFields: (propertiesConfig.customFields.globalFields ?? []).filter((id) => id !== propertyId),
       },
       entityTypes: {
-        ...taxonomyConfig.entityTypes,
-        definitions: taxonomyConfig.entityTypes.definitions.map((definition) =>
+        ...propertiesConfig.entityTypes,
+        definitions: propertiesConfig.entityTypes.definitions.map((definition) =>
           definition.id === entity.type
             ? {
                 ...definition,
@@ -290,29 +398,29 @@ export function MetadataEditor({
   };
 
   const showProperty = (propertyId: string) => {
-    if (!taxonomyConfig?.baseProperties || !inspectorProperties) return;
+    if (!propertiesConfig?.baseProperties || !inspectorProperties) return;
     const currentVisible = inspectorProperties.map((property) => property.id);
     if (currentVisible.includes(propertyId)) return;
     const nextVisible = [...currentVisible, propertyId];
-    const isBaseProperty = taxonomyConfig.baseProperties.definitions.some((definition) => definition.id === propertyId);
+    const isBaseProperty = propertiesConfig.baseProperties.definitions.some((definition) => definition.id === propertyId);
 
     saveConfig({
-      ...taxonomyConfig,
+      ...propertiesConfig,
       baseProperties: {
-        ...taxonomyConfig.baseProperties,
+        ...propertiesConfig.baseProperties,
         visibleByDefault: isBaseProperty
-          ? [...new Set([...(taxonomyConfig.baseProperties.visibleByDefault ?? []), propertyId])]
-          : taxonomyConfig.baseProperties.visibleByDefault ?? [],
+          ? [...new Set([...(propertiesConfig.baseProperties.visibleByDefault ?? []), propertyId])]
+          : propertiesConfig.baseProperties.visibleByDefault ?? [],
       },
       customFields: {
-        ...taxonomyConfig.customFields,
+        ...propertiesConfig.customFields,
         globalFields: isBaseProperty
-          ? taxonomyConfig.customFields.globalFields ?? []
-          : [...new Set([...(taxonomyConfig.customFields.globalFields ?? []), propertyId])],
+          ? propertiesConfig.customFields.globalFields ?? []
+          : [...new Set([...(propertiesConfig.customFields.globalFields ?? []), propertyId])],
       },
       entityTypes: {
-        ...taxonomyConfig.entityTypes,
-        definitions: taxonomyConfig.entityTypes.definitions.map((definition) =>
+        ...propertiesConfig.entityTypes,
+        definitions: propertiesConfig.entityTypes.definitions.map((definition) =>
           definition.id === entity.type
             ? {
                 ...definition,
@@ -334,28 +442,11 @@ export function MetadataEditor({
   };
 
   const reorderProperty = (targetPropertyId: string) => {
-    if (!taxonomyConfig?.baseProperties || !draggedPropertyId || draggedPropertyId === targetPropertyId || !inspectorProperties) return;
-    const currentOrder = inspectorProperties.map((property) => property.id);
-    const withoutDragged = currentOrder.filter((id) => id !== draggedPropertyId);
-    const targetIndex = withoutDragged.indexOf(targetPropertyId);
-    if (targetIndex === -1) return;
-    withoutDragged.splice(targetIndex, 0, draggedPropertyId);
-    const remainingOrder = (taxonomyConfig.baseProperties.order ?? []).filter((id) => !withoutDragged.includes(id));
-    const nextOrder = [...withoutDragged, ...remainingOrder];
+    if (!propertiesConfig?.baseProperties || !draggedPropertyId || draggedPropertyId === targetPropertyId || !inspectorProperties) return;
+    const nextConfig = reorderInspectorPropertySiblings(propertiesConfig, entity.type, draggedPropertyId, targetPropertyId);
 
-    saveConfig({
-      ...taxonomyConfig,
-      baseProperties: {
-        ...taxonomyConfig.baseProperties,
-        order: nextOrder,
-      },
-      entityTypes: {
-        ...taxonomyConfig.entityTypes,
-        definitions: taxonomyConfig.entityTypes.definitions.map((definition) =>
-          definition.id === entity.type ? { ...definition, propertyOrder: nextOrder } : definition,
-        ),
-      },
-    });
+    saveConfig(nextConfig);
+    onUpdateRawYaml?.(reorderFrontmatter(rawYaml, getConfiguredFrontmatterOrder(nextConfig, entity.type, Object.keys(frontmatterData))));
     setDraggedPropertyId(null);
   };
 
@@ -375,7 +466,7 @@ export function MetadataEditor({
 
   const handleAutoReorder = () => {
     const frontmatterKeys = Object.keys(frontmatterData);
-    const expectedOrder = getExpectedFieldOrder(frontmatterKeys, taxonomyConfig);
+    const expectedOrder = getConfiguredFrontmatterOrder(propertiesConfig, entity.type, frontmatterKeys);
     const reorderedYaml = reorderFrontmatter(rawYaml, expectedOrder);
     onUpdateRawYaml?.(reorderedYaml);
   };
@@ -399,55 +490,78 @@ export function MetadataEditor({
     return values;
   };
 
-  /**
-   * Recursively render property tree, handling visibility and grouping
-   */
-  const renderPropertyTree = (
-    properties: PropertyDefinition[] | undefined,
-    depth: number = 0,
-    parentValues?: Record<string, unknown>,
-  ): React.ReactNode[] => {
-    if (!properties || properties.length === 0) return [];
+  const conditionText = (property: PropertyDefinition) => {
+    if (!property.visibleWhen) return "";
+    return Object.entries(property.visibleWhen)
+      .map(([parentId, values]) => {
+        const parent = allInspectableProperties.find((candidate) => candidate.id === parentId);
+        return `Requires ${parent?.label || parentId} = ${values.join(" or ")}`;
+      })
+      .join(", ");
+  };
 
-    const values = parentValues || getPropertyValues();
-    const nodes: React.ReactNode[] = [];
+  const openPropertyContextMenu = (
+    event: React.MouseEvent,
+    property?: BasePropertyDefinition | CustomFieldDefinition,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const menuWidth = 270;
+    const menuHeight = property ? 360 : Math.min(430, 88 + allInspectableProperties.length * 34);
+    setPropertyContextMenu({
+      x: Math.max(8, Math.min(event.clientX, window.innerWidth - menuWidth - 8)),
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - menuHeight - 8)),
+      propertyId: property?.id,
+    });
+  };
 
-    properties.forEach((property) => {
-      // Check if property should be visible
-      if (!isPropertyVisible(property, values)) {
-        return;
-      }
+  const renderPropertyNode = (
+    property: PropertyDefinition,
+    depth: number,
+    values: Record<string, unknown>,
+  ): React.ReactNode => {
+    const visible = isPropertyVisible(property, values);
+    const hasChildren = Boolean(property.children?.length);
+    const value = getPropertyValue(property as BasePropertyDefinition | CustomFieldDefinition);
+    const options = getPropertyOptions(property as BasePropertyDefinition | CustomFieldDefinition);
+    const isReadOnly = "readOnly" in property && property.readOnly;
+    const isGroup = property.type === "group";
 
-      // Handle group type: render as fieldset
-      if (property.type === "group") {
-        nodes.push(
-          <fieldset
-            key={property.id}
-            className={`metadata-field-group metadata-field-group-depth-${depth}`}
-          >
-            <legend className="metadata-group-legend">{property.label}</legend>
-            <div className="metadata-group-children">
-              {renderPropertyTree(property.children, depth + 1, values)}
-            </div>
-          </fieldset>,
-        );
-        return;
-      }
-
-      // Regular property rendering
-      const value = getPropertyValue(property as BasePropertyDefinition | CustomFieldDefinition);
-      const options = getPropertyOptions(property as BasePropertyDefinition | CustomFieldDefinition);
-      const isReadOnly = "readOnly" in property && property.readOnly;
-
-      nodes.push(
+    if (!visible) {
+      return (
         <div
           key={property.id}
-          className={`metadata-field metadata-field-row metadata-field-depth-${depth} ${
-            draggedPropertyId === property.id ? "dragging" : ""
-          }`}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={() => reorderProperty(property.id)}
+          className={`metadata-property-node metadata-property-node-locked metadata-field-depth-${depth}`}
+          onContextMenu={(event) => openPropertyContextMenu(event, property as BasePropertyDefinition | CustomFieldDefinition)}
         >
+          <div className="metadata-property-rail" />
+          <div className="metadata-property-locked-content">
+            <strong>{property.label || property.id}</strong>
+            <span>{conditionText(property)}</span>
+          </div>
+          <button
+            type="button"
+            title="Edit property"
+            onClick={() => openPropertyModal("edit", property as BasePropertyDefinition | CustomFieldDefinition)}
+          >
+            <MoreHorizontal size={14} />
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        key={property.id}
+        className={`metadata-property-node metadata-property-depth-${depth} ${draggedPropertyId === property.id ? "dragging" : ""} ${isGroup ? "metadata-property-group" : ""}`}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.stopPropagation();
+          reorderProperty(property.id);
+        }}
+        onContextMenu={(event) => openPropertyContextMenu(event, property as BasePropertyDefinition | CustomFieldDefinition)}
+      >
+        <div className="metadata-property-row">
           <button
             type="button"
             className="metadata-field-handle"
@@ -458,20 +572,29 @@ export function MetadataEditor({
           >
             <GripVertical size={14} />
           </button>
-          <label>
-            <span>
-              {property.label || property.id}
-              {property.required && <span className="required-star">*</span>}
-            </span>
-            <PropertyFieldRenderer
-              property={property as BasePropertyDefinition | CustomFieldDefinition}
-              value={value}
-              onChange={(newValue) => handlePropertyChange(property.id, newValue)}
-              readOnly={isReadOnly}
-              entityType={entity.type}
-              availableOptions={options}
-            />
-          </label>
+          <div className="metadata-property-body">
+            {isGroup ? (
+              <div className="metadata-property-group-title">
+                <span>{property.label || property.id}</span>
+                <small>{hasChildren ? `${property.children?.length} child properties` : "Empty group"}</small>
+              </div>
+            ) : (
+              <label>
+                <span>
+                  {property.label || property.id}
+                  {property.required && <span className="required-star">*</span>}
+                </span>
+                <PropertyFieldRenderer
+                  property={property as BasePropertyDefinition | CustomFieldDefinition}
+                  value={value}
+                  onChange={(newValue) => handlePropertyChange(property.id, newValue)}
+                  readOnly={isReadOnly}
+                  entityType={entity.type}
+                  availableOptions={options}
+                />
+              </label>
+            )}
+          </div>
           <div className="metadata-field-actions">
             {propertyCanEditOptions(property as BasePropertyDefinition | CustomFieldDefinition) ? (
               <button
@@ -486,25 +609,43 @@ export function MetadataEditor({
                 <SlidersHorizontal size={14} />
               </button>
             ) : null}
+            <button
+              type="button"
+              onClick={() => openPropertyModal("add-child", undefined, property.id)}
+              title="Add child property"
+            >
+              <GitBranch size={14} />
+            </button>
             <button type="button" onClick={() => hideProperty(property.id)} title="Hide property">
               <EyeOff size={14} />
             </button>
+            <button type="button" onClick={(event) => openPropertyContextMenu(event, property as BasePropertyDefinition | CustomFieldDefinition)} title="More">
+              <MoreHorizontal size={14} />
+            </button>
           </div>
-        </div>,
-      );
+        </div>
+        {hasChildren ? (
+          <div className="metadata-property-children">
+            {property.children?.map((child) => renderPropertyNode(child, depth + 1, values))}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
 
-      // Render children if any
-      if (property.children && property.children.length > 0) {
-        nodes.push(...renderPropertyTree(property.children, depth + 1, values));
-      }
-    });
-
-    return nodes;
+  const renderPropertyTree = (
+    properties: PropertyDefinition[] | undefined,
+    depth: number = 0,
+    parentValues?: Record<string, unknown>,
+  ): React.ReactNode[] => {
+    if (!properties || properties.length === 0) return [];
+    const values = parentValues || getPropertyValues();
+    return properties.map((property) => renderPropertyNode(property, depth, values));
   };
 
   const renderOptionsPopup = () => {
-    if (!optionDraft || !inspectorProperties) return null;
-    const property = inspectorProperties.find((candidate) => candidate.id === optionDraft.propertyId);
+    if (!optionDraft) return null;
+    const property = allInspectableProperties.find((candidate) => candidate.id === optionDraft.propertyId);
     if (!property) return null;
     const updateOption = (index: number, updates: Partial<EditableOption>) => {
       setOptionDraft((current) =>
@@ -569,6 +710,19 @@ export function MetadataEditor({
               <button type="button" className="danger" onClick={() => deleteOption(index)} title="Delete option">
                 <Trash2 size={13} />
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const child = createDefaultProperty("add-child", property.id, option.label);
+                  child.visibleWhen = { [property.id]: [option.value] };
+                  updatePropertyOptions(property, optionDraft.options);
+                  setOptionDraft(null);
+                  openPropertyModal("add-child", child, property.id, option.label);
+                }}
+                title="Create child property for this option"
+              >
+                <GitBranch size={13} />
+              </button>
             </div>
           ))}
         </div>
@@ -582,42 +736,177 @@ export function MetadataEditor({
 
   const renderPropertyContextMenu = () => {
     if (!propertyContextMenu) return null;
+    const property = contextProperty;
     return (
       <div
         className="context-menu inspector-property-context-menu"
         style={{ left: `${propertyContextMenu.x}px`, top: `${propertyContextMenu.y}px` }}
         role="menu"
       >
-        <button
-          type="button"
-          className="context-menu-item"
-          onClick={() => {
-            setPropertyContextMenu(null);
-            onOpenPropertiesSettings?.();
-          }}
-        >
-          <SlidersHorizontal size={16} />
-          <span>Properties settings</span>
-        </button>
-        <div className="context-menu-separator" />
-        {allInspectableProperties.map((property) => {
-          const visible = visiblePropertyIds.has(property.id);
-          return (
+        {property ? (
+          <>
+            <button type="button" className="context-menu-item" onClick={() => openPropertyModal("edit", property)}>
+              <Edit3 size={16} />
+              <span>Edit property</span>
+            </button>
+            <button type="button" className="context-menu-item" onClick={() => openPropertyModal("add-child", undefined, property.id)}>
+              <GitBranch size={16} />
+              <span>Add child property</span>
+            </button>
             <button
-              key={property.id}
               type="button"
               className="context-menu-item"
               onClick={() => {
-                togglePropertyVisibility(property.id);
+                setPropertyContextMenu(null);
+                setConditionDraft({
+                  propertyId: property.id,
+                  parentId: allInspectableProperties.find((candidate) => candidate.id !== property.id && (candidate.type === "select" || candidate.type === "multiselect"))?.id ?? "",
+                  values: [],
+                });
+              }}
+            >
+              <SlidersHorizontal size={16} />
+              <span>Add unlock condition</span>
+            </button>
+            <button type="button" className="context-menu-item" onClick={() => duplicateProperty(property)}>
+              <Copy size={16} />
+              <span>Duplicate</span>
+            </button>
+            <button type="button" className="context-menu-item" onClick={() => hideProperty(property.id)}>
+              <EyeOff size={16} />
+              <span>Hide</span>
+            </button>
+            <button type="button" className="context-menu-item" onClick={() => removePropertyFromNote(property.id)}>
+              <Trash2 size={16} />
+              <span>Remove from this note</span>
+            </button>
+            <div className="context-menu-separator" />
+            <button type="button" className="context-menu-item danger" onClick={() => deletePropertyFromUniverse(property.id)}>
+              <Trash2 size={16} />
+              <span>Delete from universe</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="context-menu-item" onClick={() => openPropertyModal("add")}>
+              <Plus size={16} />
+              <span>Add property</span>
+            </button>
+            <button type="button" className="context-menu-item" onClick={() => openPropertyModal("group")}>
+              <GitBranch size={16} />
+              <span>Add group</span>
+            </button>
+            <button
+              type="button"
+              className="context-menu-item"
+              onClick={() => {
+                setShowHiddenProperties((current) => !current);
                 setPropertyContextMenu(null);
               }}
             >
-              <span className="context-menu-check">{visible ? "✓" : ""}</span>
-              <span>{property.label || property.id}</span>
+              <EyeOff size={16} />
+              <span>{showHiddenProperties ? "Hide hidden properties" : "Show hidden properties"}</span>
             </button>
-          );
-        })}
+            <div className="context-menu-separator" />
+            {allInspectableProperties.map((candidate) => {
+              const visible = visiblePropertyIds.has(candidate.id);
+              return (
+                <button
+                  key={candidate.id}
+                  type="button"
+                  className="context-menu-item"
+                  onClick={() => {
+                    togglePropertyVisibility(candidate.id);
+                    setPropertyContextMenu(null);
+                  }}
+                >
+                  <span className="context-menu-check">{visible ? "✓" : ""}</span>
+                  <span>{candidate.label || candidate.id}</span>
+                </button>
+              );
+            })}
+          </>
+        )}
       </div>
+    );
+  };
+
+  const renderConditionPopover = () => {
+    if (!conditionDraft) return null;
+    const parentCandidates = allInspectableProperties.filter(
+      (property) => property.id !== conditionDraft.propertyId && (property.type === "select" || property.type === "multiselect"),
+    );
+    const parent = parentCandidates.find((candidate) => candidate.id === conditionDraft.parentId);
+    const parentOptions = parent ? getEditableOptions(parent) : [];
+    return (
+      <div className="inspector-local-popover" role="dialog" aria-label="Unlock condition">
+        <div className="inspector-local-popover-header">
+          <strong>Unlock condition</strong>
+          <button type="button" onClick={() => setConditionDraft(null)} title="Close">
+            <X size={14} />
+          </button>
+        </div>
+        <label className="inspector-popover-field">
+          <span>Parent property</span>
+          <select
+            value={conditionDraft.parentId}
+            onChange={(event) => setConditionDraft((current) => current ? { ...current, parentId: event.target.value, values: [] } : current)}
+          >
+            <option value="">Select parent...</option>
+            {parentCandidates.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.label || candidate.id}
+              </option>
+            ))}
+          </select>
+        </label>
+        {parent ? (
+          <div className="inspector-condition-options">
+            {parentOptions.map((option) => (
+              <label key={option.value}>
+                <input
+                  type="checkbox"
+                  checked={conditionDraft.values.includes(option.value)}
+                  onChange={(event) =>
+                    setConditionDraft((current) => {
+                      if (!current) return current;
+                      const values = event.target.checked
+                        ? [...current.values, option.value]
+                        : current.values.filter((value) => value !== option.value);
+                      return { ...current, values };
+                    })
+                  }
+                />
+                <span>{option.label}</span>
+              </label>
+            ))}
+          </div>
+        ) : null}
+        <button
+          type="button"
+          className="inspector-popover-action"
+          onClick={saveUnlockCondition}
+          disabled={!conditionDraft.parentId || conditionDraft.values.length === 0}
+        >
+          Save condition
+        </button>
+      </div>
+    );
+  };
+
+  const renderPropertyModal = () => {
+    if (!propertyModal) return null;
+    const existingIds = allInspectableProperties
+      .filter((property) => property.id !== propertyModal.property?.id)
+      .map((property) => property.id);
+    return (
+      <PropertyDefinitionModal
+        state={propertyModal}
+        existingIds={existingIds}
+        parent={propertyModal.parentId ? allInspectableProperties.find((property) => property.id === propertyModal.parentId) : undefined}
+        onCancel={() => setPropertyModal(null)}
+        onSave={(property) => savePropertyDefinition(property, propertyModal.parentId)}
+      />
     );
   };
 
@@ -628,23 +917,36 @@ export function MetadataEditor({
         if (!(event.target as HTMLElement).closest(".inspector-local-popover, .metadata-field-options")) {
           closeOptionsPopup();
         }
-        if (!(event.target as HTMLElement).closest(".inspector-property-context-menu")) {
+        if (!(event.target as HTMLElement).closest(".inspector-property-context-menu, .inspector-property-modal")) {
           setPropertyContextMenu(null);
         }
       }}
-      onContextMenu={(event) => {
-        event.preventDefault();
-        const menuWidth = 260;
-        const menuHeight = Math.min(420, 48 + allInspectableProperties.length * 36);
-        setPropertyContextMenu({
-          x: Math.max(8, Math.min(event.clientX, window.innerWidth - menuWidth - 8)),
-          y: Math.max(8, Math.min(event.clientY, window.innerHeight - menuHeight - 8)),
-        });
-      }}>
+      onContextMenu={(event) => openPropertyContextMenu(event)}>
         {renderOptionsPopup()}
+        {renderConditionPopover()}
+        {renderPropertyModal()}
         {renderPropertyContextMenu()}
         <div className="metadata-fields">
+          <div className="metadata-inspector-toolbar">
+            <span>Properties</span>
+            <button type="button" onClick={() => openPropertyModal("add")} title="Add property">
+              <Plus size={14} />
+            </button>
+          </div>
           {renderPropertyTree(inspectorProperties as PropertyDefinition[] | undefined)}
+
+          {showHiddenProperties ? (
+            <div className="metadata-hidden-properties">
+              {allInspectableProperties
+                .filter((property) => !visiblePropertyIds.has(property.id))
+                .map((property) => (
+                  <button key={property.id} type="button" onClick={() => showProperty(property.id)}>
+                    <Plus size={13} />
+                    <span>{property.label || property.id}</span>
+                  </button>
+                ))}
+            </div>
+          ) : null}
 
           {orphanedFields.length > 0 ? (
             <div className="metadata-orphaned-fields">
@@ -676,7 +978,9 @@ export function MetadataEditor({
                         <button
                           type="button"
                           className="metadata-action-primary"
-                          onClick={() => onConserveField?.(field.fieldName, field.value)}
+                          onClick={() => {
+                            onConserveField?.(field.fieldName, field.value);
+                          }}
                           title="Add to universe schema"
                         >
                           <Plus size={13} />
@@ -777,11 +1081,20 @@ export function MetadataEditor({
                   <div className="metadata-unconfigured-actions">
                     <button
                       type="button"
-                      onClick={() => addUnconfiguredPropertyToUniverse(property.key, property.value)}
+                      onClick={() => openPropertyModal("add", inferPropertyDefinition(property.key, property.value), undefined, property.value)}
                       title="Add to universe properties"
                     >
                       <Plus size={13} />
-                      Add
+                      Turn into property
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openPropertyModal("add-child", inferPropertyDefinition(property.key, property.value), inspectorProperties[0]?.id, property.value)}
+                      title="Attach as child property"
+                      disabled={!inspectorProperties.length}
+                    >
+                      <GitBranch size={13} />
+                      Attach
                     </button>
                     <label>
                       <select
@@ -820,7 +1133,7 @@ export function MetadataEditor({
 
   // Legacy rendering (backward compatibility)
   const relevantFieldIds = [
-    ...(taxonomyConfig?.customFields.globalFields ?? []),
+    ...(propertiesConfig?.customFields.globalFields ?? []),
     ...(entityTypeDef?.customFields ?? []),
   ];
   const relevantFields = customFieldDefs.filter((f) => relevantFieldIds.includes(f.id));
@@ -1043,6 +1356,193 @@ export function MetadataEditor({
             ))}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+function PropertyDefinitionModal({
+  state,
+  existingIds,
+  parent,
+  onCancel,
+  onSave,
+}: {
+  state: PropertyModalState;
+  existingIds: string[];
+  parent?: BasePropertyDefinition | CustomFieldDefinition;
+  onCancel: () => void;
+  onSave: (property: CustomFieldDefinition) => void;
+}) {
+  const [draft, setDraft] = useState<CustomFieldDefinition>(() => ({
+    id: state.property?.id ?? "",
+    label: state.property?.label ?? "",
+    type: state.property?.type ?? "text",
+    description: state.property?.description,
+    required: state.property?.required ?? false,
+    options: state.property?.options,
+    targetTypes: state.property?.targetTypes,
+    min: state.property?.min,
+    max: state.property?.max,
+    pattern: state.property?.pattern,
+    children: state.property?.children,
+    visibleWhen: state.property?.visibleWhen,
+    group: state.property?.group,
+  }));
+  const [optionLabel, setOptionLabel] = useState("");
+  const [error, setError] = useState("");
+  const isEditing = state.mode === "edit";
+  const isGroup = state.mode === "group" || draft.type === "group";
+  const usesOptions = draft.type === "select" || draft.type === "multiselect";
+
+  function updateDraft(patch: Partial<CustomFieldDefinition>) {
+    setDraft((current) => ({ ...current, ...patch }));
+  }
+
+  function save() {
+    const id = sanitizePropertyId(draft.id || draft.label || "");
+    if (!id || !draft.label?.trim()) {
+      setError("Property needs a label and id.");
+      return;
+    }
+    if (!isEditing && existingIds.includes(id)) {
+      setError("A property with this id already exists.");
+      return;
+    }
+    onSave({
+      ...draft,
+      id,
+      label: draft.label.trim(),
+      type: isGroup ? "group" : draft.type,
+      options: usesOptions ? draft.options ?? [] : undefined,
+      visibleWhen: draft.visibleWhen && Object.keys(draft.visibleWhen).length ? draft.visibleWhen : undefined,
+    });
+  }
+
+  function addOption() {
+    if (!optionLabel.trim()) return;
+    const option = valuesToOptions([optionLabel.trim()])[0];
+    updateDraft({ options: [...(draft.options ?? []), option] });
+    setOptionLabel("");
+  }
+
+  function updateOption(index: number, patch: Partial<EditableOption>) {
+    const options = [...(draft.options ?? [])];
+    options[index] = { ...options[index], ...patch };
+    updateDraft({ options });
+  }
+
+  return (
+    <div className="inspector-property-modal" role="dialog" aria-label="Property definition">
+      <div className="inspector-property-modal-header">
+        <div>
+          <strong>{isEditing ? "Edit property" : state.mode === "add-child" ? "Add child property" : isGroup ? "Add group" : "Add property"}</strong>
+          {parent ? <span>Under {parent.label || parent.id}</span> : null}
+        </div>
+        <button type="button" onClick={onCancel} title="Close">
+          <X size={14} />
+        </button>
+      </div>
+      <div className="inspector-property-form">
+        <label>
+          <span>Label</span>
+          <input
+            value={draft.label ?? ""}
+            onChange={(event) => {
+              const label = event.target.value;
+              updateDraft({ label, ...(isEditing || draft.id ? {} : { id: sanitizePropertyId(label) }) });
+            }}
+            placeholder="Lore level"
+          />
+        </label>
+        <label>
+          <span>ID</span>
+          <input
+            value={draft.id}
+            disabled={isEditing}
+            onChange={(event) => updateDraft({ id: sanitizePropertyId(event.target.value) })}
+            placeholder="lore-level"
+          />
+        </label>
+        <label>
+          <span>Type</span>
+          <select
+            value={draft.type}
+            disabled={isGroup}
+            onChange={(event) => updateDraft({ type: event.target.value as CustomFieldDefinition["type"], options: [] })}
+          >
+            {PROPERTY_TYPES.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Description</span>
+          <input
+            value={draft.description ?? ""}
+            onChange={(event) => updateDraft({ description: event.target.value })}
+            placeholder="Optional"
+          />
+        </label>
+        <label className="inspector-checkbox-row">
+          <input
+            type="checkbox"
+            checked={draft.required ?? false}
+            onChange={(event) => updateDraft({ required: event.target.checked })}
+          />
+          <span>Required</span>
+        </label>
+        {usesOptions ? (
+          <div className="inspector-property-options-editor">
+            <span>Options</span>
+            {(draft.options ?? []).map((option, index) => (
+              <div key={`${option.value}-${index}`} className="inspector-option-row">
+                <input
+                  value={option.label}
+                  onChange={(event) => {
+                    const label = event.target.value;
+                    updateOption(index, { label, value: sanitizePropertyId(label) || option.value });
+                  }}
+                />
+                <input
+                  value={option.value}
+                  onChange={(event) => updateOption(index, { value: sanitizePropertyId(event.target.value) })}
+                />
+                <input
+                  type="color"
+                  value={option.color ?? "#64748b"}
+                  onChange={(event) => updateOption(index, { color: event.target.value })}
+                />
+                <button type="button" className="danger" onClick={() => updateDraft({ options: (draft.options ?? []).filter((_, optionIndex) => optionIndex !== index) })}>
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))}
+            <div className="inspector-option-add-row">
+              <input
+                value={optionLabel}
+                onChange={(event) => setOptionLabel(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addOption();
+                  }
+                }}
+                placeholder="New option"
+              />
+              <button type="button" onClick={addOption}>
+                <Plus size={13} />
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+      {error ? <p className="property-form-error">{error}</p> : null}
+      <div className="inspector-property-modal-actions">
+        <button type="button" onClick={onCancel}>Cancel</button>
+        <button type="button" className="primary" onClick={save}>Save</button>
       </div>
     </div>
   );

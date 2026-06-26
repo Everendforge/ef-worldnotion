@@ -1,6 +1,6 @@
 import { Range } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from "@codemirror/view";
-import { isStructuralChange } from "./pluginUtils";
+import { createSyntaxHiddenDecoration, isStructuralChange } from "./pluginUtils";
 
 // Match <!--font:FONTNAME-->content<!--/font-->
 // Pattern compiled once at module load for font family HTML comments
@@ -27,8 +27,8 @@ function addFontFamilyMatches(
     const contentTo = contentFrom + content.length;
     
     // Hide opening tag
-    const openHidden = Decoration.mark({ class: "cm-markdown-syntax-hidden" }).range(fullFrom, contentFrom);
-    decorations.push(openHidden);
+    const openHidden = createSyntaxHiddenDecoration(fullFrom, contentFrom);
+    if (openHidden) decorations.push(openHidden);
     
     // Apply font family to content
     const fontDecoration = Decoration.mark({
@@ -37,8 +37,8 @@ function addFontFamilyMatches(
     decorations.push(fontDecoration);
     
     // Hide closing tag
-    const closeHidden = Decoration.mark({ class: "cm-markdown-syntax-hidden" }).range(contentTo, fullTo);
-    decorations.push(closeHidden);
+    const closeHidden = createSyntaxHiddenDecoration(contentTo, fullTo);
+    if (closeHidden) decorations.push(closeHidden);
   }
 }
 

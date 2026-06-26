@@ -1,7 +1,7 @@
 import { lazy, Suspense } from "react";
 import { SlidersHorizontal, Sparkles } from "lucide-react";
 import type { Entity, EntityTemplate, VaultIndex } from "../domain";
-import type { CustomFieldDefinition, OpenTab, PropertiesConfig } from "../editorTypes";
+import type { OpenTab, PropertiesConfig } from "../editorTypes";
 import { rawToEditorParts } from "../utils/contentTemplates";
 import { LazyPanelFallback } from "./LazyPanelFallback";
 
@@ -17,7 +17,6 @@ export type InspectorPanelProps = {
   onUpdateEntity?: (updates: Partial<Entity>) => void;
   onOpenEntity?: (path: string) => void;
   onAddFrontmatter?: () => void;
-  onAddPropertyToUniverse?: (property: CustomFieldDefinition) => void | Promise<void>;
   onUpdatePropertiesConfig?: (properties: PropertiesConfig) => void | Promise<void>;
   onApplyPropertiesTemplate?: () => void | Promise<void>;
   onOpenPropertiesSettings?: () => void;
@@ -33,7 +32,6 @@ export function InspectorPanel({
   onChangeFrontmatter,
   onUpdateEntity,
   onAddFrontmatter,
-  onAddPropertyToUniverse,
   onUpdatePropertiesConfig,
   onApplyPropertiesTemplate,
   onOpenPropertiesSettings,
@@ -104,8 +102,8 @@ export function InspectorPanel({
             <div>
               <h3>Set up properties</h3>
               <p>
-                This universe does not have `.everend/properties.json` yet. Apply a starter template or create your
-                own property system from settings.
+                This universe does not have `.everend/properties.json` yet. Apply a starter template here, then shape
+                properties directly from the inspector.
               </p>
             </div>
             <div className="inspector-setup-actions">
@@ -115,7 +113,7 @@ export function InspectorPanel({
               </button>
               <button type="button" className="btn" onClick={onOpenPropertiesSettings}>
                 <SlidersHorizontal size={14} />
-                Create from zero
+                Open utils
               </button>
             </div>
           </div>
@@ -141,13 +139,11 @@ export function InspectorPanel({
                 <Suspense fallback={<LazyPanelFallback label="Loading metadata..." />}>
                   <MetadataEditor
                     entity={entity}
-                    taxonomyConfig={propertiesConfig}
+                    propertiesConfig={propertiesConfig}
                     rawYaml={editableFrontmatter || "---\n\n---"}
                     onUpdate={(updates) => onUpdateEntity(updates)}
                     onUpdateRawYaml={(yaml) => onChangeFrontmatter(yaml)}
-                    onAddPropertyToUniverse={onAddPropertyToUniverse}
                     onUpdatePropertiesConfig={onUpdatePropertiesConfig}
-                    onOpenPropertiesSettings={onOpenPropertiesSettings}
                     onConserveField={onConserveField}
                     onDeleteField={onDeleteField}
                   />

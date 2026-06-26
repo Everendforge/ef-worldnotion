@@ -31,6 +31,82 @@ describe("taxonomy config helpers", () => {
     expect(taxonomy.customFields.definitions.some((definition) => definition.id === "folder")).toBe(false);
   });
 
+  it("migrates flat worldbuilding fields into the details group", () => {
+    const base = createDefaultTaxonomyConfig();
+    const taxonomy = normalizeCoreBaseProperties({
+      ...base,
+      customFields: {
+        definitions: [
+          {
+            id: "status",
+            label: "Status",
+            type: "select",
+            options: [
+              { value: "draft", label: "Draft" },
+              { value: "canon", label: "Canon" },
+            ],
+          },
+          { id: "aliases", label: "Aliases", type: "text" },
+          {
+            id: "role",
+            label: "Role",
+            type: "select",
+            options: [
+              { value: "protagonist", label: "Protagonist" },
+              { value: "antagonist", label: "Antagonist" },
+            ],
+          },
+          { id: "affiliation", label: "Affiliation", type: "entity-ref" },
+          {
+            id: "lore-level",
+            label: "Lore Level",
+            type: "select",
+            options: [
+              { value: "known", label: "Known" },
+              { value: "secret", label: "Secret" },
+            ],
+          },
+        ],
+        globalFields: ["status", "aliases"],
+      },
+      entityTypes: {
+        ...base.entityTypes,
+        definitions: base.entityTypes.definitions.map((definition) =>
+          definition.id === "character"
+            ? {
+                ...definition,
+                customFields: ["status", "aliases", "role", "affiliation", "lore-level"],
+                visibleProperties: ["type", "status", "aliases", "role", "affiliation", "lore-level"],
+                propertyOrder: ["type", "status", "aliases", "role", "affiliation", "lore-level"],
+              }
+            : definition,
+        ),
+      },
+    });
+
+    const rootFieldIds = taxonomy.customFields.definitions.map((definition) => definition.id);
+    const detailsGroup = taxonomy.customFields.definitions.find((definition) => definition.id === "worldbuilding-details");
+    const character = taxonomy.entityTypes.definitions.find((definition) => definition.id === "character");
+
+    expect(rootFieldIds).toContain("worldbuilding-details");
+    expect(rootFieldIds).not.toContain("role");
+    expect(rootFieldIds).not.toContain("affiliation");
+    expect(rootFieldIds).not.toContain("lore-level");
+    expect(detailsGroup?.children?.map((definition) => definition.id)).toEqual(
+      expect.arrayContaining(["role", "affiliation", "lore-level"]),
+    );
+    expect(detailsGroup?.children?.find((definition) => definition.id === "role")?.options).toEqual([
+      { value: "protagonist", label: "Protagonist" },
+      { value: "antagonist", label: "Antagonist" },
+    ]);
+    expect(detailsGroup?.children?.find((definition) => definition.id === "role")?.visibleWhen).toEqual({
+      type: ["character", "organization"],
+    });
+    expect(character?.customFields).toEqual(["status", "aliases", "worldbuilding-details"]);
+    expect(character?.visibleProperties).toEqual(["type", "status", "aliases", "worldbuilding-details"]);
+    expect(character?.propertyOrder).toEqual(["type", "status", "aliases", "worldbuilding-details"]);
+  });
+
   it("generates hierarchy, entity types, statuses, and frequent custom fields from entities", () => {
     const entities: TaxonomyEntityInput[] = [
       { type: "character", status: "draft", tags: ["cast/main"], customProperties: { faction: "Archive", alive: true } },

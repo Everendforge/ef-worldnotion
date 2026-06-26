@@ -3,10 +3,12 @@ import type {
   CustomFieldDefinition,
   CustomFieldType,
   EntityTypeDefinition,
+  PropertyDefinition,
   StatusDefinition,
   TagHierarchyNode,
   TaxonomyConfig,
 } from "../editorTypes";
+import { WORLDBUILDING_TEMPLATE } from "./propertyTemplates";
 
 export type TaxonomyEntityInput = {
   type: string;
@@ -18,6 +20,28 @@ export type TaxonomyEntityInput = {
 const PROTECTED_BASE_PROPERTY_IDS = ["id", "name", "type"] as const;
 const VISIBLE_CORE_PROPERTY_IDS = ["type"] as const;
 const NON_PROPERTY_FIELD_IDS = new Set(["folder", "tags"]);
+const WORLDBUILDING_DETAILS_GROUP_ID = "worldbuilding-details";
+const WORLDBUILDING_DETAIL_CHILD_IDS = new Set([
+  "role",
+  "affiliation",
+  "home",
+  "arc",
+  "scale",
+  "region",
+  "population",
+  "parentId",
+  "childrenIds",
+  "rarity",
+  "material",
+  "owner",
+  "date",
+  "location",
+  "participants",
+  "theme",
+  "rules",
+  "category",
+  "lore-level",
+]);
 
 function createCoreBaseProperties(): BasePropertyDefinition[] {
   return [
@@ -75,7 +99,7 @@ export function normalizeCoreBaseProperties(config: TaxonomyConfig): TaxonomyCon
   const visibleCore = previousVisible.filter((id) => allowedIds.has(id));
   const visibleCustom = previousVisible.filter((id) => !allowedIds.has(id) && !NON_PROPERTY_FIELD_IDS.has(id));
 
-  return {
+  return normalizeWorldbuildingDetailsGroup({
     ...config,
     baseProperties: {
       definitions: coreDefinitions,
@@ -88,6 +112,91 @@ export function normalizeCoreBaseProperties(config: TaxonomyConfig): TaxonomyCon
       globalFields: [...new Set([...(config.customFields.globalFields ?? []), ...visibleCustom])].filter(
         (id) => !NON_PROPERTY_FIELD_IDS.has(id),
       ),
+    },
+  });
+}
+
+function replaceWorldbuildingDetailIds(ids: string[] | undefined): string[] | undefined {
+  if (!ids) return ids;
+  const next: string[] = [];
+  let insertedGroup = false;
+  ids.forEach((id) => {
+    if (WORLDBUILDING_DETAIL_CHILD_IDS.has(id)) {
+      if (!insertedGroup) {
+        next.push(WORLDBUILDING_DETAILS_GROUP_ID);
+        insertedGroup = true;
+      }
+      return;
+    }
+    if (id === WORLDBUILDING_DETAILS_GROUP_ID) insertedGroup = true;
+    next.push(id);
+  });
+  return next.filter((id, index) => next.indexOf(id) === index);
+}
+
+function normalizeWorldbuildingDetailsGroup(config: TaxonomyConfig): TaxonomyConfig {
+  if (config.customFields.definitions.some((definition) => definition.id === WORLDBUILDING_DETAILS_GROUP_ID)) {
+    return config;
+  }
+
+  const existingWorldbuildingFields = config.customFields.definitions.filter((definition) =>
+    WORLDBUILDING_DETAIL_CHILD_IDS.has(definition.id),
+  );
+  if (existingWorldbuildingFields.length === 0) return config;
+
+  const defaultGroup = WORLDBUILDING_TEMPLATE.customFields.find(
+    (definition) => definition.id === WORLDBUILDING_DETAILS_GROUP_ID,
+  );
+  if (!defaultGroup?.children?.length) return config;
+
+  const existingById = new Map(existingWorldbuildingFields.map((definition) => [definition.id, definition]));
+  const groupChildren = defaultGroup.children.map((child) => {
+    const existing = existingById.get(child.id);
+    return existing
+      ? ({
+          ...child,
+          ...existing,
+          visibleWhen: existing.visibleWhen ?? child.visibleWhen,
+          children: existing.children ?? child.children,
+        } as PropertyDefinition)
+      : child;
+  });
+  const groupDefinition = {
+    ...defaultGroup,
+    children: groupChildren,
+  } as CustomFieldDefinition;
+
+  const remainingDefinitions = config.customFields.definitions.filter(
+    (definition) => !WORLDBUILDING_DETAIL_CHILD_IDS.has(definition.id),
+  );
+  const insertionIndex = Math.max(
+    remainingDefinitions.findIndex((definition) => definition.id === "aliases"),
+    remainingDefinitions.findIndex((definition) => definition.id === "status"),
+  );
+  const nextDefinitions =
+    insertionIndex >= 0
+      ? [
+          ...remainingDefinitions.slice(0, insertionIndex + 1),
+          groupDefinition,
+          ...remainingDefinitions.slice(insertionIndex + 1),
+        ]
+      : [...remainingDefinitions, groupDefinition];
+
+  return {
+    ...config,
+    customFields: {
+      ...config.customFields,
+      definitions: nextDefinitions,
+      globalFields: replaceWorldbuildingDetailIds(config.customFields.globalFields) ?? config.customFields.globalFields,
+    },
+    entityTypes: {
+      ...config.entityTypes,
+      definitions: config.entityTypes.definitions.map((definition) => ({
+        ...definition,
+        customFields: replaceWorldbuildingDetailIds(definition.customFields),
+        visibleProperties: replaceWorldbuildingDetailIds(definition.visibleProperties),
+        propertyOrder: replaceWorldbuildingDetailIds(definition.propertyOrder),
+      })),
     },
   };
 }

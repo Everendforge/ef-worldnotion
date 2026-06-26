@@ -29,7 +29,9 @@ export function wikilinkPlugin(options: {
         
         const start = from + match.index;
         const end = start + match[0].length;
-        const isSelected = selectionTouches(selectionFrom, selectionTo, start, end);
+        const visibleFrom = hasAlias ? start + 2 + match[1].length + 1 : start + 2;
+        const isAtRightVisualEdge = selectionFrom === selectionTo && selectionFrom > visibleFrom && selectionFrom === end;
+        const isSelected = selectionTouches(selectionFrom, selectionTo, start, end) || isAtRightVisualEdge;
         
         const resolved = options.resolveWikilink?.(rawTarget) ?? { label: (alias || rawTarget), status: "missing" as const };
         

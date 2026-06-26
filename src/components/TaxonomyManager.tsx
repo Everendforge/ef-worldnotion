@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Hash, Wand2 } from "lucide-react";
-import type { TaxonomyConfig } from "../editorTypes";
+import type { PropertiesConfig } from "../editorTypes";
 import { TagHierarchyEditor } from "./TagHierarchyEditor";
 import { PropertyConfigPanel } from "./PropertyConfigPanel";
 import "../App.css";
@@ -8,13 +8,13 @@ import "../App.css";
 type PropertiesTab = "tags" | "properties";
 
 type PropertiesManagerProps = {
-  config: TaxonomyConfig;
-  onChange: (config: TaxonomyConfig) => void;
+  config: PropertiesConfig;
+  onChange: (config: PropertiesConfig) => void;
   activeTab?: PropertiesTab;
   showTabs?: boolean;
 };
 
-export function TaxonomyManager({ config, onChange, activeTab: controlledActiveTab, showTabs = true }: PropertiesManagerProps) {
+export function PropertiesManager({ config, onChange, activeTab: controlledActiveTab, showTabs = true }: PropertiesManagerProps) {
   const [localActiveTab, setLocalActiveTab] = useState<PropertiesTab>("properties");
   const activeTab = controlledActiveTab ?? localActiveTab;
   const setActiveTab = controlledActiveTab ? undefined : setLocalActiveTab;
@@ -102,7 +102,7 @@ export function TaxonomyManager({ config, onChange, activeTab: controlledActiveT
         {activeTab === "properties" && (
           <div className="ecosystem-panel">
             <PropertyConfigPanel
-              taxonomyConfig={config}
+              propertiesConfig={config}
               onChange={onChange}
             />
           </div>
@@ -111,3 +111,5 @@ export function TaxonomyManager({ config, onChange, activeTab: controlledActiveT
     </div>
   );
 }
+
+export const TaxonomyManager = PropertiesManager;

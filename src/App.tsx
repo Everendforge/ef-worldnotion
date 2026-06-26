@@ -56,7 +56,6 @@ import {
   OpenTab,
   ThemeId,
   GraphSettings,
-  CustomFieldDefinition,
 } from "./editorTypes";
 import {
   Entity,
@@ -71,7 +70,7 @@ import {
   createDefaultTaxonomyConfig,
 } from "./domain";
 import { isDarkTheme, themeById, themeForStyleCommand, toggledThemeMode } from "./themes";
-import { addPropertyToConfig } from "./utils/propertiesConfig";
+import { updateFrontmatterProperties } from "./utils/propertiesConfig";
 import { addCustomFieldToSchema } from "./utils/propertiesSerializer";
 import { applyPropertyTemplate, WORLDBUILDING_TEMPLATE } from "./utils/propertyTemplates";
 import { normalizeCoreBaseProperties } from "./utils/taxonomyConfig";
@@ -278,7 +277,7 @@ function App() {
   const [workspaceLayout, setWorkspaceLayout] = useState(() => createDefaultWorkspaceLayout());
   const [activeWorkspacePreset, setActiveWorkspacePreset] = useState<ActiveWorkspacePreset>("default");
   const [showSettings, setShowSettings] = useState(false);
-  const [settingsInitialSection, setSettingsInitialSection] = useState<"overview" | "properties" | "tags" | "editor">("overview");
+  const [settingsInitialSection, setSettingsInitialSection] = useState<"overview" | "tags" | "utils" | "editor">("overview");
   const [settingsInitialPropertiesMode, setSettingsInitialPropertiesMode] = useState<"template" | "blank">("template");
   const [forgeMenuOpen, setForgeMenuOpen] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
@@ -294,6 +293,8 @@ function App() {
   const [, setPendingClosePaths] = useState<string[]>([]);
   const editorViewRef = useRef<EditorView | null>(null);
   const editorShellRef = useRef<HTMLDivElement | null>(null);
+  const tabsRef = useRef<OpenTab[]>([]);
+  const inspectorSaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const propertiesOnboardingPromptedRef = useRef<Set<string>>(new Set());
   const ignoreFolderNoteMetadataBootstrappedRef = useRef(false);
   
@@ -357,6 +358,17 @@ function App() {
   const showToast = (message: string) => {
     setToastQueue((current) => [...current, message]);
   };
+
+  useEffect(() => {
+    tabsRef.current = tabs;
+  }, [tabs]);
+
+  useEffect(() => {
+    return () => {
+      inspectorSaveTimersRef.current.forEach((timer) => clearTimeout(timer));
+      inspectorSaveTimersRef.current.clear();
+    };
+  }, []);
 
   const activeTab = tabs.find((tab) => tab.path === activeTabPath);
   const openTabPaths = useMemo(() => new Set(tabs.map((tab) => tab.path)), [tabs]);
@@ -1319,14 +1331,6 @@ function App() {
     }
   }
 
-  async function addPropertyToUniverse(property: CustomFieldDefinition) {
-    const currentConfig =
-      index?.propertiesConfig ?? applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE);
-    const nextConfig = addPropertyToConfig(currentConfig, property);
-    await savePropertiesConfig(nextConfig);
-    showToast(`Added property ${property.label || property.id}.`);
-  }
-
   async function handleConserveField(fieldName: string, value: unknown) {
     const currentConfig =
       index?.propertiesConfig ?? applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE);
@@ -1786,13 +1790,69 @@ function App() {
     setTabs((current) => current.map((tab) => (tab.path === path ? { ...tab, mode: "source", sourceView } : tab)));
   }
 
-  function updateActiveFrontmatter(frontmatterRaw: string) {
+  async function persistInspectorFrontmatter(path: string, content: string) {
+    const tab = tabsRef.current.find((candidate) => candidate.path === path);
+    if (!tab || tab.rawMarkdown !== content) return;
+
+    try {
+      if (browserRoot) {
+        if (tab.modifiedMs) {
+          const handle = await getBrowserFile(browserRoot, tab.path);
+          const currentFile = await handle.getFile();
+          if (currentFile.lastModified !== tab.modifiedMs) {
+            throw new Error("File changed externally. Reload before saving metadata.");
+          }
+        }
+        const modifiedMs = await writeBrowserFile(browserRoot, tab.path, content);
+        setTabs((current) => current.map((candidate) =>
+          candidate.path === path && candidate.rawMarkdown === content
+            ? { ...candidate, savedMarkdown: content, dirty: false, modifiedMs }
+            : candidate,
+        ));
+        return;
+      }
+
+      if (!tab.absolutePath) return;
+      const result = await invoke<WriteResult>("save_file", {
+        path: tab.absolutePath,
+        content,
+        expectedModifiedMs: tab.modifiedMs ?? null,
+      });
+      if (!result.ok) throw new Error(result.message ?? "Could not save metadata.");
+      setTabs((current) => current.map((candidate) =>
+        candidate.path === path && candidate.rawMarkdown === content
+          ? { ...candidate, savedMarkdown: content, dirty: false, modifiedMs: result.modifiedMs }
+          : candidate,
+      ));
+    } catch (error) {
+      setTabs((current) => current.map((candidate) =>
+        candidate.path === path && candidate.rawMarkdown === content
+          ? { ...candidate, dirty: true }
+          : candidate,
+      ));
+      showToast(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  function scheduleInspectorFrontmatterSave(path: string, content: string) {
+    const existing = inspectorSaveTimersRef.current.get(path);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      inspectorSaveTimersRef.current.delete(path);
+      void persistInspectorFrontmatter(path, content);
+    }, 300);
+    inspectorSaveTimersRef.current.set(path, timer);
+  }
+
+  function updateActiveFrontmatter(frontmatterRaw: string, options?: { persist?: boolean }) {
     if (!activeTabPath) return;
+    let nextContent: string | undefined;
     setTabs((current) =>
       current.map((tab) => {
         if (tab.path !== activeTabPath) return tab;
         const parts = rawToEditorParts(tab.rawMarkdown);
         const nextRawMarkdown = joinMarkdown(frontmatterRaw, parts.bodyMarkdown);
+        nextContent = nextRawMarkdown;
         return {
           ...tab,
           rawMarkdown: nextRawMarkdown,
@@ -1801,6 +1861,9 @@ function App() {
         };
       }),
     );
+    if (options?.persist && nextContent) {
+      scheduleInspectorFrontmatterSave(activeTabPath, nextContent);
+    }
   }
 
   function updateEntityMetadata(updates: Partial<Entity>) {
@@ -1810,7 +1873,32 @@ function App() {
     if (!currentEntity) return;
 
     const updatedEntity = { ...currentEntity, ...updates };
-    updateActiveFrontmatter(entityToFrontmatterRaw(updatedEntity));
+    const parts = rawToEditorParts(activeTab.rawMarkdown);
+    if (!parts.frontmatterRaw) {
+      updateActiveFrontmatter(entityToFrontmatterRaw(updatedEntity), { persist: true });
+      return;
+    }
+
+    const frontmatterUpdates: Record<string, unknown> = {};
+    if ("id" in updates) frontmatterUpdates.id = updatedEntity.id;
+    if ("name" in updates) frontmatterUpdates.name = updatedEntity.name;
+    if ("type" in updates) frontmatterUpdates.type = updatedEntity.type;
+    if ("status" in updates) frontmatterUpdates.status = updatedEntity.status;
+    if ("tags" in updates) frontmatterUpdates.tags = updatedEntity.tags;
+    if ("aliases" in updates) frontmatterUpdates.aliases = updatedEntity.aliases;
+    if ("parentId" in updates) frontmatterUpdates.parentId = updatedEntity.parentId || undefined;
+    if ("childrenIds" in updates) frontmatterUpdates.childrenIds = updatedEntity.childrenIds;
+    if ("customProperties" in updates) {
+      Object.entries(updatedEntity.customProperties).forEach(([key, value]) => {
+        if (key === "folder") return;
+        frontmatterUpdates[key] = value;
+      });
+    }
+
+    updateActiveFrontmatter(
+      updateFrontmatterProperties(parts.frontmatterRaw, frontmatterUpdates, index?.propertiesConfig, updatedEntity.type),
+      { persist: true },
+    );
   }
 
   function addFrontmatterToActiveTab() {
@@ -1828,9 +1916,10 @@ function App() {
         id: slug,
         type: "concept",
         name: fileName,
+        propertiesConfig: index?.propertiesConfig,
       });
     }
-    updateActiveFrontmatter(frontmatterRaw);
+    updateActiveFrontmatter(frontmatterRaw, { persist: true });
   }
 
   async function saveEditor() {
@@ -3165,16 +3254,15 @@ function App() {
       template={inspectorTemplate}
       index={index}
       activeTab={activeTab}
-      onChangeFrontmatter={updateActiveFrontmatter}
+      onChangeFrontmatter={(frontmatterRaw) => updateActiveFrontmatter(frontmatterRaw, { persist: true })}
       onUpdateEntity={updateEntityMetadata}
       onAddFrontmatter={addFrontmatterToActiveTab}
-      onAddPropertyToUniverse={addPropertyToUniverse}
       onUpdatePropertiesConfig={savePropertiesConfig}
       onApplyPropertiesTemplate={() =>
         initializeUniverseProperties(applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE))
       }
       onOpenPropertiesSettings={() => {
-        openSettingsAt("properties", "blank");
+        openSettingsAt("utils", "blank");
       }}
       onOpenEntity={(path) => {
         openOrCreateTab(path);
@@ -3382,7 +3470,7 @@ function App() {
     setDockPanelContextMenu(null);
   }
 
-  function openSettingsAt(section: "overview" | "properties" | "tags" | "editor", propertiesMode: "template" | "blank" = "template") {
+  function openSettingsAt(section: "overview" | "tags" | "utils" | "editor", propertiesMode: "template" | "blank" = "template") {
     setSettingsInitialSection(section);
     setSettingsInitialPropertiesMode(propertiesMode);
     setShowSettings(true);

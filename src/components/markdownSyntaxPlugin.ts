@@ -261,7 +261,9 @@ function getDecorations(view: EditorView): DecorationSet {
             );
           }
 
-          const m1 = marker(listItem.markerStart, listItem.markerEnd, cursorInMarker ? "cm-list-marker" : "cm-markdown-syntax-hidden");
+          const m1 = cursorInMarker
+            ? marker(listItem.markerStart, listItem.markerEnd, "cm-list-marker")
+            : syntaxMarker(listItem.markerStart, listItem.markerEnd, false);
           if (m1) decorations.push(m1);
         } else if (lastListLevel >= 0 && isListContinuation(text, lastListLevel)) {
           // This is a continuation of a list item

@@ -1,15 +1,25 @@
 import type { OpenTab } from "../editorTypes";
+import type { PropertiesConfig } from "../editorTypes";
 import type { VaultIndex } from "../domain";
 import { dirname, joinMarkdown, slugify, splitMarkdown } from "../domain";
 import { pathName } from "./pathUtils";
+import { frontmatterDataToRaw, getConfiguredFrontmatterOrder, reorderFrontmatter } from "./propertiesConfig";
 
 export const FOLDER_SYSTEM_PROPERTY_COMMENT =
   "Don't delete; it's a WorldNotion system property: indicates whether this note corresponds to a folder.";
 
-function yamlScalar(value: string) {
-  if (/^[A-Za-z0-9 _.-]+$/.test(value)) return value;
-  return JSON.stringify(value);
-}
+type EntityFrontmatterInput = {
+  id: string;
+  type: string;
+  name: string;
+  status?: string;
+  tags?: string[];
+  aliases?: string[];
+  parentId?: string;
+  childrenIds?: string[];
+  folder?: string;
+  propertiesConfig?: PropertiesConfig;
+};
 
 export function createEntityFrontmatter({
   id,
@@ -21,32 +31,20 @@ export function createEntityFrontmatter({
   parentId,
   childrenIds,
   folder,
-}: {
-  id: string;
-  type: string;
-  name: string;
-  status?: string;
-  tags?: string[];
-  aliases?: string[];
-  parentId?: string;
-  childrenIds?: string[];
-  folder?: string;
-}) {
-  // Build frontmatter in Spec v0.1 order: folder (system), id, type, name, status, tags, aliases, parentId, childrenIds
-  const lines: string[] = [];
-  lines.push("---");
-  if (folder) lines.push(`folder: ${yamlScalar(folder)} # ${FOLDER_SYSTEM_PROPERTY_COMMENT}`);
-  lines.push(`id: ${yamlScalar(id)}`);
-  lines.push(`type: ${yamlScalar(type)}`);
-  lines.push(`name: ${yamlScalar(name)}`);
-  lines.push(`status: ${yamlScalar(status)}`);
-  lines.push(`tags: [${tags.map((t) => yamlScalar(t)).join(", ")}]`);
-  lines.push(`aliases: [${aliases.map((a) => yamlScalar(a)).join(", ")}]`);
-  if (parentId) lines.push(`parentId: ${yamlScalar(parentId)}`);
-  if (childrenIds && childrenIds.length > 0)
-    lines.push(`childrenIds: [${childrenIds.map((c) => yamlScalar(c)).join(", ")}]`);
-  lines.push("---");
-  return lines.join("\n");
+  propertiesConfig,
+}: EntityFrontmatterInput) {
+  const data: Record<string, unknown> = {};
+  if (folder) data.folder = folder;
+  data.id = id;
+  data.type = type;
+  data.name = name;
+  data.status = status;
+  data.tags = tags;
+  data.aliases = aliases;
+  if (parentId) data.parentId = parentId;
+  if (childrenIds && childrenIds.length > 0) data.childrenIds = childrenIds;
+  const order = getConfiguredFrontmatterOrder(propertiesConfig, type, Object.keys(data));
+  return reorderFrontmatter(frontmatterDataToRaw(data), order);
 }
 
 export function contentFromTemplate(index: VaultIndex, entityType: string, name: string) {
@@ -54,7 +52,7 @@ export function contentFromTemplate(index: VaultIndex, entityType: string, name:
   const template = index.templates.find((candidate) => candidate.type === entityType);
   if (!template) {
     // Return frontmatter only, no header for blank notes
-    return `${createEntityFrontmatter({ id: slug, type: entityType, name })}\n`;
+    return `${createEntityFrontmatter({ id: slug, type: entityType, name, propertiesConfig: index.propertiesConfig })}\n`;
   }
   return template.content
     .replace(/\{\{id\}\}/g, slug)

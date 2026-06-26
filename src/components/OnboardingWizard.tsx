@@ -308,7 +308,7 @@ function ConfirmationStep({ template }: { template: PropertyTemplate }) {
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <p className="text-sm text-blue-800">
-          <strong>Note:</strong> You can customize these properties at any time from the Taxonomy Editor.
+          <strong>Note:</strong> You can customize these properties at any time from the Inspector.
           This template is just a starting point!
         </p>
       </div>

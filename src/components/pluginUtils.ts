@@ -29,11 +29,12 @@ export function selectionTouches(
   to: number
 ): boolean {
   if (selectionFrom === selectionTo) {
-    // Single cursor position: check if it's within range
-    return selectionFrom >= from && selectionFrom <= to;
+    // The left edge is editable, but the right edge must behave like
+    // plain text after the token. Otherwise hidden syntax attracts clicks.
+    return selectionFrom >= from && selectionFrom < to;
   }
-  // Selection range: check for any overlap
-  return selectionFrom <= to && selectionTo >= from;
+  // Selection range: check for real overlap, not adjacency.
+  return selectionFrom < to && selectionTo > from;
 }
 
 /**
@@ -70,10 +71,14 @@ export function syntaxMarker(
   isActive: boolean
 ): Range<Decoration> | null {
   if (from >= to) return null;
-  const className = isActive
-    ? "cm-markdown-syntax-muted"
-    : "cm-markdown-syntax-hidden";
-  return Decoration.mark({ class: className }).range(from, to);
+  if (!isActive) {
+    return Decoration.replace({
+      inclusive: false,
+      inclusiveStart: false,
+      inclusiveEnd: false,
+    }).range(from, to);
+  }
+  return Decoration.mark({ class: "cm-markdown-syntax-muted" }).range(from, to);
 }
 
 /**
@@ -89,7 +94,11 @@ export function createSyntaxHiddenDecoration(
   to: number
 ): Range<Decoration> | null {
   if (from >= to) return null;
-  return Decoration.mark({ class: "cm-markdown-syntax-hidden" }).range(from, to);
+  return Decoration.replace({
+    inclusive: false,
+    inclusiveStart: false,
+    inclusiveEnd: false,
+  }).range(from, to);
 }
 
 /**

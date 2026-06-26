@@ -17,8 +17,6 @@ import { parsePropertiesConfig, parseTemplates, parseUniverseProfile } from "./u
 import { indexMarkdownEntities } from "./utils/entityIndex";
 import { detectUniverses } from "./utils/universeDetection";
 import {
-  mergeWithStarterTaxonomy,
-  parseLegacyTaxonomy,
   STARTER_TAXONOMY,
   PROPERTY_TYPES,
   taxonomyToYaml,
@@ -227,7 +225,6 @@ export type IndexVaultOptions = {
 export function indexVault(readResult: VaultReadResult, options: IndexVaultOptions = {}): VaultIndex {
   const findings: ValidationFinding[] = [];
   const markdownFiles = readResult.files.filter((file) => file.relativePath.endsWith(".md"));
-  const taxonomy = mergeWithStarterTaxonomy(parseLegacyTaxonomy(readResult.files, findings));
   const templates = parseTemplates(readResult.files);
   const universeProfile = parseUniverseProfile(readResult.files, findings);
   const propertiesConfig = parsePropertiesConfig(readResult.files, findings);
@@ -249,7 +246,6 @@ export function indexVault(readResult: VaultReadResult, options: IndexVaultOptio
     files: readResult.files,
     directories,
     markdownFiles,
-    taxonomy,
     propertiesConfig,
     templates,
     universeProfile,

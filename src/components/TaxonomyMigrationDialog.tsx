@@ -33,12 +33,12 @@ export function TaxonomyMigrationDialog({
       <div className="taxonomy-migration-dialog">
         <div className="dialog-header">
           <AlertTriangle className="header-icon" size={24} />
-          <h2>Set Up Taxonomy System</h2>
+          <h2>Set Up Properties</h2>
         </div>
 
         <div className="dialog-content">
           <p className="dialog-intro">
-            WorldNotion can organize your universe with a taxonomy system. We've analyzed your{" "}
+            WorldNotion can organize your universe with properties. We've analyzed your{" "}
             <strong>{entityCount} existing notes</strong> and generated an initial configuration.
           </p>
 
@@ -117,7 +117,7 @@ export function TaxonomyMigrationDialog({
 
           <div className="dialog-note">
             <p>
-              You can customize this taxonomy anytime in <strong>Settings → Universe → Taxonomy</strong>.
+              You can customize these properties anytime in <strong>Settings → Universe → Properties</strong>.
             </p>
           </div>
         </div>

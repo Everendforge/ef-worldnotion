@@ -15,7 +15,7 @@ import { createDefaultTaxonomyConfig } from "../domain";
 import { applyPropertyTemplate, WORLDBUILDING_TEMPLATE } from "../utils/propertyTemplates";
 import type { FrontmatterNormalizationItem } from "../utils/frontmatterNormalizer";
 import { themeById } from "../themes";
-import { TaxonomyManager as PropertiesManager } from "./TaxonomyManager";
+import { PropertiesManager } from "./TaxonomyManager";
 import "../App.css";
 
 type SettingsModalProps = {
@@ -106,7 +106,7 @@ function readImageFile(file: File) {
   });
 }
 
-type SettingsSection = "overview" | "properties" | "tags" | "utils" | "editor" | "shortcuts" | "tabs" | "explorer";
+type SettingsSection = "overview" | "tags" | "utils" | "editor" | "shortcuts" | "tabs" | "explorer";
 
 export function SettingsModal({
   settings,
@@ -240,10 +240,6 @@ export function SettingsModal({
                 <button className={activeSection === "overview" ? "active" : ""} onClick={() => setActiveSection("overview")} type="button">
                   <Settings size={14} />
                   Overview
-                </button>
-                <button className={activeSection === "properties" ? "active" : ""} onClick={() => setActiveSection("properties")} type="button">
-                  <Hash size={14} />
-                  Properties
                 </button>
                 <button className={activeSection === "tags" ? "active" : ""} onClick={() => setActiveSection("tags")} type="button">
                   <Hash size={14} />
@@ -596,51 +592,6 @@ export function SettingsModal({
                   <span>Confirm dirty close</span>
                   <input type="checkbox" checked={settings.editor.confirmCloseDirtyTab} onChange={(event) => updateEditor({ confirmCloseDirtyTab: event.target.checked })} />
                 </label>
-              </div>
-            ) : null}
-
-            {activeSection === "properties" && universe ? (
-              <div className="settings-panel">
-                {!universe.propertiesConfig ? (
-                  <div className="universe-onboarding-card compact">
-                    <p>
-                      This universe has no properties file yet. Apply the starter worldbuilding properties template to create one.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (!onInitializePropertiesWorkspace) return;
-                        setPropertiesSaving(true);
-                        try {
-                          await onInitializePropertiesWorkspace(propertiesDraft);
-                        } finally {
-                          setPropertiesSaving(false);
-                        }
-                      }}
-                      disabled={propertiesSaving}
-                    >
-                      {propertiesSaving ? "Creating..." : "Apply properties template"}
-                    </button>
-                  </div>
-                ) : null}
-                <PropertiesManager config={propertiesDraft} onChange={setPropertiesDraft} activeTab="properties" showTabs={false} />
-                <div className="settings-actions">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!onSavePropertiesConfig) return;
-                      setPropertiesSaving(true);
-                      try {
-                        await onSavePropertiesConfig(propertiesDraft);
-                      } finally {
-                        setPropertiesSaving(false);
-                      }
-                    }}
-                    disabled={propertiesSaving}
-                  >
-                    {propertiesSaving ? "Saving..." : "Save Properties"}
-                  </button>
-                </div>
               </div>
             ) : null}
 

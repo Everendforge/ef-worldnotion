@@ -9,15 +9,18 @@ import type {
 } from "../editorTypes";
 import { PROPERTY_TEMPLATES, applyPropertyTemplate } from "../utils/propertyTemplates";
 import {
+  getConfiguredFrontmatterOrder,
+  NON_INSPECTOR_PROPERTY_IDS,
   labelFromPropertyId,
   propertyUsesOptions,
+  reorderPropertiesConfig,
   sanitizePropertyId,
   valuesToOptions,
 } from "../utils/propertiesConfig";
 import { CustomFieldEditor } from "./CustomFieldEditor";
 
 type PropertyConfigPanelProps = {
-  taxonomyConfig: PropertiesConfig;
+  propertiesConfig: PropertiesConfig;
   onChange: (config: PropertiesConfig) => void;
 };
 
@@ -64,9 +67,8 @@ function propertyRows(config: PropertiesConfig): PropertyRow[] {
   const baseVisible = new Set(config.baseProperties?.visibleByDefault ?? []);
   const customVisible = new Set(config.customFields.globalFields ?? []);
   const baseIds = new Set((config.baseProperties?.definitions ?? []).map((definition) => definition.id));
-  const hiddenPropertyIds = new Set(["folder", "tags"]);
   const baseRows: PropertyRow[] = (config.baseProperties?.definitions ?? [])
-    .filter((definition) => !hiddenPropertyIds.has(definition.id))
+    .filter((definition) => !NON_INSPECTOR_PROPERTY_IDS.has(definition.id))
     .map((definition) => ({
       id: definition.id,
       label: definition.label ?? definition.id,
@@ -81,7 +83,7 @@ function propertyRows(config: PropertiesConfig): PropertyRow[] {
     }));
   const customRows: PropertyRow[] = (config.customFields.definitions ?? [])
     .filter((definition) => !baseIds.has(definition.id))
-    .filter((definition) => !hiddenPropertyIds.has(definition.id))
+    .filter((definition) => !NON_INSPECTOR_PROPERTY_IDS.has(definition.id))
     .map((definition) => ({
       id: definition.id,
       label: definition.label,
@@ -94,7 +96,7 @@ function propertyRows(config: PropertiesConfig): PropertyRow[] {
       source: "custom",
       definition,
     }));
-  const order = config.baseProperties?.order ?? [];
+  const order = getConfiguredFrontmatterOrder(config, undefined, [...baseRows, ...customRows].map((row) => row.id));
   return [...baseRows, ...customRows].sort((first, second) => {
     const firstIndex = order.indexOf(first.id);
     const secondIndex = order.indexOf(second.id);
@@ -108,30 +110,30 @@ function propertyRows(config: PropertiesConfig): PropertyRow[] {
   });
 }
 
-export function PropertyConfigPanel({ taxonomyConfig, onChange }: PropertyConfigPanelProps) {
+export function PropertyConfigPanel({ propertiesConfig, onChange }: PropertyConfigPanelProps) {
   const [editingProperty, setEditingProperty] = useState<PropertyRow | null>(null);
   const [addingProperty, setAddingProperty] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showAdvancedEditor, setShowAdvancedEditor] = useState(false);
   const [draggedPropertyId, setDraggedPropertyId] = useState<string | null>(null);
-  const rows = useMemo(() => propertyRows(taxonomyConfig), [taxonomyConfig]);
+  const rows = useMemo(() => propertyRows(propertiesConfig), [propertiesConfig]);
 
   function setBaseVisible(id: string, visible: boolean) {
-    if (!taxonomyConfig.baseProperties) return;
-    const current = taxonomyConfig.baseProperties.visibleByDefault ?? [];
+    if (!propertiesConfig.baseProperties) return;
+    const current = propertiesConfig.baseProperties.visibleByDefault ?? [];
     const next = visible ? [...new Set([...current, id])] : current.filter((candidate) => candidate !== id);
     onChange({
-      ...taxonomyConfig,
-      baseProperties: { ...taxonomyConfig.baseProperties, visibleByDefault: next },
+      ...propertiesConfig,
+      baseProperties: { ...propertiesConfig.baseProperties, visibleByDefault: next },
     });
   }
 
   function setCustomVisible(id: string, visible: boolean) {
-    const current = taxonomyConfig.customFields.globalFields ?? [];
+    const current = propertiesConfig.customFields.globalFields ?? [];
     const next = visible ? [...new Set([...current, id])] : current.filter((candidate) => candidate !== id);
     onChange({
-      ...taxonomyConfig,
-      customFields: { ...taxonomyConfig.customFields, globalFields: next },
+      ...propertiesConfig,
+      customFields: { ...propertiesConfig.customFields, globalFields: next },
     });
   }
 
@@ -142,28 +144,28 @@ export function PropertyConfigPanel({ taxonomyConfig, onChange }: PropertyConfig
 
   function saveProperty(property: PropertyDefinition, source: PropertyRow["source"]) {
     if (source === "base") {
-      if (!taxonomyConfig.baseProperties) return;
+      if (!propertiesConfig.baseProperties) return;
       onChange({
-        ...taxonomyConfig,
+        ...propertiesConfig,
         baseProperties: {
-          ...taxonomyConfig.baseProperties,
-          definitions: taxonomyConfig.baseProperties.definitions.map((definition) =>
+          ...propertiesConfig.baseProperties,
+          definitions: propertiesConfig.baseProperties.definitions.map((definition) =>
             definition.id === property.id ? (property as BasePropertyDefinition) : definition,
           ),
         },
       });
     } else {
-      const exists = taxonomyConfig.customFields.definitions.some((definition) => definition.id === property.id);
+      const exists = propertiesConfig.customFields.definitions.some((definition) => definition.id === property.id);
       onChange({
-        ...taxonomyConfig,
+        ...propertiesConfig,
         customFields: {
-          ...taxonomyConfig.customFields,
+          ...propertiesConfig.customFields,
           definitions: exists
-            ? taxonomyConfig.customFields.definitions.map((definition) =>
+            ? propertiesConfig.customFields.definitions.map((definition) =>
                 definition.id === property.id ? (property as CustomFieldDefinition) : definition,
               )
-            : [...taxonomyConfig.customFields.definitions, property as CustomFieldDefinition],
-          globalFields: [...new Set([...(taxonomyConfig.customFields.globalFields ?? []), property.id])],
+            : [...propertiesConfig.customFields.definitions, property as CustomFieldDefinition],
+          globalFields: [...new Set([...(propertiesConfig.customFields.globalFields ?? []), property.id])],
         },
       });
     }
@@ -175,11 +177,11 @@ export function PropertyConfigPanel({ taxonomyConfig, onChange }: PropertyConfig
     const confirmed = window.confirm("Remove this property from universe settings? Existing notes will keep their frontmatter until you resolve them in the Inspector.");
     if (!confirmed) return;
     onChange({
-      ...taxonomyConfig,
+      ...propertiesConfig,
       customFields: {
-        ...taxonomyConfig.customFields,
-        definitions: taxonomyConfig.customFields.definitions.filter((definition) => definition.id !== id),
-        globalFields: (taxonomyConfig.customFields.globalFields ?? []).filter((candidate) => candidate !== id),
+        ...propertiesConfig.customFields,
+        definitions: propertiesConfig.customFields.definitions.filter((definition) => definition.id !== id),
+        globalFields: (propertiesConfig.customFields.globalFields ?? []).filter((candidate) => candidate !== id),
       },
     });
   }
@@ -187,25 +189,18 @@ export function PropertyConfigPanel({ taxonomyConfig, onChange }: PropertyConfig
   function applyTemplate(templateId: string) {
     const template = PROPERTY_TEMPLATES.find((candidate) => candidate.id === templateId);
     if (!template) return;
-    onChange(applyPropertyTemplate(taxonomyConfig, template));
+    onChange(applyPropertyTemplate(propertiesConfig, template));
     setShowTemplates(false);
   }
 
   function reorderProperty(targetId: string) {
-    if (!draggedPropertyId || draggedPropertyId === targetId || !taxonomyConfig.baseProperties) return;
+    if (!draggedPropertyId || draggedPropertyId === targetId || !propertiesConfig.baseProperties) return;
     const currentOrder = rows.map((row) => row.id);
     const withoutDragged = currentOrder.filter((id) => id !== draggedPropertyId);
     const targetIndex = withoutDragged.indexOf(targetId);
     if (targetIndex === -1) return;
     withoutDragged.splice(targetIndex, 0, draggedPropertyId);
-    const remaining = (taxonomyConfig.baseProperties.order ?? []).filter((id) => !withoutDragged.includes(id));
-    onChange({
-      ...taxonomyConfig,
-      baseProperties: {
-        ...taxonomyConfig.baseProperties,
-        order: [...withoutDragged, ...remaining],
-      },
-    });
+    onChange(reorderPropertiesConfig(propertiesConfig, undefined, withoutDragged));
     setDraggedPropertyId(null);
   }
 
@@ -337,15 +332,15 @@ export function PropertyConfigPanel({ taxonomyConfig, onChange }: PropertyConfig
             </header>
             <div className="property-advanced-content">
               <CustomFieldEditor
-                fields={taxonomyConfig.customFields.definitions}
+                fields={propertiesConfig.customFields.definitions}
                 onChange={(updatedFields) => {
                   onChange({
-                    ...taxonomyConfig,
+                    ...propertiesConfig,
                     customFields: {
-                      ...taxonomyConfig.customFields,
+                      ...propertiesConfig.customFields,
                       definitions: updatedFields as CustomFieldDefinition[],
                       globalFields: [
-                        ...new Set([...(taxonomyConfig.customFields.globalFields ?? []), ...updatedFields.map((f) => f.id)]),
+                        ...new Set([...(propertiesConfig.customFields.globalFields ?? []), ...updatedFields.map((f) => f.id)]),
                       ],
                     },
                   });
