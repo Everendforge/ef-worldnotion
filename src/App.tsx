@@ -85,6 +85,7 @@ import {
   renameBrowserPath,
   writeBrowserFile,
 } from "./utils/browserVault";
+import { setBrowserVaultRoot } from "./utils/vaultImages";
 import {
   buildCommandResults,
   buildFileResults,
@@ -407,6 +408,12 @@ function App() {
       });
   }, [index]);
   const labels = useMemo(() => platformLabels(), []);
+
+  useEffect(() => {
+    setBrowserVaultRoot(browserRoot ?? null);
+    return () => setBrowserVaultRoot(null);
+  }, [browserRoot]);
+
   const isExplorerPanelOpen = layoutHasPanel(workspaceLayout, "explorer");
   const isInspectorPanelOpen = layoutHasPanel(workspaceLayout, "inspector");
   const isLinksPanelOpen = layoutHasPanel(workspaceLayout, "links");

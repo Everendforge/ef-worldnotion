@@ -10401,3 +10401,106 @@ select.property-field-control {
   max-height: 300px;
   overflow-y: auto;
 }
+
+/* Entity / file / image reference fields */
+
+.entity-ref-field,
+.file-field,
+.entity-ref-list-field,
+.image-field-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.entity-ref-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  min-height: 22px;
+  padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--wn-accent) 35%, transparent);
+  border-radius: 11px;
+  background: var(--wn-accent-soft);
+  color: var(--wn-text);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.entity-ref-chip:hover {
+  border-color: var(--wn-accent);
+}
+
+.entity-ref-chip.entity-ref-empty {
+  border-style: dashed;
+  border-color: var(--wn-border);
+  background: transparent;
+  color: var(--wn-muted);
+}
+
+.entity-ref-chip.entity-ref-unresolved {
+  border-color: color-mix(in srgb, var(--wn-danger) 55%, transparent);
+  background: color-mix(in srgb, var(--wn-danger) 10%, transparent);
+  color: var(--wn-danger);
+}
+
+.entity-ref-chip-label {
+  overflow: hidden;
+  max-width: 180px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entity-ref-chip-remove,
+.entity-ref-action,
+.entity-ref-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--wn-muted);
+}
+
+.entity-ref-chip-remove:hover,
+.entity-ref-action:hover,
+.entity-ref-add:hover {
+  background: var(--wn-panel-hover);
+  color: var(--wn-text);
+}
+
+.entity-ref-add {
+  width: 22px;
+  height: 22px;
+  border: 1px dashed var(--wn-border);
+}
+
+.image-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.image-field-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 160px;
+  border: 1px solid var(--wn-border);
+  border-radius: 6px;
+  object-fit: contain;
+}
+
+.image-field-error {
+  color: var(--wn-danger);
+  font-size: 0.74rem;
+}

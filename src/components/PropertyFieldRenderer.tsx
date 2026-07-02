@@ -1,5 +1,9 @@
 import type { BasePropertyDefinition, CustomFieldDefinition } from "../editorTypes";
 import type { VaultIndex } from "../domain";
+import { EntityRefField } from "./properties/fields/EntityRefField";
+import { EntityRefListField } from "./properties/fields/EntityRefListField";
+import { FileField } from "./properties/fields/FileField";
+import { ImageField } from "./properties/fields/ImageField";
 
 export type PropertyFieldRendererProps = {
   property: BasePropertyDefinition | CustomFieldDefinition;
@@ -35,6 +39,8 @@ export function PropertyFieldRenderer({
   onChange,
   readOnly = false,
   availableOptions,
+  vaultIndex,
+  onOpenEntity,
 }: PropertyFieldRendererProps): React.JSX.Element {
   const isReadOnly = readOnly || ("readOnly" in property && property.readOnly) || false;
   const isRequired = property.required ?? false;
@@ -60,9 +66,33 @@ export function PropertyFieldRenderer({
       return renderMultiselect(property, value, onChange, isReadOnly, availableOptions);
 
     case "entity-ref":
+      if (vaultIndex) {
+        return (
+          <EntityRefField
+            property={property}
+            value={value}
+            onChange={onChange}
+            readOnly={isReadOnly}
+            vaultIndex={vaultIndex}
+            onOpenEntity={onOpenEntity}
+          />
+        );
+      }
       return renderEntityRef(property, value, onChange, isReadOnly, isRequired);
 
     case "entity-ref-list":
+      if (vaultIndex) {
+        return (
+          <EntityRefListField
+            property={property}
+            value={value}
+            onChange={onChange}
+            readOnly={isReadOnly}
+            vaultIndex={vaultIndex}
+            onOpenEntity={onOpenEntity}
+          />
+        );
+      }
       return renderEntityRefList(property, value, onChange, isReadOnly);
 
     case "url":
@@ -75,9 +105,29 @@ export function PropertyFieldRenderer({
       return renderPhoneInput(property, value, onChange, isReadOnly, isRequired);
 
     case "file":
+      if (vaultIndex) {
+        return (
+          <FileField
+            value={value}
+            onChange={onChange}
+            readOnly={isReadOnly}
+            vaultIndex={vaultIndex}
+          />
+        );
+      }
       return renderFileInput(property, value, onChange, isReadOnly);
 
     case "image":
+      if (vaultIndex) {
+        return (
+          <ImageField
+            value={value}
+            onChange={onChange}
+            readOnly={isReadOnly}
+            vaultIndex={vaultIndex}
+          />
+        );
+      }
       return renderImageInput(property, value, onChange, isReadOnly);
 
     default:

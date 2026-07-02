@@ -242,7 +242,12 @@ fn normalize_relative_path(relative_path: &str) -> Result<PathBuf, String> {
         return Ok(PathBuf::new());
     }
     let path = PathBuf::from(relative_path);
-    if path.is_absolute() || relative_path.contains("..") || relative_path.contains('\\') {
+    // `C:/x` is not absolute on Unix, so also reject drive-letter prefixes explicitly.
+    if path.is_absolute()
+        || relative_path.contains("..")
+        || relative_path.contains('\\')
+        || relative_path.contains(':')
+    {
         return Err("Path must be a safe relative path inside the vault.".to_string());
     }
     Ok(path)
@@ -686,6 +691,24 @@ fn read_file(path: String) -> Result<VaultFile, String> {
     })
 }
 
+/// Maximum size for binary reads exposed to the webview (image previews).
+const MAX_BINARY_READ_BYTES: u64 = 10 * 1024 * 1024;
+
+#[tauri::command]
+fn read_file_base64(vault_path: String, relative_path: String) -> Result<String, String> {
+    let (_root, path) = resolve_vault_path(&vault_path, &relative_path)?;
+    let metadata = fs::metadata(&path).map_err(|error| error.to_string())?;
+    if !metadata.is_file() {
+        return Err("Path is not a file.".to_string());
+    }
+    if metadata.len() > MAX_BINARY_READ_BYTES {
+        return Err("File is too large to preview (limit 10 MB).".to_string());
+    }
+    let bytes = fs::read(&path).map_err(|error| error.to_string())?;
+    use base64::Engine as _;
+    Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
+}
+
 #[tauri::command]
 fn create_universe(vault_path: String, name: String) -> Result<WriteResult, String> {
     let root = PathBuf::from(vault_path);
@@ -1060,6 +1083,7 @@ pub fn run() {
             index_vault,
             path_exists,
             read_file,
+            read_file_base64,
             create_universe,
             create_folder,
             create_entity,

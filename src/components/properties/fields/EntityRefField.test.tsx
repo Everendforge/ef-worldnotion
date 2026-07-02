@@ -1,0 +1,122 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import type { CustomFieldDefinition } from "../../../editorTypes";
+import { makeEntity, makeVaultIndex } from "../../../test/fixtures";
+import { EntityRefField, entityPickerItems } from "./EntityRefField";
+import { EntityRefListField } from "./EntityRefListField";
+
+const refProperty: CustomFieldDefinition = {
+  id: "home",
+  label: "Home",
+  type: "entity-ref",
+  targetTypes: ["location"],
+};
+
+describe("entityPickerItems", () => {
+  it("filters by targetTypes and excludes selected ids", () => {
+    const index = makeVaultIndex();
+
+    const items = entityPickerItems(index, ["location"]);
+    expect(items.map((item) => item.id)).toEqual(["iron-keep"]);
+
+    const excluded = entityPickerItems(index, undefined, new Set(["mara"]));
+    expect(excluded.map((item) => item.id)).toEqual(["iron-keep"]);
+  });
+});
+
+describe("EntityRefField", () => {
+  it("resolves the stored id to the entity name", () => {
+    render(
+      <EntityRefField
+        property={refProperty}
+        value="iron-keep"
+        onChange={vi.fn()}
+        vaultIndex={makeVaultIndex()}
+      />,
+    );
+
+    expect(screen.getByText("Iron Keep")).toBeInTheDocument();
+  });
+
+  it("marks unresolved ids", () => {
+    render(
+      <EntityRefField
+        property={refProperty}
+        value="ghost-id"
+        onChange={vi.fn()}
+        vaultIndex={makeVaultIndex()}
+      />,
+    );
+
+    expect(screen.getByText("ghost-id").closest("button")).toHaveClass("entity-ref-unresolved");
+  });
+
+  it("stores the entity id when picking from the popover", () => {
+    const onChange = vi.fn();
+    render(
+      <EntityRefField
+        property={refProperty}
+        value=""
+        onChange={onChange}
+        vaultIndex={makeVaultIndex()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /link location/i }));
+    fireEvent.click(screen.getByRole("option", { name: /iron keep/i }));
+
+    expect(onChange).toHaveBeenCalledWith("iron-keep");
+  });
+
+  it("opens the referenced entity", () => {
+    const onOpenEntity = vi.fn();
+    render(
+      <EntityRefField
+        property={refProperty}
+        value="iron-keep"
+        onChange={vi.fn()}
+        vaultIndex={makeVaultIndex()}
+        onOpenEntity={onOpenEntity}
+      />,
+    );
+
+    fireEvent.click(screen.getByTitle("Open Iron Keep"));
+    expect(onOpenEntity).toHaveBeenCalledWith("Places/Iron.md");
+  });
+});
+
+describe("EntityRefListField", () => {
+  it("renders chips, removes ids, and appends new picks", () => {
+    const onChange = vi.fn();
+    const index = makeVaultIndex({
+      entities: [
+        makeEntity(),
+        makeEntity({
+          id: "iron-keep",
+          type: "location",
+          name: "Iron Keep",
+          path: "Places/Iron.md",
+        }),
+        makeEntity({ id: "lys", type: "character", name: "Lys", path: "Characters/Lys.md" }),
+      ],
+    });
+
+    render(
+      <EntityRefListField
+        property={{ id: "allies", label: "Allies", type: "entity-ref-list" }}
+        value={["mara"]}
+        onChange={onChange}
+        vaultIndex={index}
+      />,
+    );
+
+    expect(screen.getByText("Mara")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle("Remove"));
+    expect(onChange).toHaveBeenCalledWith([]);
+
+    fireEvent.click(screen.getByTitle("Add entity"));
+    fireEvent.click(screen.getByRole("option", { name: /lys/i }));
+    expect(onChange).toHaveBeenCalledWith(["mara", "lys"]);
+  });
+});
