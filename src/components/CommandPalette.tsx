@@ -143,21 +143,33 @@ export function CommandPalette({
     return query;
   }, [query]);
 
+  // Apply entity type and status filters first
+  const filteredFiles = useMemo(() => {
+    let files = fileResults;
+    if (filterEntityType) {
+      files = files.filter((f) => f.entityType === filterEntityType);
+    }
+    if (filterStatus) {
+      files = files.filter((f) => f.status === filterStatus);
+    }
+    return files;
+  }, [fileResults, filterEntityType, filterStatus]);
+
+  // Memoize Fuse instances so typing only re-runs the search, not the indexing
+  const filesFuse = useMemo(() => new Fuse(filteredFiles, FUSE_OPTIONS_FILES), [filteredFiles]);
+  const commandsFuse = useMemo(
+    () => new Fuse(commandResults, FUSE_OPTIONS_COMMANDS),
+    [commandResults],
+  );
+  const headersFuse = useMemo(() => new Fuse(headerResults, FUSE_OPTIONS_HEADERS), [headerResults]);
+  const tagsFuse = useMemo(() => new Fuse(tagResults, FUSE_OPTIONS_TAGS), [tagResults]);
+
   // Perform fuzzy search
   const results = useMemo(() => {
     let items: CommandPaletteResult[] = [];
 
     switch (activeMode) {
       case "files": {
-        // Apply entity type and status filters first
-        let filteredFiles = fileResults;
-        if (filterEntityType) {
-          filteredFiles = filteredFiles.filter((f) => f.entityType === filterEntityType);
-        }
-        if (filterStatus) {
-          filteredFiles = filteredFiles.filter((f) => f.status === filterStatus);
-        }
-
         if (!searchQuery) {
           // En Quick Switcher mode o sin query, mostrar por frecuencia
           if (quickSwitcherMode && fileAccessStats && fileAccessStats.length > 0) {
@@ -193,8 +205,7 @@ export function CommandPalette({
           }
         } else {
           // Con query, usar fuzzy search pero ajustar scores por frecuencia
-          const fuse = new Fuse(filteredFiles, FUSE_OPTIONS_FILES);
-          const searchResults = fuse.search(searchQuery);
+          const searchResults = filesFuse.search(searchQuery);
 
           if (fileAccessStats) {
             // Combinar Fuse score con frecuencia
@@ -218,8 +229,7 @@ export function CommandPalette({
         if (!searchQuery) {
           items = commandResults;
         } else {
-          const fuse = new Fuse(commandResults, FUSE_OPTIONS_COMMANDS);
-          items = fuse.search(searchQuery).map((result) => result.item);
+          items = commandsFuse.search(searchQuery).map((result) => result.item);
         }
         break;
       }
@@ -227,8 +237,7 @@ export function CommandPalette({
         if (!searchQuery) {
           items = headerResults;
         } else {
-          const fuse = new Fuse(headerResults, FUSE_OPTIONS_HEADERS);
-          items = fuse.search(searchQuery).map((result) => result.item);
+          items = headersFuse.search(searchQuery).map((result) => result.item);
         }
         break;
       }
@@ -236,8 +245,7 @@ export function CommandPalette({
         if (!searchQuery) {
           items = tagResults;
         } else {
-          const fuse = new Fuse(tagResults, FUSE_OPTIONS_TAGS);
-          items = fuse.search(searchQuery).map((result) => result.item);
+          items = tagsFuse.search(searchQuery).map((result) => result.item);
         }
         break;
       }
@@ -247,16 +255,18 @@ export function CommandPalette({
   }, [
     activeMode,
     searchQuery,
-    fileResults,
+    filteredFiles,
+    filesFuse,
     commandResults,
+    commandsFuse,
     headerResults,
+    headersFuse,
     tagResults,
+    tagsFuse,
     recentFiles,
     favorites,
     fileAccessStats,
     quickSwitcherMode,
-    filterEntityType,
-    filterStatus,
   ]);
 
   // Reset selection when results change

@@ -1,4 +1,13 @@
-import { useMemo, useState, type MouseEvent } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+  type UIEvent,
+} from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -102,7 +111,41 @@ export function ExplorerPanel({
   isPointerClickSuppressed,
 }: ExplorerPanelProps) {
   const [scrollTop, setScrollTop] = useState(0);
-  const shouldVirtualize = visibleRows.length > VIRTUALIZE_AFTER && !query.trim();
+  const [viewportHeight, setViewportHeight] = useState(680);
+  const sidebarMainRef = useRef<HTMLDivElement>(null);
+  const scrollFrameRef = useRef<number>(undefined);
+  const shouldVirtualize = visibleRows.length > VIRTUALIZE_AFTER;
+
+  useEffect(() => {
+    const element = sidebarMainRef.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver((entries) => {
+      const height = entries[0]?.contentRect.height;
+      if (height) setViewportHeight(height);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (scrollFrameRef.current !== undefined) cancelAnimationFrame(scrollFrameRef.current);
+    };
+  }, []);
+
+  const handleSidebarScroll = useCallback(
+    (event: UIEvent<HTMLDivElement>) => {
+      if (!shouldVirtualize) return;
+      const top = event.currentTarget.scrollTop;
+      if (scrollFrameRef.current !== undefined) cancelAnimationFrame(scrollFrameRef.current);
+      scrollFrameRef.current = requestAnimationFrame(() => {
+        scrollFrameRef.current = undefined;
+        setScrollTop(top);
+      });
+    },
+    [shouldVirtualize],
+  );
+
   const virtualWindow = useMemo(() => {
     if (!shouldVirtualize) {
       return {
@@ -111,7 +154,7 @@ export function ExplorerPanel({
         after: 0,
       };
     }
-    const viewportRows = Math.ceil(680 / ROW_HEIGHT);
+    const viewportRows = Math.ceil(viewportHeight / ROW_HEIGHT);
     const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - VIRTUAL_OVERSCAN);
     const end = Math.min(visibleRows.length, start + viewportRows + VIRTUAL_OVERSCAN * 2);
     return {
@@ -119,7 +162,7 @@ export function ExplorerPanel({
       before: start * ROW_HEIGHT,
       after: Math.max(0, (visibleRows.length - end) * ROW_HEIGHT),
     };
-  }, [query, scrollTop, shouldVirtualize, visibleRows]);
+  }, [scrollTop, shouldVirtualize, viewportHeight, visibleRows]);
 
   return (
     <aside className="sidebar dock-panel-body">
@@ -200,9 +243,10 @@ export function ExplorerPanel({
       ) : null}
 
       <div
+        ref={sidebarMainRef}
         className="sidebar-main"
         onContextMenu={(event) => onContextMenu(event, "", "empty")}
-        onScroll={(event) => shouldVirtualize && setScrollTop(event.currentTarget.scrollTop)}
+        onScroll={handleSidebarScroll}
       >
         {activeSection === "favorites" ? (
           <section className="sidebar-section">
@@ -404,7 +448,7 @@ type ExplorerTreeRowProps = {
   customIcons?: Record<string, string>;
 };
 
-function ExplorerTreeRow({
+const ExplorerTreeRow = memo(function ExplorerTreeRow({
   row,
   selectedPath,
   openTabPaths,
@@ -599,4 +643,4 @@ function ExplorerTreeRow({
       </div>
     </div>
   );
-}
+});
