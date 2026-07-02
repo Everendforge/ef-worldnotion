@@ -31,7 +31,8 @@ import { IconPicker, type IconName } from "./components/IconPicker";
 import { OutlineGuide } from "./components/OutlineGuide";
 import { FontSelector } from "./components/FontSelector";
 import { InputDialog } from "./components/InputDialog";
-import { Toast } from "./components/Toast";
+import { useToast } from "./components/ToastProvider";
+import { SaveStatusIndicator } from "./components/SaveStatusIndicator";
 import { UnsavedChangesDialog } from "./components/UnsavedChangesDialog";
 import { ExplorerPanel, type ExplorerTreeAction } from "./components/ExplorerPanel";
 import { InspectorPanel } from "./components/InspectorPanel";
@@ -365,15 +366,10 @@ function App() {
     title: "",
   });
 
-  const [toastQueue, setToastQueue] = useState<string[]>([]);
-  const [activeToast, setActiveToast] = useState("");
+  const { showToast } = useToast();
   const [pointerDragItem, setPointerDragItem] = useState<PointerDragItem>();
   const [graphControlsPosition, setGraphControlsPosition] = useState({ x: 14, y: 14 });
   const suppressTreeClickRef = useRef(false);
-
-  const showToast = (message: string) => {
-    setToastQueue((current) => [...current, message]);
-  };
 
   useEffect(() => {
     tabsRef.current = tabs;
@@ -425,21 +421,6 @@ function App() {
   useEffect(() => {
     document.body.style.setProperty("zoom", String(appZoom));
   }, [appZoom]);
-
-  useEffect(() => {
-    if (activeToast || !toastQueue.length) return;
-    const [nextToast, ...remainingToasts] = toastQueue;
-    setActiveToast(nextToast);
-    setToastQueue(remainingToasts);
-  }, [activeToast, toastQueue]);
-
-  useEffect(() => {
-    if (!activeToast) return;
-    const timer = window.setTimeout(() => {
-      setActiveToast("");
-    }, 3000);
-    return () => window.clearTimeout(timer);
-  }, [activeToast]);
 
   useEffect(() => {
     if (!index || !settings.editor.persistTabs) return;
@@ -897,7 +878,7 @@ function App() {
       return next;
     });
     setRecentContextMenu(null);
-    showToast("Removed from dashboard.");
+    showToast("Removed from dashboard.", "success");
   }
 
   function updateExplorer(next: Partial<AppSettingsV4["explorer"]>) {
@@ -1067,7 +1048,7 @@ function App() {
 
         const nextIndex = await refreshUniverse(filePath);
         selectPathAfterRefresh(filePath, nextIndex);
-        showToast(`Created blank page: ${fileName}`);
+        showToast(`Created blank page: ${fileName}`, "success");
       } else if (action === "newPageFromTemplate" && templateType) {
         const name = await promptUser(`Enter ${templateType} name:`);
         if (!name || name.trim() === "") {
@@ -1098,7 +1079,7 @@ function App() {
 
         const nextIndex = await refreshUniverse(filePath);
         selectPathAfterRefresh(filePath, nextIndex);
-        showToast(`Created ${templateType}: ${name}`);
+        showToast(`Created ${templateType}: ${name}`, "success");
       } else if (action === "newFolder") {
         const name = await promptUser("Enter folder name:");
         if (!name || name.trim() === "") {
@@ -1134,7 +1115,7 @@ function App() {
         const nextIndex = await refreshUniverse(descriptionPath);
         setExpandedPaths((prev) => new Set(prev).add(folderPath));
         selectPathAfterRefresh(descriptionPath, nextIndex);
-        showToast(`Created folder: ${name}`);
+        showToast(`Created folder: ${name}`, "success");
       } else if (action === "rename" && targetKind !== "empty") {
         const currentName = pathName(targetPath);
         const newName = await promptUser("New name:", "new name", currentName);
@@ -1160,7 +1141,7 @@ function App() {
         const changes = folderDescriptionChange ? [change, folderDescriptionChange] : [change];
         updateTabsForPathChange(changes);
         await refreshUniverse(undefined, changes);
-        showToast(`Renamed ${currentName}.`);
+        showToast(`Renamed ${currentName}.`, "success");
       } else if (action === "duplicate" && targetKind !== "empty") {
         let nextPath: string;
         if (browserRoot) {
@@ -1176,7 +1157,7 @@ function App() {
           nextPath = relativeFromAbsolute(index.rootPath, result.path);
         }
         await refreshUniverse(nextPath);
-        showToast("Duplicated item.");
+        showToast("Duplicated item.", "success");
       } else if (action === "move" && targetKind !== "empty") {
         const targetFolder = prompt("Move to folder path:", dirname(targetPath));
         if (targetFolder === null) return;
@@ -1223,7 +1204,7 @@ function App() {
       kind ?? (index.files.some((file) => file.relativePath === fromPath) ? "file" : "folder");
     const moveProblem = movePathProblem(fromPath, toFolderPath, itemKind);
     if (moveProblem === "Cannot move a folder into itself.") {
-      showToast(moveProblem);
+      showToast(moveProblem, "warning");
       return;
     }
     if (moveProblem === "already-there") {
@@ -1248,7 +1229,7 @@ function App() {
     const change = movePathChange(fromPath, dirname(movedPath));
     updateTabsForPathChange(change);
     await refreshUniverse(undefined, change);
-    showToast(`Moved ${pathName(fromPath)}.`);
+    showToast(`Moved ${pathName(fromPath)}.`, "success");
   }
 
   async function revealExplorerPath(path?: string) {
@@ -1334,7 +1315,10 @@ function App() {
           : settings.explorer.focusedFoldersByUniverse,
     });
     await refreshUniverse();
-    showToast(`${kind === "folder" ? "Folder" : "File"} ${labels.trashDone.toLowerCase()}`);
+    showToast(
+      `${kind === "folder" ? "Folder" : "File"} ${labels.trashDone.toLowerCase()}`,
+      "success",
+    );
   }
 
   async function createFolderDescription(folderPath: string) {
@@ -1360,7 +1344,7 @@ function App() {
 
       const nextIndex = await refreshUniverse(descriptionPath);
       selectPathAfterRefresh(descriptionPath, nextIndex);
-      showToast(`Created folder description: ${folderName}.md`);
+      showToast(`Created folder description: ${folderName}.md`, "success");
     } catch (error) {
       setLoadState("error");
       setErrorMessage(error instanceof Error ? error.message : String(error));
@@ -1418,7 +1402,7 @@ function App() {
         current ? { ...current, universeProfile: normalizedProfile } : current,
       );
       await reindexUniverseMetadata();
-      showToast("Universe profile updated.");
+      showToast("Universe profile updated.", "success");
     } catch (error) {
       setLoadState("error");
       setErrorMessage(error instanceof Error ? error.message : String(error));
@@ -1451,10 +1435,13 @@ function App() {
         current ? { ...current, propertiesConfig: normalizedProperties } : current,
       );
       await reindexUniverseMetadata();
-      showToast("Properties configuration saved.");
+      showToast("Properties configuration saved.", "success");
     } catch (error) {
-      setLoadState("error");
-      setErrorMessage(error instanceof Error ? error.message : String(error));
+      console.error("[savePropertiesConfig] Error:", error);
+      showToast(
+        error instanceof Error ? error.message : "Could not save properties configuration.",
+        "error",
+      );
       throw error;
     }
   }
@@ -1473,10 +1460,13 @@ function App() {
       }
       await savePropertiesConfig(properties);
       await refreshUniverse();
-      showToast("Universe properties initialized.");
+      showToast("Universe properties initialized.", "success");
     } catch (error) {
-      setLoadState("error");
-      setErrorMessage(error instanceof Error ? error.message : String(error));
+      console.error("[initializeUniverseProperties] Error:", error);
+      showToast(
+        error instanceof Error ? error.message : "Could not initialize universe properties.",
+        "error",
+      );
       throw error;
     }
   }
@@ -1493,7 +1483,7 @@ function App() {
 
     const nextConfig = addCustomFieldToSchema(currentConfig, fieldName, inferredType);
     await savePropertiesConfig(nextConfig);
-    showToast(`Field "${fieldName}" added to universe properties.`);
+    showToast(`Field "${fieldName}" added to universe properties.`, "success");
   }
 
   function handleDeleteField(_fieldName: string) {
@@ -1563,11 +1553,14 @@ function App() {
 
     if (applied > 0) {
       await refreshUniverse(appliedPaths[0]);
-      showToast(`Normalized ${applied} note${applied === 1 ? "" : "s"}.`);
+      showToast(`Normalized ${applied} note${applied === 1 ? "" : "s"}.`, "success");
     }
 
     if (errors.length > 0) {
-      showToast(`Skipped ${skipped} note${skipped === 1 ? "" : "s"} during normalization.`);
+      showToast(
+        `Skipped ${skipped} note${skipped === 1 ? "" : "s"} during normalization.`,
+        "warning",
+      );
     }
 
     return { applied, skipped, errors };
@@ -1722,7 +1715,7 @@ function App() {
       const nextIndex = await refreshUniverse(relativePath);
       selectPathAfterRefresh(relativePath, nextIndex);
       setTemplatesExpanded(true);
-      showToast(`Created template: ${templateType}.`);
+      showToast(`Created template: ${templateType}.`, "success");
     } catch (error) {
       setLoadState("error");
       setErrorMessage(error instanceof Error ? error.message : String(error));
@@ -2014,7 +2007,7 @@ function App() {
             : candidate,
         ),
       );
-      showToast(error instanceof Error ? error.message : String(error));
+      showToast(error instanceof Error ? error.message : String(error), "error");
     }
   }
 
@@ -2127,7 +2120,7 @@ function App() {
           const handle = await getBrowserFile(browserRoot, tabToSave.path);
           const currentFile = await handle.getFile();
           if (currentFile.lastModified !== tabToSave.modifiedMs) {
-            showToast("File changed externally. Reload before saving.");
+            showToast("File changed externally. Reload before saving.", "error");
             return;
           }
         }
@@ -2137,18 +2130,18 @@ function App() {
           tabToSave.rawMarkdown,
         );
         setTabs((current) => markSavedTabInList(current, tabToSave.path, modifiedMs));
-        showToast("Saved.");
+        showToast("Saved.", "success");
         await reindexUniverseMetadata();
         return;
       }
 
       const result = await invoke<WriteResult>("save_file", saveFilePayloadForTab(tabToSave));
       if (!result.ok) {
-        showToast(result.message ?? "Save failed.");
+        showToast(result.message ?? "Save failed.", "error");
         return;
       }
       setTabs((current) => markSavedTabInList(current, tabToSave.path, result.modifiedMs));
-      showToast("Saved.");
+      showToast("Saved.", "success");
       await reindexUniverseMetadata();
     } catch (error) {
       setLoadState("error");
@@ -2259,7 +2252,7 @@ function App() {
         window.open(normalized, "_blank", "noopener,noreferrer");
       }
     } catch (error) {
-      showToast(error instanceof Error ? error.message : `Could not open ${normalized}`);
+      showToast(error instanceof Error ? error.message : `Could not open ${normalized}`, "error");
     }
   }
 
@@ -2370,7 +2363,7 @@ function App() {
       });
     } catch (error) {
       console.error("Error saving file:", error);
-      showToast("Error al guardar.");
+      showToast("Save failed.", "error");
     } finally {
       setIsSavingBeforeClose(false);
     }
@@ -2587,7 +2580,7 @@ function App() {
       }
       const nextIndex = await refreshUniverse(relativePath);
       selectPathAfterRefresh(relativePath, nextIndex);
-      showToast(`Created ${name}.`);
+      showToast(`Created ${name}.`, "success");
     } catch (error) {
       setLoadState("error");
       setErrorMessage(error instanceof Error ? error.message : String(error));
@@ -2698,14 +2691,14 @@ function App() {
     switch (commandId) {
       case "wn:file:new-note":
         if (!index) {
-          showToast("Open a universe before creating notes.");
+          showToast("Open a universe before creating notes.", "warning");
           return;
         }
         await createNoteFromTabButton();
         break;
       case "wn:file:new-folder":
         if (!index) {
-          showToast("Open a universe before creating folders.");
+          showToast("Open a universe before creating folders.", "warning");
           return;
         }
         await handleContextMenuAction("newFolder", "", "empty");
@@ -2715,7 +2708,7 @@ function App() {
         break;
       case "wn:file:open-recent":
         if (!settings.recentUniverse) {
-          showToast("No recent universe yet.");
+          showToast("No recent universe yet.", "warning");
           return;
         }
         await openRecentUniverse();
@@ -2723,7 +2716,7 @@ function App() {
       case "wn:file:reveal-universe":
       case "wn:help:open-project-folder":
         if (!index) {
-          showToast("Open a universe first.");
+          showToast("Open a universe first.", "warning");
           return;
         }
         await revealExplorerPath();
@@ -2805,7 +2798,7 @@ function App() {
 
   const currentSession = index?.rootPath ? settings.sessions[index.rootPath] : undefined;
 
-  const inputAndToastOverlays = (
+  const inputOverlays = (
     <>
       <InputDialog
         isOpen={inputDialog.isOpen}
@@ -2829,8 +2822,6 @@ function App() {
         onCancel={handleUnsavedDialogCancel}
         isSaving={isSavingBeforeClose}
       />
-
-      <Toast message={activeToast} isVisible={Boolean(activeToast)} />
     </>
   );
 
@@ -2977,7 +2968,7 @@ function App() {
             </button>
           </div>
         ) : null}
-        {inputAndToastOverlays}
+        {inputOverlays}
       </>
     );
   }
@@ -3212,7 +3203,7 @@ function App() {
                 resolveWikilink={resolveWikilink}
                 noteSuggestions={noteSuggestions}
                 onOpenWikilink={(targetPath) => openOrCreateTab(targetPath)}
-                onMissingWikilink={(label) => showToast(`Missing wikilink: ${label}`)}
+                onMissingWikilink={(label) => showToast(`Missing wikilink: ${label}`, "warning")}
                 onOpenUrl={(url) => {
                   void openUrl(url);
                 }}
@@ -3414,7 +3405,7 @@ function App() {
             onRevealNode={(path) => {
               setSelectedExplorerTarget({ path, kind: "file" });
               void revealExplorerPath(path).catch((error) => {
-                showToast(error instanceof Error ? error.message : String(error));
+                showToast(error instanceof Error ? error.message : String(error), "error");
               });
             }}
           />
@@ -3605,6 +3596,7 @@ function App() {
         </div>
 
         <div className="dock-top-right">
+          <SaveStatusIndicator path={activeTab?.path} dirty={Boolean(activeTab?.dirty)} />
           <label className="dock-layout-select" title="Workspace layout">
             <span>{layoutPresetLabel(activeWorkspacePreset)}</span>
             <select
@@ -3897,7 +3889,7 @@ function App() {
           y={iconPickerState.y}
           onSelect={(iconName) => {
             setCustomIcon(iconPickerState.targetPath, iconName);
-            showToast(`Icon changed to ${iconName}`);
+            showToast(`Icon changed to ${iconName}`, "success");
           }}
           onClose={() => setIconPickerState(null)}
         />
@@ -3998,7 +3990,7 @@ function App() {
         </div>
       ) : null}
 
-      {inputAndToastOverlays}
+      {inputOverlays}
     </main>
   );
 }
