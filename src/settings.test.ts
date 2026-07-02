@@ -23,7 +23,10 @@ describe("settings persistence", () => {
   });
 
   it("adds plugin defaults when loading older settings", () => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ theme: "worldnotion-light", recentUniverses: [] }));
+    localStorage.setItem(
+      SETTINGS_KEY,
+      JSON.stringify({ theme: "worldnotion-light", recentUniverses: [] }),
+    );
 
     const settings = loadSettings();
 
@@ -34,7 +37,9 @@ describe("settings persistence", () => {
   it("persists simplified session state", () => {
     const settings = loadSettings();
     const layout = resizeDockSplit(
-      createDefaultWorkspaceLayout([{ path: "Notes/Mara.md", title: "Mara", mode: "write", modifiedMs: 1, isTemplate: false }]),
+      createDefaultWorkspaceLayout([
+        { path: "Notes/Mara.md", title: "Mara", mode: "write", modifiedMs: 1, isTemplate: false },
+      ]),
       { splitId: "dock-root", ratio: 0.34 },
     );
 
@@ -60,20 +65,26 @@ describe("settings persistence", () => {
       },
     });
 
-    expect(JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}").sessions["C:/Vault"].editorState["Notes/Mara.md"]).toMatchObject({
+    expect(
+      JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}").sessions["C:/Vault"].editorState[
+        "Notes/Mara.md"
+      ],
+    ).toMatchObject({
       cursorPosition: { line: 4, column: 2 },
       scrollPosition: 12,
     });
-    expect(JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}").sessions["C:/Vault"].layout).toMatchObject({
+    expect(
+      JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}").sessions["C:/Vault"].layout,
+    ).toMatchObject({
       version: 1,
       activeGroupId: "dock-documents",
       root: {
         ratio: 0.34,
       },
     });
-    expect(JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}").sessions["C:/Vault"].explorerExpandedPaths).toEqual([
-      "Notes",
-      "Notes/Cast",
-    ]);
+    expect(
+      JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}").sessions["C:/Vault"]
+        .explorerExpandedPaths,
+    ).toEqual(["Notes", "Notes/Cast"]);
   });
 });

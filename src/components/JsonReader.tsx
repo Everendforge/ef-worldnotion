@@ -7,14 +7,16 @@ type JsonReaderProps = {
 function valueType(value: unknown) {
   if (Array.isArray(value)) return `Array(${value.length})`;
   if (value === null) return "null";
-  if (typeof value === "object") return `Object(${Object.keys(value as Record<string, unknown>).length})`;
+  if (typeof value === "object")
+    return `Object(${Object.keys(value as Record<string, unknown>).length})`;
   return typeof value;
 }
 
 function renderScalar(value: unknown) {
   if (typeof value === "string") return <span className="json-reader-string">"{value}"</span>;
   if (typeof value === "number") return <span className="json-reader-number">{value}</span>;
-  if (typeof value === "boolean") return <span className="json-reader-boolean">{String(value)}</span>;
+  if (typeof value === "boolean")
+    return <span className="json-reader-boolean">{String(value)}</span>;
   if (value === null) return <span className="json-reader-null">null</span>;
   return <span>{String(value)}</span>;
 }

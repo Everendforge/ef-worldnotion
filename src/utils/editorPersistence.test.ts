@@ -48,7 +48,12 @@ describe("editor persistence helpers", () => {
 
   it("updates only the saved tab in a list", () => {
     const first = tab();
-    const second = tab({ path: "Notes/Bex.md", title: "Bex", rawMarkdown: "# Bex", savedMarkdown: "" });
+    const second = tab({
+      path: "Notes/Bex.md",
+      title: "Bex",
+      rawMarkdown: "# Bex",
+      savedMarkdown: "",
+    });
 
     const next = markSavedTabInList([first, second], "Notes/Bex.md", 99);
 

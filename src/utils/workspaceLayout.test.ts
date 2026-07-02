@@ -164,7 +164,11 @@ describe("workspace layout utilities", () => {
 
     expect(documentPathsInLayout(withDuplicateDocument)).toEqual(["A.md", "B.md"]);
     expect(layoutHasPanel(withDuplicateGraph, "graph")).toBe(true);
-    expect(JSON.stringify(withDuplicateGraph.root).match(new RegExp(`"id":"${panelDockTabId("graph")}"`, "g"))).toHaveLength(1);
+    expect(
+      JSON.stringify(withDuplicateGraph.root).match(
+        new RegExp(`"id":"${panelDockTabId("graph")}"`, "g"),
+      ),
+    ).toHaveLength(1);
   });
 
   it("opens new documents in the active document group", () => {
@@ -179,7 +183,9 @@ describe("workspace layout utilities", () => {
     const withNewDocument = addDocumentToLayout(activatedRightGroup, "C.md", "C");
     const serialized = JSON.stringify(withNewDocument.root);
 
-    expect(serialized.indexOf(documentDockTabId("B.md"))).toBeLessThan(serialized.indexOf(documentDockTabId("C.md")));
+    expect(serialized.indexOf(documentDockTabId("B.md"))).toBeLessThan(
+      serialized.indexOf(documentDockTabId("C.md")),
+    );
     expect(documentPathsInLayout(withNewDocument)).toEqual(["A.md", "B.md", "C.md"]);
   });
 
@@ -195,7 +201,9 @@ describe("workspace layout utilities", () => {
     const synced = syncLayoutWithOpenTabs(reordered, [tab("B.md"), tab("C.md")], "C.md");
 
     expect(documentPathsInLayout(synced)).toEqual(["B.md", "C.md"]);
-    expect(orderOpenTabsByLayout([tab("C.md"), tab("B.md")], synced).map((item) => item.path)).toEqual(["B.md", "C.md"]);
+    expect(
+      orderOpenTabsByLayout([tab("C.md"), tab("B.md")], synced).map((item) => item.path),
+    ).toEqual(["B.md", "C.md"]);
   });
 
   it("activates the group containing a tab", () => {
@@ -207,7 +215,11 @@ describe("workspace layout utilities", () => {
 
   it("updates document references when paths change", () => {
     const layout = createDefaultWorkspaceLayout([tab("Old/A.md")], { activePath: "Old/A.md" });
-    const next = updateLayoutForPathChange(layout, { fromPath: "Old", toPath: "New", mode: "tree" });
+    const next = updateLayoutForPathChange(layout, {
+      fromPath: "Old",
+      toPath: "New",
+      mode: "tree",
+    });
 
     expect(documentPathsInLayout(next)).toEqual(["New/A.md"]);
     expect(JSON.stringify(next.root)).toContain(documentDockTabId("New/A.md"));
@@ -223,7 +235,9 @@ describe("workspace layout utilities", () => {
   });
 
   it("creates workspace presets without losing open documents", () => {
-    const focus = createWorkspaceLayoutPreset("focus", [tab("A.md"), tab("B.md")], { activePath: "B.md" });
+    const focus = createWorkspaceLayoutPreset("focus", [tab("A.md"), tab("B.md")], {
+      activePath: "B.md",
+    });
     const graph = createWorkspaceLayoutPreset("graph", [tab("A.md")], { activePath: "A.md" });
 
     expect(focus.root).toMatchObject({ type: "group" });

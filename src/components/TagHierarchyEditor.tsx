@@ -49,7 +49,7 @@ function TagNodeItem({ node, depth, onUpdate, onDelete, onAddChild }: TagNodeIte
             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           </button>
         )}
-        
+
         {isEditing ? (
           <div className="tag-node-edit">
             <input
@@ -69,8 +69,12 @@ function TagNodeItem({ node, depth, onUpdate, onDelete, onAddChild }: TagNodeIte
               onChange={(e) => setColor(e.target.value)}
               title="Tag color"
             />
-            <button type="button" onClick={handleSave}>Save</button>
-            <button type="button" onClick={handleCancel}>Cancel</button>
+            <button type="button" onClick={handleSave}>
+              Save
+            </button>
+            <button type="button" onClick={handleCancel}>
+              Cancel
+            </button>
           </div>
         ) : (
           <>
@@ -82,18 +86,10 @@ function TagNodeItem({ node, depth, onUpdate, onDelete, onAddChild }: TagNodeIte
               <span className="tag-node-path">{node.fullPath}</span>
             </div>
             <div className="tag-node-actions">
-              <button
-                type="button"
-                onClick={() => onAddChild(node.id)}
-                title="Add child tag"
-              >
+              <button type="button" onClick={() => onAddChild(node.id)} title="Add child tag">
                 <Plus size={14} />
               </button>
-              <button
-                type="button"
-                onClick={() => setIsEditing(true)}
-                title="Edit tag"
-              >
+              <button type="button" onClick={() => setIsEditing(true)} title="Edit tag">
                 <Edit2 size={14} />
               </button>
               <button
@@ -142,7 +138,7 @@ export function TagHierarchyEditor({ nodes, onChange }: TagHierarchyEditorProps)
   const updateNodeInTree = (
     nodes: TagHierarchyNode[],
     nodeId: string,
-    updater: (node: TagHierarchyNode) => TagHierarchyNode
+    updater: (node: TagHierarchyNode) => TagHierarchyNode,
   ): TagHierarchyNode[] => {
     return nodes.map((node) => {
       if (node.id === nodeId) {
@@ -196,7 +192,7 @@ export function TagHierarchyEditor({ nodes, onChange }: TagHierarchyEditorProps)
       updateNodeInTree(nodes, parentId, (node) => ({
         ...node,
         children: [...node.children, newChild],
-      }))
+      })),
     );
   };
 
@@ -234,7 +230,8 @@ export function TagHierarchyEditor({ nodes, onChange }: TagHierarchyEditorProps)
 
       {nodes.length === 0 ? (
         <p className="taxonomy-placeholder">
-          No tags defined yet. Add a root tag to get started, or enable auto-detection to generate from existing tags.
+          No tags defined yet. Add a root tag to get started, or enable auto-detection to generate
+          from existing tags.
         </p>
       ) : (
         <div className="tag-hierarchy-tree">

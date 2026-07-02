@@ -1,7 +1,11 @@
 import type { Entity, Universe, VaultFile } from "../domain";
 import { isHiddenMetadata } from "./treeBuilder";
 
-export function detectUniverses(files: VaultFile[], directories: string[], entities: Entity[]): Universe[] {
+export function detectUniverses(
+  files: VaultFile[],
+  directories: string[],
+  entities: Entity[],
+): Universe[] {
   const rootFolders = new Set<string>();
 
   directories

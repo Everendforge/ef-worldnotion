@@ -36,11 +36,11 @@ export function FontSelector({ currentFont, onSelectFont, availableFonts }: Font
   }, [isOpen]);
 
   const filteredFonts = availableFonts.filter((font) =>
-    font.toLowerCase().includes(searchQuery.toLowerCase())
+    font.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const displayFont = currentFont || "Default";
-  
+
   // Simplify long font family names for display
   const simplifyFontName = (font: string): string => {
     return font.split(",")[0].trim().replace(/['"]/g, "");
@@ -71,7 +71,7 @@ export function FontSelector({ currentFont, onSelectFont, availableFonts }: Font
               className="font-selector-search-input"
             />
           </div>
-          
+
           <div className="font-selector-list">
             {filteredFonts.length === 0 ? (
               <div className="font-selector-empty">No fonts found</div>

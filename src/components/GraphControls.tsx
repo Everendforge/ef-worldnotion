@@ -44,7 +44,9 @@ export function GraphControls({
 
   function updateGroup(groupId: string, patch: Partial<GraphGroupRule>) {
     patchGraphSettings({
-      groups: settings.groups.map((group) => (group.id === groupId ? { ...group, ...patch } : group)),
+      groups: settings.groups.map((group) =>
+        group.id === groupId ? { ...group, ...patch } : group,
+      ),
     });
   }
 
@@ -81,13 +83,22 @@ export function GraphControls({
           <button type="button" title="Reset view" onClick={onResetView}>
             <RotateCcw size={14} />
           </button>
-          <button type="button" title="Restore default settings" onClick={() => onSettingsChange(DEFAULT_GRAPH_SETTINGS)}>
+          <button
+            type="button"
+            title="Restore default settings"
+            onClick={() => onSettingsChange(DEFAULT_GRAPH_SETTINGS)}
+          >
             <X size={14} />
           </button>
         </div>
       </div>
 
-      <GraphSection id="filters" title="Filters" openSections={openSections} onToggle={toggleSection}>
+      <GraphSection
+        id="filters"
+        title="Filters"
+        openSections={openSections}
+        onToggle={toggleSection}
+      >
         <div className="graph-search-field">
           <Search size={14} />
           <input
@@ -102,7 +113,11 @@ export function GraphControls({
             </button>
           ) : null}
         </div>
-        <GraphCheckbox label="Tags" checked={settings.showTags} onChange={(showTags) => patchGraphSettings({ showTags })} />
+        <GraphCheckbox
+          label="Tags"
+          checked={settings.showTags}
+          onChange={(showTags) => patchGraphSettings({ showTags })}
+        />
         <GraphCheckbox
           label="Existing files only"
           checked={settings.existingFilesOnly}
@@ -160,15 +175,32 @@ export function GraphControls({
               </button>
             </div>
           ))}
-          {!settings.groups.length ? <p className="graph-empty-hint">Color notes by type, tag, or text query.</p> : null}
+          {!settings.groups.length ? (
+            <p className="graph-empty-hint">Color notes by type, tag, or text query.</p>
+          ) : null}
         </div>
         {availableTags.length ? (
-          <p className="graph-empty-hint">Available tags: {availableTags.slice(0, 8).map((tag) => `#${tag}`).join(", ")}</p>
+          <p className="graph-empty-hint">
+            Available tags:{" "}
+            {availableTags
+              .slice(0, 8)
+              .map((tag) => `#${tag}`)
+              .join(", ")}
+          </p>
         ) : null}
       </GraphSection>
 
-      <GraphSection id="display" title="Display" openSections={openSections} onToggle={toggleSection}>
-        <GraphCheckbox label="Arrows" checked={settings.showArrows} onChange={(showArrows) => patchGraphSettings({ showArrows })} />
+      <GraphSection
+        id="display"
+        title="Display"
+        openSections={openSections}
+        onToggle={toggleSection}
+      >
+        <GraphCheckbox
+          label="Arrows"
+          checked={settings.showArrows}
+          onChange={(showArrows) => patchGraphSettings({ showArrows })}
+        />
         <GraphSlider
           label="Text fade threshold"
           min={0}
@@ -230,7 +262,12 @@ export function GraphControls({
         />
       </GraphSection>
 
-      <GraphSection id="local" title="Local graph" openSections={openSections} onToggle={toggleSection}>
+      <GraphSection
+        id="local"
+        title="Local graph"
+        openSections={openSections}
+        onToggle={toggleSection}
+      >
         <div className="button-group graph-mode-group">
           <button
             className={`btn-group-item ${settings.mode === "global" ? "active" : ""}`}
@@ -299,7 +336,11 @@ function GraphCheckbox({
 }) {
   return (
     <label className="checkbox-item">
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
       <span>{label}</span>
     </label>
   );

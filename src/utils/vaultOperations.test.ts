@@ -76,13 +76,19 @@ describe("vault operation helpers", () => {
   });
 
   it("detects unsafe or redundant moves", () => {
-    expect(movePathProblem("World/Cast", "World/Cast/Inner", "folder")).toBe("Cannot move a folder into itself.");
+    expect(movePathProblem("World/Cast", "World/Cast/Inner", "folder")).toBe(
+      "Cannot move a folder into itself.",
+    );
     expect(movePathProblem("World/Cast/Ada.md", "World/Cast", "file")).toBe("already-there");
     expect(movePathProblem("World/Cast/Ada.md", "Archive", "file")).toBeUndefined();
   });
 
   it("finds dirty tabs and favorites affected by a tree operation", () => {
-    const tabs = [tab("World/Cast/Ada.md", true), tab("World/Cast/Clean.md", false), tab("Other.md", true)];
+    const tabs = [
+      tab("World/Cast/Ada.md", true),
+      tab("World/Cast/Clean.md", false),
+      tab("Other.md", true),
+    ];
     const favorites: ExplorerFavorite[] = [
       { path: "World/Cast", kind: "folder", label: "Cast" },
       { path: "World/Cast/Ada.md", kind: "file", label: "Ada" },

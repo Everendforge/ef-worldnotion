@@ -4,7 +4,12 @@ import { markdown } from "@codemirror/lang-markdown";
 import { EditorState as CodeMirrorState, Prec } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView, keymap } from "@codemirror/view";
-import { selectSubwordBackward, selectSubwordForward, indentMore, indentLess } from "@codemirror/commands";
+import {
+  selectSubwordBackward,
+  selectSubwordForward,
+  indentMore,
+  indentLess,
+} from "@codemirror/commands";
 import { foldGutter, foldKeymap } from "@codemirror/language";
 import { markdownSyntaxPlugin } from "./markdownSyntaxPlugin";
 import { wikilinkPlugin } from "./wikilinkPlugin";
@@ -60,7 +65,12 @@ type WikilinkMenuState = {
   y: number;
 };
 
-function lineTokenRangeAt(text: string, absoluteLineFrom: number, position: number, pattern: RegExp) {
+function lineTokenRangeAt(
+  text: string,
+  absoluteLineFrom: number,
+  position: number,
+  pattern: RegExp,
+) {
   let match: RegExpExecArray | null;
   pattern.lastIndex = 0;
   while ((match = pattern.exec(text)) !== null) {
@@ -115,7 +125,7 @@ export function CodeMirrorEditor({
   const [slashIndex, setSlashIndex] = useState(0);
   const [wikilinkMenu, setWikilinkMenu] = useState<WikilinkMenuState>();
   const [wikilinkIndex, setWikilinkIndex] = useState(0);
-  
+
   // Debounce timers for menu detection (100ms debounce)
   const slashMenuDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const wikilinkMenuDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -123,7 +133,7 @@ export function CodeMirrorEditor({
     (newValue: string) => {
       onChange(newValue);
     },
-    [onChange]
+    [onChange],
   );
 
   // Position cursor at end of first line when note loads (only on document change)
@@ -174,7 +184,7 @@ export function CodeMirrorEditor({
       setSlashMenu(undefined);
       return;
     }
-    
+
     // Calculate next footnote number
     let footnoteRef = "[^1]";
     if (commandId === "footnote") {
@@ -188,7 +198,7 @@ export function CodeMirrorEditor({
       }
       footnoteRef = `[^${maxNum + 1}]`;
     }
-    
+
     const replacements: Record<string, string> = {
       text: plain || "",
       heading1: `# ${plain || "Heading 1"}`,
@@ -227,7 +237,10 @@ export function CodeMirrorEditor({
     if (!editorView || !wikilinkMenu) return;
     const insert = `[[${note.label}|${note.label}]]`;
     const aliasFrom = wikilinkMenu.from + 2 + note.label.length + 1;
-    const trailing = editorView.state.doc.sliceString(wikilinkMenu.to, Math.min(editorView.state.doc.length, wikilinkMenu.to + 2));
+    const trailing = editorView.state.doc.sliceString(
+      wikilinkMenu.to,
+      Math.min(editorView.state.doc.length, wikilinkMenu.to + 2),
+    );
     const replaceTo = trailing === "]]" ? wikilinkMenu.to + 2 : wikilinkMenu.to;
     editorView.dispatch({
       changes: { from: wikilinkMenu.from, to: replaceTo, insert },
@@ -246,12 +259,17 @@ export function CodeMirrorEditor({
       }
       if (event.key === "ArrowUp") {
         event.preventDefault();
-        setWikilinkIndex((current) => (current - 1 + filteredNoteSuggestions.length) % filteredNoteSuggestions.length);
+        setWikilinkIndex(
+          (current) =>
+            (current - 1 + filteredNoteSuggestions.length) % filteredNoteSuggestions.length,
+        );
         return true;
       }
       if (event.key === "Enter" || event.key === "Tab") {
         event.preventDefault();
-        applyWikilinkSuggestion(filteredNoteSuggestions[wikilinkIndex] ?? filteredNoteSuggestions[0]);
+        applyWikilinkSuggestion(
+          filteredNoteSuggestions[wikilinkIndex] ?? filteredNoteSuggestions[0],
+        );
         return true;
       }
       if (event.key === "Escape") {
@@ -269,12 +287,16 @@ export function CodeMirrorEditor({
       }
       if (event.key === "ArrowUp") {
         event.preventDefault();
-        setSlashIndex((current) => (current - 1 + filteredSlashCommands.length) % filteredSlashCommands.length);
+        setSlashIndex(
+          (current) => (current - 1 + filteredSlashCommands.length) % filteredSlashCommands.length,
+        );
         return true;
       }
       if (event.key === "Enter" || event.key === "Tab") {
         event.preventDefault();
-        void applySlashCommand(filteredSlashCommands[slashIndex]?.id ?? filteredSlashCommands[0].id);
+        void applySlashCommand(
+          filteredSlashCommands[slashIndex]?.id ?? filteredSlashCommands[0].id,
+        );
         return true;
       }
       if (event.key === "Escape") {
@@ -292,12 +314,12 @@ export function CodeMirrorEditor({
     const line = view.state.doc.lineAt(selection.from);
     const lineText = line.text;
     const cursorPos = selection.from - line.from;
-    
+
     // Check for code blocks (triple backticks or indented code)
     if (lineText.trim().startsWith("```") || /^\s{4,}/.test(lineText)) {
       return true;
     }
-    
+
     // Check if inside backticks (inline code)
     const beforeCursor = lineText.slice(0, cursorPos);
     const afterCursor = lineText.slice(cursorPos);
@@ -306,12 +328,12 @@ export function CodeMirrorEditor({
     if (backtickCountBefore % 2 === 1 && backtickCountAfter % 2 === 1) {
       return true;
     }
-    
+
     // Check if inside quotes or blockquote
     if (lineText.trim().startsWith(">")) {
       return true;
     }
-    
+
     // Check if previous line is a fence start (for code block continuation)
     if (line.number > 1) {
       const prevLine = view.state.doc.line(line.number - 1);
@@ -319,7 +341,7 @@ export function CodeMirrorEditor({
         return true;
       }
     }
-    
+
     return false;
   }
 
@@ -338,13 +360,13 @@ export function CodeMirrorEditor({
       setSlashMenu(undefined);
       return;
     }
-    
+
     // Check if in ignored context
     if (isInIgnoredContext(view, selection)) {
       setSlashMenu(undefined);
       return;
     }
-    
+
     const line = view.state.doc.lineAt(selection.from);
     const before = view.state.doc.sliceString(line.from, selection.from);
     const match = /(?:^|\s)\/([\w-]*)$/.exec(before);
@@ -352,7 +374,7 @@ export function CodeMirrorEditor({
       setSlashMenu(undefined);
       return;
     }
-    
+
     // Debounce the actual menu display (100ms)
     slashMenuDebounceRef.current = setTimeout(() => {
       const coords = view.coordsAtPos(selection.from);
@@ -383,13 +405,13 @@ export function CodeMirrorEditor({
       setWikilinkMenu(undefined);
       return;
     }
-    
+
     // Check if in ignored context
     if (isInIgnoredContext(view, selection)) {
       setWikilinkMenu(undefined);
       return;
     }
-    
+
     const line = view.state.doc.lineAt(selection.from);
     const before = view.state.doc.sliceString(line.from, selection.from);
     const lastOpen = before.lastIndexOf("[[");
@@ -402,7 +424,7 @@ export function CodeMirrorEditor({
       setWikilinkMenu(undefined);
       return;
     }
-    
+
     // Debounce the actual menu display (100ms)
     wikilinkMenuDebounceRef.current = setTimeout(() => {
       const coords = view.coordsAtPos(selection.from);
@@ -455,20 +477,20 @@ export function CodeMirrorEditor({
     if (bulletMatch) {
       return { indent: bulletMatch[1], prefix: bulletMatch[2] + " " };
     }
-    
+
     // Handle ordered lists (1., 2., etc.)
     const orderedMatch = /^(\s*)(\d+)\.\s/.exec(lineText);
     if (orderedMatch) {
       const num = parseInt(orderedMatch[2], 10) + 1;
       return { indent: orderedMatch[1], prefix: `${num}. ` };
     }
-    
+
     // Handle checkboxes (- [ ], - [x], - [X])
     const checkboxMatch = /^(\s*)-\s\[([\sx])\]\s/.exec(lineText);
     if (checkboxMatch) {
       return { indent: checkboxMatch[1], prefix: "- [ ] " };
     }
-    
+
     return { indent: "", prefix: "" };
   }
 
@@ -482,13 +504,13 @@ export function CodeMirrorEditor({
   // Smart markdown helpers for bold/italic toggling
   function toggleMarkdownFormat(view: EditorView, marker: string): boolean {
     if (mode !== "write") return false;
-    
+
     const selection = view.state.selection.main;
     if (selection.empty) return false; // No selection, do nothing
-    
+
     const selectedText = view.state.doc.sliceString(selection.from, selection.to);
     const doubleMarker = marker + marker;
-    
+
     // Check if text is already wrapped in markers
     if (selectedText.startsWith(doubleMarker) && selectedText.endsWith(doubleMarker)) {
       // Remove markers
@@ -503,84 +525,93 @@ export function CodeMirrorEditor({
       const wrapped = doubleMarker + selectedText + doubleMarker;
       view.dispatch({
         changes: { from: selection.from, to: selection.to, insert: wrapped },
-        selection: { anchor: selection.from + doubleMarker.length, head: selection.from + doubleMarker.length + selectedText.length },
+        selection: {
+          anchor: selection.from + doubleMarker.length,
+          head: selection.from + doubleMarker.length + selectedText.length,
+        },
       });
       return true;
     }
   }
 
   // Check if selection is inside or adjacent to special markdown syntax
-  const isSelectionInSpecialSyntax = useCallback((view: EditorView, from: number, to: number): boolean => {
-    // Get the line containing the selection
-    const lineFrom = view.state.doc.lineAt(from);
-    const lineTo = view.state.doc.lineAt(to);
-    
-    // If selection spans multiple lines, allow toolbar
-    if (lineFrom.number !== lineTo.number) {
+  const isSelectionInSpecialSyntax = useCallback(
+    (view: EditorView, from: number, to: number): boolean => {
+      // Get the line containing the selection
+      const lineFrom = view.state.doc.lineAt(from);
+      const lineTo = view.state.doc.lineAt(to);
+
+      // If selection spans multiple lines, allow toolbar
+      if (lineFrom.number !== lineTo.number) {
+        return false;
+      }
+
+      const lineText = lineFrom.text;
+      const selStart = from - lineFrom.from;
+      const selEnd = to - lineFrom.from;
+
+      // Check for wikilinks [[...]]
+      const wikilinkRegex = /\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g;
+      let match: RegExpExecArray | null;
+      while ((match = wikilinkRegex.exec(lineText)) !== null) {
+        const matchStart = match.index;
+        const matchEnd = matchStart + match[0].length;
+
+        // Check if selection overlaps or is adjacent to wikilink
+        if (selStart <= matchEnd && selEnd >= matchStart) {
+          return true;
+        }
+      }
+
+      // Check for inline code `...`
+      const codeRegex = /`[^`]+`/g;
+      while ((match = codeRegex.exec(lineText)) !== null) {
+        const matchStart = match.index;
+        const matchEnd = matchStart + match[0].length;
+
+        if (selStart <= matchEnd && selEnd >= matchStart) {
+          return true;
+        }
+      }
+
       return false;
-    }
-    
-    const lineText = lineFrom.text;
-    const selStart = from - lineFrom.from;
-    const selEnd = to - lineFrom.from;
-    
-    // Check for wikilinks [[...]]
-    const wikilinkRegex = /\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g;
-    let match: RegExpExecArray | null;
-    while ((match = wikilinkRegex.exec(lineText)) !== null) {
-      const matchStart = match.index;
-      const matchEnd = matchStart + match[0].length;
-      
-      // Check if selection overlaps or is adjacent to wikilink
-      if (selStart <= matchEnd && selEnd >= matchStart) {
-        return true;
-      }
-    }
-    
-    // Check for inline code `...`
-    const codeRegex = /`[^`]+`/g;
-    while ((match = codeRegex.exec(lineText)) !== null) {
-      const matchStart = match.index;
-      const matchEnd = matchStart + match[0].length;
-      
-      if (selStart <= matchEnd && selEnd >= matchStart) {
-        return true;
-      }
-    }
-    
-    return false;
-  }, []);
+    },
+    [],
+  );
 
   // Simple selection rect calculation
-  const handleSelectionChange = useCallback((view: EditorView) => {
-    const selection = view.state.selection.main;
-    if (selection.empty) {
-      onSelectionChange?.(undefined);
-      return;
-    }
+  const handleSelectionChange = useCallback(
+    (view: EditorView) => {
+      const selection = view.state.selection.main;
+      if (selection.empty) {
+        onSelectionChange?.(undefined);
+        return;
+      }
 
-    // Don't show toolbar if selection is inside special syntax
-    if (isSelectionInSpecialSyntax(view, selection.from, selection.to)) {
-      onSelectionChange?.(undefined);
-      return;
-    }
+      // Don't show toolbar if selection is inside special syntax
+      if (isSelectionInSpecialSyntax(view, selection.from, selection.to)) {
+        onSelectionChange?.(undefined);
+        return;
+      }
 
-    const fromCoords = view.coordsAtPos(selection.from);
-    const toCoords = view.coordsAtPos(selection.to);
+      const fromCoords = view.coordsAtPos(selection.from);
+      const toCoords = view.coordsAtPos(selection.to);
 
-    if (!fromCoords || !toCoords) {
-      onSelectionChange?.(undefined);
-      return;
-    }
+      if (!fromCoords || !toCoords) {
+        onSelectionChange?.(undefined);
+        return;
+      }
 
-    const left = Math.min(fromCoords.left, toCoords.left);
-    const right = Math.max((fromCoords.right ?? fromCoords.left), (toCoords.right ?? toCoords.left));
-    const top = Math.min(fromCoords.top, toCoords.top);
-    const bottom = Math.max(fromCoords.bottom, toCoords.bottom);
+      const left = Math.min(fromCoords.left, toCoords.left);
+      const right = Math.max(fromCoords.right ?? fromCoords.left, toCoords.right ?? toCoords.left);
+      const top = Math.min(fromCoords.top, toCoords.top);
+      const bottom = Math.max(fromCoords.bottom, toCoords.bottom);
 
-    const rect = new DOMRect(left, top, right - left, bottom - top);
-    onSelectionChange?.(rect);
-  }, [onSelectionChange, isSelectionInSpecialSyntax]);
+      const rect = new DOMRect(left, top, right - left, bottom - top);
+      onSelectionChange?.(rect);
+    },
+    [onSelectionChange, isSelectionInSpecialSyntax],
+  );
 
   return (
     <div className="codemirror-wrap">
@@ -594,173 +625,209 @@ export function CodeMirrorEditor({
         theme={isDarkTheme(theme) ? oneDark : undefined}
         extensions={[
           markdown(),
-          ...(isPluginEnabled(pluginSettings, "document-header", settings.documentHeaderEnabled) && documentName && mode === "write" 
-            ? [createDocumentHeaderPlugin({ 
-                documentName, 
-                projectName, 
-                showProjectName: settings.showProjectNameInHeader 
-              })] 
+          ...(isPluginEnabled(pluginSettings, "document-header", settings.documentHeaderEnabled) &&
+          documentName &&
+          mode === "write"
+            ? [
+                createDocumentHeaderPlugin({
+                  documentName,
+                  projectName,
+                  showProjectName: settings.showProjectNameInHeader,
+                }),
+              ]
             : []),
-          ...(isPluginEnabled(pluginSettings, "code-folding", settings.codeFoldingEnabled) ? [
-            foldGutter({
-              openText: "▼",
-              closedText: "▶",
-            }),
-            keymap.of(foldKeymap),
-          ] : []),
-          ...(mode === "write" && isPluginEnabled(pluginSettings, "wikilinks") ? [wikilinkPlugin({ resolveWikilink, onOpenWikilink, onMissingWikilink })] : []),
-          ...(mode === "write" && isPluginEnabled(pluginSettings, "footnotes") ? [footnotePlugin()] : []),
-          ...(mode === "write" && isPluginEnabled(pluginSettings, "markdown-syntax-hiding", settings.hideMarkdownSyntaxInWrite) ? [markdownSyntaxPlugin] : []),
-          ...(mode === "write" && isPluginEnabled(pluginSettings, "font-family-rendering") ? [fontFamilyPlugin] : []),
+          ...(isPluginEnabled(pluginSettings, "code-folding", settings.codeFoldingEnabled)
+            ? [
+                foldGutter({
+                  openText: "▼",
+                  closedText: "▶",
+                }),
+                keymap.of(foldKeymap),
+              ]
+            : []),
+          ...(mode === "write" && isPluginEnabled(pluginSettings, "wikilinks")
+            ? [wikilinkPlugin({ resolveWikilink, onOpenWikilink, onMissingWikilink })]
+            : []),
+          ...(mode === "write" && isPluginEnabled(pluginSettings, "footnotes")
+            ? [footnotePlugin()]
+            : []),
+          ...(mode === "write" &&
+          isPluginEnabled(
+            pluginSettings,
+            "markdown-syntax-hiding",
+            settings.hideMarkdownSyntaxInWrite,
+          )
+            ? [markdownSyntaxPlugin]
+            : []),
+          ...(mode === "write" && isPluginEnabled(pluginSettings, "font-family-rendering")
+            ? [fontFamilyPlugin]
+            : []),
           ...(settings.lineWrap ? [EditorView.lineWrapping] : []),
           CodeMirrorState.tabSize.of(settings.tabSize),
-          Prec.highest(keymap.of([
-            {
-              key: "ArrowDown",
-              run: () => {
-                if (wikilinkMenu && filteredNoteSuggestions.length) {
-                  setWikilinkIndex((current) => (current + 1) % filteredNoteSuggestions.length);
+          Prec.highest(
+            keymap.of([
+              {
+                key: "ArrowDown",
+                run: () => {
+                  if (wikilinkMenu && filteredNoteSuggestions.length) {
+                    setWikilinkIndex((current) => (current + 1) % filteredNoteSuggestions.length);
+                    return true;
+                  }
+                  if (!slashMenu || !filteredSlashCommands.length) return false;
+                  setSlashIndex((current) => (current + 1) % filteredSlashCommands.length);
                   return true;
-                }
-                if (!slashMenu || !filteredSlashCommands.length) return false;
-                setSlashIndex((current) => (current + 1) % filteredSlashCommands.length);
-                return true;
+                },
               },
-            },
-            {
-              key: "ArrowUp",
-              run: () => {
-                if (wikilinkMenu && filteredNoteSuggestions.length) {
-                  setWikilinkIndex((current) => (current - 1 + filteredNoteSuggestions.length) % filteredNoteSuggestions.length);
+              {
+                key: "ArrowUp",
+                run: () => {
+                  if (wikilinkMenu && filteredNoteSuggestions.length) {
+                    setWikilinkIndex(
+                      (current) =>
+                        (current - 1 + filteredNoteSuggestions.length) %
+                        filteredNoteSuggestions.length,
+                    );
+                    return true;
+                  }
+                  if (!slashMenu || !filteredSlashCommands.length) return false;
+                  setSlashIndex(
+                    (current) =>
+                      (current - 1 + filteredSlashCommands.length) % filteredSlashCommands.length,
+                  );
                   return true;
-                }
-                if (!slashMenu || !filteredSlashCommands.length) return false;
-                setSlashIndex((current) => (current - 1 + filteredSlashCommands.length) % filteredSlashCommands.length);
-                return true;
+                },
               },
-            },
-            {
-              key: "Tab",
-              run: (view) => {
-                // Tab only hijacks if a menu is active
-                if (wikilinkMenu && filteredNoteSuggestions.length) {
-                  applyWikilinkSuggestion(filteredNoteSuggestions[wikilinkIndex] ?? filteredNoteSuggestions[0]);
-                  return true;
-                }
-                if (slashMenu && filteredSlashCommands.length) {
-                  void applySlashCommand(filteredSlashCommands[slashIndex]?.id ?? filteredSlashCommands[0].id);
-                  return true;
-                }
-                // Default: indent normally
-                return indentMore(view);
+              {
+                key: "Tab",
+                run: (view) => {
+                  // Tab only hijacks if a menu is active
+                  if (wikilinkMenu && filteredNoteSuggestions.length) {
+                    applyWikilinkSuggestion(
+                      filteredNoteSuggestions[wikilinkIndex] ?? filteredNoteSuggestions[0],
+                    );
+                    return true;
+                  }
+                  if (slashMenu && filteredSlashCommands.length) {
+                    void applySlashCommand(
+                      filteredSlashCommands[slashIndex]?.id ?? filteredSlashCommands[0].id,
+                    );
+                    return true;
+                  }
+                  // Default: indent normally
+                  return indentMore(view);
+                },
               },
-            },
-            {
-              key: "Shift-Tab",
-              run: (view) => {
-                // Always dedent (don't hijack for menus)
-                return indentLess(view);
+              {
+                key: "Shift-Tab",
+                run: (view) => {
+                  // Always dedent (don't hijack for menus)
+                  return indentLess(view);
+                },
               },
-            },
-            {
-              key: "Enter",
-              run: (view) => {
-                // First check if menus are active
-                if (wikilinkMenu && filteredNoteSuggestions.length) {
-                  applyWikilinkSuggestion(filteredNoteSuggestions[wikilinkIndex] ?? filteredNoteSuggestions[0]);
-                  return true;
-                }
-                if (slashMenu && filteredSlashCommands.length) {
-                  void applySlashCommand(filteredSlashCommands[slashIndex]?.id ?? filteredSlashCommands[0].id);
-                  return true;
-                }
-                
-                const selection = view.state.selection.main;
-                const line = view.state.doc.lineAt(selection.from);
-                
-                // Handle quotes: continue with > prefix
-                if (isInQuote(view)) {
-                  const quotePrefix = getQuotePrefix(line.text);
-                  view.dispatch({
-                    changes: { from: selection.from, insert: "\n" + quotePrefix },
-                    selection: { anchor: selection.from + 1 + quotePrefix.length },
-                  });
-                  return true;
-                }
-                
-                // Handle lists: auto-continue with proper prefix
-                if (isInList(view)) {
-                  const before = line.text.slice(0, selection.from - line.from);
-                  // Only auto-continue if we're at the end of a non-empty list item
-                  if (before.match(/^(\s*)([-*]|(\d+)\.|\[\s*[\sx]\s*\])\s+\S/)) {
-                    const { indent, prefix } = getListItemPrefix(line.text);
+              {
+                key: "Enter",
+                run: (view) => {
+                  // First check if menus are active
+                  if (wikilinkMenu && filteredNoteSuggestions.length) {
+                    applyWikilinkSuggestion(
+                      filteredNoteSuggestions[wikilinkIndex] ?? filteredNoteSuggestions[0],
+                    );
+                    return true;
+                  }
+                  if (slashMenu && filteredSlashCommands.length) {
+                    void applySlashCommand(
+                      filteredSlashCommands[slashIndex]?.id ?? filteredSlashCommands[0].id,
+                    );
+                    return true;
+                  }
+
+                  const selection = view.state.selection.main;
+                  const line = view.state.doc.lineAt(selection.from);
+
+                  // Handle quotes: continue with > prefix
+                  if (isInQuote(view)) {
+                    const quotePrefix = getQuotePrefix(line.text);
                     view.dispatch({
-                      changes: { from: selection.from, insert: "\n" + indent + prefix },
-                      selection: { anchor: selection.from + indent.length + prefix.length + 1 },
+                      changes: { from: selection.from, insert: "\n" + quotePrefix },
+                      selection: { anchor: selection.from + 1 + quotePrefix.length },
                     });
                     return true;
                   }
-                }
-                
-                // Default: insert plain newline
-                view.dispatch({
-                  changes: { from: selection.from, insert: "\n" },
-                  selection: { anchor: selection.from + 1 },
-                });
-                return true;
-              },
-            },
-            {
-              key: "Escape",
-              run: () => {
-                if (wikilinkMenu) {
-                  setWikilinkMenu(undefined);
+
+                  // Handle lists: auto-continue with proper prefix
+                  if (isInList(view)) {
+                    const before = line.text.slice(0, selection.from - line.from);
+                    // Only auto-continue if we're at the end of a non-empty list item
+                    if (before.match(/^(\s*)([-*]|(\d+)\.|\[\s*[\sx]\s*\])\s+\S/)) {
+                      const { indent, prefix } = getListItemPrefix(line.text);
+                      view.dispatch({
+                        changes: { from: selection.from, insert: "\n" + indent + prefix },
+                        selection: { anchor: selection.from + indent.length + prefix.length + 1 },
+                      });
+                      return true;
+                    }
+                  }
+
+                  // Default: insert plain newline
+                  view.dispatch({
+                    changes: { from: selection.from, insert: "\n" },
+                    selection: { anchor: selection.from + 1 },
+                  });
                   return true;
-                }
-                if (!slashMenu) return false;
-                setSlashMenu(undefined);
-                return true;
+                },
               },
-            },
-            {
-              key: "Cmd-Shift-ArrowLeft",
-              mac: "Cmd-Shift-ArrowLeft",
-              run: selectSubwordBackward,
-            },
-            {
-              key: "Cmd-Shift-ArrowRight",
-              mac: "Cmd-Shift-ArrowRight",
-              run: selectSubwordForward,
-            },
-            {
-              key: "Alt-Shift-ArrowLeft",
-              mac: "Alt-Shift-ArrowLeft",
-              run: selectSubwordBackward,
-            },
-            {
-              key: "Alt-Shift-ArrowRight",
-              mac: "Alt-Shift-ArrowRight",
-              run: selectSubwordForward,
-            },
-            {
-              key: "Cmd-b",
-              mac: "Cmd-b",
-              run: (view) => toggleMarkdownFormat(view, "*"),
-            },
-            {
-              key: "Ctrl-b",
-              run: (view) => toggleMarkdownFormat(view, "*"),
-            },
-            {
-              key: "Cmd-i",
-              mac: "Cmd-i",
-              run: (view) => toggleMarkdownFormat(view, "_"),
-            },
-            {
-              key: "Ctrl-i",
-              run: (view) => toggleMarkdownFormat(view, "_"),
-            },
-          ])),
+              {
+                key: "Escape",
+                run: () => {
+                  if (wikilinkMenu) {
+                    setWikilinkMenu(undefined);
+                    return true;
+                  }
+                  if (!slashMenu) return false;
+                  setSlashMenu(undefined);
+                  return true;
+                },
+              },
+              {
+                key: "Cmd-Shift-ArrowLeft",
+                mac: "Cmd-Shift-ArrowLeft",
+                run: selectSubwordBackward,
+              },
+              {
+                key: "Cmd-Shift-ArrowRight",
+                mac: "Cmd-Shift-ArrowRight",
+                run: selectSubwordForward,
+              },
+              {
+                key: "Alt-Shift-ArrowLeft",
+                mac: "Alt-Shift-ArrowLeft",
+                run: selectSubwordBackward,
+              },
+              {
+                key: "Alt-Shift-ArrowRight",
+                mac: "Alt-Shift-ArrowRight",
+                run: selectSubwordForward,
+              },
+              {
+                key: "Cmd-b",
+                mac: "Cmd-b",
+                run: (view) => toggleMarkdownFormat(view, "*"),
+              },
+              {
+                key: "Ctrl-b",
+                run: (view) => toggleMarkdownFormat(view, "*"),
+              },
+              {
+                key: "Cmd-i",
+                mac: "Cmd-i",
+                run: (view) => toggleMarkdownFormat(view, "_"),
+              },
+              {
+                key: "Ctrl-i",
+                run: (view) => toggleMarkdownFormat(view, "_"),
+              },
+            ]),
+          ),
           EditorView.domEventHandlers({
             keydown(event) {
               return handleMenuKey(event);
@@ -859,7 +926,11 @@ export function CodeMirrorEditor({
               type="button"
               className={filteredSlashCommands[slashIndex]?.id === command.id ? "active" : ""}
               onMouseDown={(event) => event.preventDefault()}
-              onMouseEnter={() => setSlashIndex(filteredSlashCommands.findIndex((candidate) => candidate.id === command.id))}
+              onMouseEnter={() =>
+                setSlashIndex(
+                  filteredSlashCommands.findIndex((candidate) => candidate.id === command.id),
+                )
+              }
               onClick={() => {
                 void applySlashCommand(command.id);
               }}
@@ -871,14 +942,21 @@ export function CodeMirrorEditor({
         </div>
       ) : null}
       {wikilinkMenu && filteredNoteSuggestions.length ? (
-        <div className="slash-menu note-suggestion-menu" style={{ left: wikilinkMenu.x, top: wikilinkMenu.y }}>
+        <div
+          className="slash-menu note-suggestion-menu"
+          style={{ left: wikilinkMenu.x, top: wikilinkMenu.y }}
+        >
           {filteredNoteSuggestions.map((note) => (
             <button
               key={note.path}
               type="button"
               className={filteredNoteSuggestions[wikilinkIndex]?.path === note.path ? "active" : ""}
               onMouseDown={(event) => event.preventDefault()}
-              onMouseEnter={() => setWikilinkIndex(filteredNoteSuggestions.findIndex((candidate) => candidate.path === note.path))}
+              onMouseEnter={() =>
+                setWikilinkIndex(
+                  filteredNoteSuggestions.findIndex((candidate) => candidate.path === note.path),
+                )
+              }
               onClick={() => applyWikilinkSuggestion(note)}
             >
               <span>{note.label}</span>

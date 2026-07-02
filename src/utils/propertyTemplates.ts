@@ -287,7 +287,9 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
       type: "group",
       description: "Spatial scope and location relationships",
       required: false,
-      visibleWhen: { type: ["location", "world", "item", "event", "story", "arc", "scene", "quest"] },
+      visibleWhen: {
+        type: ["location", "world", "item", "event", "story", "arc", "scene", "quest"],
+      },
       children: [
         {
           id: "scale",
@@ -453,17 +455,113 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
   typeProperties: {
     character: ["type", "status", "aliases", "lore-level", "identity", "narrative"],
     location: ["type", "status", "aliases", "parentId", "childrenIds", "lore-level", "place"],
-    organization: ["type", "status", "aliases", "parentId", "childrenIds", "lore-level", "identity"],
-    item: ["type", "status", "aliases", "parentId", "childrenIds", "lore-level", "identity", "place", "item-details"],
-    event: ["type", "status", "aliases", "parentId", "childrenIds", "lore-level", "place", "narrative"],
-    concept: ["type", "status", "aliases", "parentId", "childrenIds", "lore-level", "concept-details"],
-    world: ["type", "status", "aliases", "parentId", "childrenIds", "lore-level", "place", "concept-details"],
-    cycle: ["type", "status", "aliases", "parentId", "childrenIds", "lore-level", "concept-details"],
-    universe: ["type", "status", "aliases", "parentId", "childrenIds", "lore-level", "concept-details"],
-    story: ["type", "status", "aliases", "parentId", "childrenIds", "lore-level", "place", "narrative"],
-    arc: ["type", "status", "aliases", "parentId", "childrenIds", "lore-level", "place", "narrative"],
-    scene: ["type", "status", "aliases", "parentId", "childrenIds", "lore-level", "place", "narrative"],
-    quest: ["type", "status", "aliases", "parentId", "childrenIds", "lore-level", "place", "narrative"],
+    organization: [
+      "type",
+      "status",
+      "aliases",
+      "parentId",
+      "childrenIds",
+      "lore-level",
+      "identity",
+    ],
+    item: [
+      "type",
+      "status",
+      "aliases",
+      "parentId",
+      "childrenIds",
+      "lore-level",
+      "identity",
+      "place",
+      "item-details",
+    ],
+    event: [
+      "type",
+      "status",
+      "aliases",
+      "parentId",
+      "childrenIds",
+      "lore-level",
+      "place",
+      "narrative",
+    ],
+    concept: [
+      "type",
+      "status",
+      "aliases",
+      "parentId",
+      "childrenIds",
+      "lore-level",
+      "concept-details",
+    ],
+    world: [
+      "type",
+      "status",
+      "aliases",
+      "parentId",
+      "childrenIds",
+      "lore-level",
+      "place",
+      "concept-details",
+    ],
+    cycle: [
+      "type",
+      "status",
+      "aliases",
+      "parentId",
+      "childrenIds",
+      "lore-level",
+      "concept-details",
+    ],
+    universe: [
+      "type",
+      "status",
+      "aliases",
+      "parentId",
+      "childrenIds",
+      "lore-level",
+      "concept-details",
+    ],
+    story: [
+      "type",
+      "status",
+      "aliases",
+      "parentId",
+      "childrenIds",
+      "lore-level",
+      "place",
+      "narrative",
+    ],
+    arc: [
+      "type",
+      "status",
+      "aliases",
+      "parentId",
+      "childrenIds",
+      "lore-level",
+      "place",
+      "narrative",
+    ],
+    scene: [
+      "type",
+      "status",
+      "aliases",
+      "parentId",
+      "childrenIds",
+      "lore-level",
+      "place",
+      "narrative",
+    ],
+    quest: [
+      "type",
+      "status",
+      "aliases",
+      "parentId",
+      "childrenIds",
+      "lore-level",
+      "place",
+      "narrative",
+    ],
   },
 };
 
@@ -509,9 +607,7 @@ export const TASK_MANAGEMENT_TEMPLATE: PropertyTemplate = {
 /**
  * All available property templates.
  */
-export const PROPERTY_TEMPLATES: PropertyTemplate[] = [
-  WORLDBUILDING_TEMPLATE,
-];
+export const PROPERTY_TEMPLATES: PropertyTemplate[] = [WORLDBUILDING_TEMPLATE];
 
 function propertyTreeIds(properties: CustomFieldDefinition[]): string[] {
   const ids: string[] = [];
@@ -528,21 +624,26 @@ function propertyTreeIds(properties: CustomFieldDefinition[]): string[] {
  */
 export function applyPropertyTemplate(
   taxonomyConfig: TaxonomyConfig,
-  template: PropertyTemplate
+  template: PropertyTemplate,
 ): TaxonomyConfig {
   if (!taxonomyConfig.baseProperties) {
     throw new Error("Taxonomy config must have baseProperties defined");
   }
 
   const newVisibleByDefault = [...template.visibleBaseProperties];
-  const baseFieldIds = new Set(taxonomyConfig.baseProperties.definitions.map((definition) => definition.id));
+  const baseFieldIds = new Set(
+    taxonomyConfig.baseProperties.definitions.map((definition) => definition.id),
+  );
   const existingCustomFieldIds = new Set([
     ...baseFieldIds,
-    ...(taxonomyConfig.customFields?.definitions.map((field: CustomFieldDefinition) => field.id) || []),
+    ...(taxonomyConfig.customFields?.definitions.map((field: CustomFieldDefinition) => field.id) ||
+      []),
   ]);
 
   const newCustomFields = [
-    ...(taxonomyConfig.customFields?.definitions || []).filter((field) => !baseFieldIds.has(field.id)),
+    ...(taxonomyConfig.customFields?.definitions || []).filter(
+      (field) => !baseFieldIds.has(field.id),
+    ),
     ...template.customFields.filter((field) => !existingCustomFieldIds.has(field.id)),
   ];
   const templateRootFieldIds = template.customFields.map((field) => field.id);
@@ -550,10 +651,14 @@ export function applyPropertyTemplate(
   const globalTemplateFieldIds = templateRootFieldIds.filter((id) =>
     Object.values(template.typeProperties ?? {}).every((properties) => properties.includes(id)),
   );
-  const existingEntityTypeIds = new Set(taxonomyConfig.entityTypes.definitions.map((definition) => definition.id));
+  const existingEntityTypeIds = new Set(
+    taxonomyConfig.entityTypes.definitions.map((definition) => definition.id),
+  );
   const mergedEntityTypes = [
     ...taxonomyConfig.entityTypes.definitions,
-    ...(template.entityTypes ?? []).filter((definition) => !existingEntityTypeIds.has(definition.id)),
+    ...(template.entityTypes ?? []).filter(
+      (definition) => !existingEntityTypeIds.has(definition.id),
+    ),
   ];
 
   return unwrapWorldbuildingDetailsGroup({
@@ -573,7 +678,9 @@ export function applyPropertyTemplate(
             return {
               ...definition,
               customFields,
-              visibleProperties: typePropertyIds.filter((id) => template.visibleBaseProperties.includes(id)),
+              visibleProperties: typePropertyIds.filter((id) =>
+                template.visibleBaseProperties.includes(id),
+              ),
               propertyOrder: typePropertyIds,
             };
           }),
@@ -586,10 +693,14 @@ export function applyPropertyTemplate(
       definitions: newCustomFields,
       globalFields: [
         ...new Set([
-          ...(taxonomyConfig.customFields?.globalFields || []).filter((id) => !baseFieldIds.has(id)),
+          ...(taxonomyConfig.customFields?.globalFields || []).filter(
+            (id) => !baseFieldIds.has(id),
+          ),
           ...(template.typeProperties ? globalTemplateFieldIds : templateRootFieldIds),
         ]),
-      ].filter((id) => templateKnownFieldIds.has(id) || newCustomFields.some((field) => field.id === id)),
+      ].filter(
+        (id) => templateKnownFieldIds.has(id) || newCustomFields.some((field) => field.id === id),
+      ),
     },
   });
 }

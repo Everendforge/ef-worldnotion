@@ -1,12 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  forceCollide,
-  forceLink,
-  forceManyBody,
-  forceSimulation,
-  forceX,
-  forceY,
-} from "d3-force";
+import { forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY } from "d3-force";
 import type { Simulation, SimulationLinkDatum } from "d3-force";
 import type { GraphSettings } from "../editorTypes";
 import type { GraphData, GraphLink, GraphNode } from "../utils/graphData";
@@ -74,7 +67,9 @@ export function GraphView({
   const [hoveredNodeId, setHoveredNodeId] = useState<string | undefined>();
   const hoveredNodeIdRef = useRef<string | undefined>(undefined);
   const [measuredSize, setMeasuredSize] = useState({ width: width ?? 800, height: height ?? 600 });
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: GraphNode } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: GraphNode } | null>(
+    null,
+  );
   const canvasWidth = width ?? measuredSize.width;
   const canvasHeight = height ?? measuredSize.height;
 
@@ -129,7 +124,8 @@ export function GraphView({
 
     const d3Nodes: D3Node[] = graphData.nodes.map((node, index) => {
       const savedPosition = positionsRef.current.get(node.id);
-      const seededPosition = savedPosition ?? seedPosition(index, graphData.nodes.length, canvasWidth, canvasHeight);
+      const seededPosition =
+        savedPosition ?? seedPosition(index, graphData.nodes.length, canvasWidth, canvasHeight);
       return {
         ...node,
         x: seededPosition.x,
@@ -145,7 +141,11 @@ export function GraphView({
 
     nodesRef.current = d3Nodes;
     linksRef.current = d3Links;
-    if (transformRef.current.x === 0 && transformRef.current.y === 0 && transformRef.current.k === 1) {
+    if (
+      transformRef.current.x === 0 &&
+      transformRef.current.y === 0 &&
+      transformRef.current.k === 1
+    ) {
       transformRef.current = { x: canvasWidth / 2, y: canvasHeight / 2, k: 1 };
     }
 
@@ -160,7 +160,12 @@ export function GraphView({
       .force("charge", forceManyBody<D3Node>().strength(-settings.repelForce).distanceMax(700))
       .force("x", forceX<D3Node>(0).strength(settings.centerForce))
       .force("y", forceY<D3Node>(0).strength(settings.centerForce))
-      .force("collide", forceCollide<D3Node>().radius((node) => nodeRadius(node) + 8).iterations(2))
+      .force(
+        "collide",
+        forceCollide<D3Node>()
+          .radius((node) => nodeRadius(node) + 8)
+          .iterations(2),
+      )
       .alpha(0.85)
       .alphaDecay(0.05)
       .on("tick", () => {
@@ -233,7 +238,8 @@ export function GraphView({
 
       const worldPoint = screenToWorld(event.clientX, event.clientY);
       if (dragState?.kind === "node") {
-        const moved = Math.hypot(event.clientX - dragState.startX, event.clientY - dragState.startY) > 3;
+        const moved =
+          Math.hypot(event.clientX - dragState.startX, event.clientY - dragState.startY) > 3;
         dragState.moved = dragState.moved || moved;
         dragState.node.fx = worldPoint.x;
         dragState.node.fy = worldPoint.y;
@@ -259,7 +265,13 @@ export function GraphView({
     const hitPoint = screenToWorld(event.clientX, event.clientY);
     const hitNode = findNodeAt(hitPoint.x, hitPoint.y);
     if (hitNode) {
-      dragStateRef.current = { kind: "node", node: hitNode, startX: event.clientX, startY: event.clientY, moved: false };
+      dragStateRef.current = {
+        kind: "node",
+        node: hitNode,
+        startX: event.clientX,
+        startY: event.clientY,
+        moved: false,
+      };
       hitNode.fx = hitNode.x;
       hitNode.fy = hitNode.y;
       simulationRef.current?.alphaTarget(0.18).restart();
@@ -346,7 +358,9 @@ export function GraphView({
     if (!context) return;
 
     context.clearRect(0, 0, canvasWidth, canvasHeight);
-    context.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--wn-editor-bg").trim() || "#ffffff";
+    context.fillStyle =
+      getComputedStyle(document.documentElement).getPropertyValue("--wn-editor-bg").trim() ||
+      "#ffffff";
     context.fillRect(0, 0, canvasWidth, canvasHeight);
 
     const transform = transformRef.current;
@@ -373,7 +387,8 @@ export function GraphView({
       context.lineTo(targetNode.x, targetNode.y);
       context.stroke();
       context.setLineDash([]);
-      if (settings.showArrows && link.directed) drawArrow(context, sourceNode, targetNode, linkColor, transform.k);
+      if (settings.showArrows && link.directed)
+        drawArrow(context, sourceNode, targetNode, linkColor, transform.k);
       context.globalAlpha = 1;
     });
 
@@ -392,14 +407,19 @@ export function GraphView({
 
       if (isHovered || isActive || isHighlighted) {
         context.strokeStyle = isActive
-          ? getComputedStyle(document.documentElement).getPropertyValue("--wn-accent").trim() || "#3f7f64"
+          ? getComputedStyle(document.documentElement).getPropertyValue("--wn-accent").trim() ||
+            "#3f7f64"
           : "#ffffff";
         context.lineWidth = (isActive ? 3 : 2) / transform.k;
         context.stroke();
       }
 
       const shouldShowLabel =
-        isHovered || isActive || isHighlighted || transform.k >= settings.textFadeThreshold || node.degree >= 3;
+        isHovered ||
+        isActive ||
+        isHighlighted ||
+        transform.k >= settings.textFadeThreshold ||
+        node.degree >= 3;
       if (shouldShowLabel) {
         drawNodeLabel(context, node, radius, transform.k, isDimmed);
       }
@@ -414,10 +434,17 @@ export function GraphView({
     return Math.max(3.5, (5.5 + degreeBoost) * settings.nodeSize * kindBoost);
   }
 
-  function drawNodeLabel(context: CanvasRenderingContext2D, node: D3Node, radius: number, scale: number, dimmed: boolean) {
+  function drawNodeLabel(
+    context: CanvasRenderingContext2D,
+    node: D3Node,
+    radius: number,
+    scale: number,
+    dimmed: boolean,
+  ) {
     const fontSize = Math.max(10 / scale, 11);
     context.font = `${fontSize}px Inter, system-ui, sans-serif`;
-    context.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--wn-text").trim() || "#111827";
+    context.fillStyle =
+      getComputedStyle(document.documentElement).getPropertyValue("--wn-text").trim() || "#111827";
     context.globalAlpha = dimmed ? 0.35 : 0.88;
     context.textAlign = "center";
     context.textBaseline = "top";
@@ -429,8 +456,8 @@ export function GraphView({
     const rect = canvasRef.current?.getBoundingClientRect();
     const transform = transformRef.current;
     return {
-      x: ((clientX - (rect?.left ?? 0)) - transform.x) / transform.k,
-      y: ((clientY - (rect?.top ?? 0)) - transform.y) / transform.k,
+      x: (clientX - (rect?.left ?? 0) - transform.x) / transform.k,
+      y: (clientY - (rect?.top ?? 0) - transform.y) / transform.k,
     };
   }
 
@@ -460,7 +487,11 @@ export function GraphView({
     );
     const graphWidth = Math.max(1, bounds.maxX - bounds.minX);
     const graphHeight = Math.max(1, bounds.maxY - bounds.minY);
-    const nextScale = clamp(Math.min((canvasWidth * 0.72) / graphWidth, (canvasHeight * 0.72) / graphHeight), 0.25, 1.8);
+    const nextScale = clamp(
+      Math.min((canvasWidth * 0.72) / graphWidth, (canvasHeight * 0.72) / graphHeight),
+      0.25,
+      1.8,
+    );
     transformRef.current = {
       k: nextScale,
       x: canvasWidth / 2 - ((bounds.minX + bounds.maxX) / 2) * nextScale,
@@ -484,7 +515,9 @@ export function GraphView({
   }
 
   function linkEndpoint(endpoint: string | D3Node): D3Node | undefined {
-    return typeof endpoint === "string" ? nodesRef.current.find((node) => node.id === endpoint) : endpoint;
+    return typeof endpoint === "string"
+      ? nodesRef.current.find((node) => node.id === endpoint)
+      : endpoint;
   }
 
   const isEmpty = graphData.nodes.length === 0;
@@ -518,7 +551,11 @@ export function GraphView({
       {contextMenu ? (
         <div className="graph-node-menu" style={{ left: contextMenu.x, top: contextMenu.y }}>
           <strong>{contextMenu.node.label}</strong>
-          <button type="button" disabled={!contextMenu.node.path} onClick={() => contextMenu.node.path && onNodeClick(contextMenu.node.path)}>
+          <button
+            type="button"
+            disabled={!contextMenu.node.path}
+            onClick={() => contextMenu.node.path && onNodeClick(contextMenu.node.path)}
+          >
             Open
           </button>
           <button
@@ -570,8 +607,14 @@ function drawArrow(
   context.fillStyle = color;
   context.beginPath();
   context.moveTo(x, y);
-  context.lineTo(x - Math.cos(angle - Math.PI / 6) * arrowLength, y - Math.sin(angle - Math.PI / 6) * arrowLength);
-  context.lineTo(x - Math.cos(angle + Math.PI / 6) * arrowLength, y - Math.sin(angle + Math.PI / 6) * arrowLength);
+  context.lineTo(
+    x - Math.cos(angle - Math.PI / 6) * arrowLength,
+    y - Math.sin(angle - Math.PI / 6) * arrowLength,
+  );
+  context.lineTo(
+    x - Math.cos(angle + Math.PI / 6) * arrowLength,
+    y - Math.sin(angle + Math.PI / 6) * arrowLength,
+  );
   context.closePath();
   context.fill();
   context.lineWidth = arrowWidth;

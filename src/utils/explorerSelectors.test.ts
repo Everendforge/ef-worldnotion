@@ -11,7 +11,11 @@ import {
   selectVisibleTree,
 } from "./explorerSelectors";
 
-function node(path: string, kind: VaultTreeNode["kind"], children: VaultTreeNode[] = []): VaultTreeNode {
+function node(
+  path: string,
+  kind: VaultTreeNode["kind"],
+  children: VaultTreeNode[] = [],
+): VaultTreeNode {
   return {
     name: path.split("/").pop() ?? path,
     path,
@@ -124,17 +128,22 @@ describe("explorer selectors", () => {
     const matches = selectVisibleTree(index(), "ada", false, "World/Scenes");
 
     expect(matches).toEqual([]);
-    expect(selectVisibleTree(index(), "arrival", false, "World/Scenes").map((item) => item.path)).toEqual([
-      "World/Scenes/Arrival.md",
-    ]);
+    expect(
+      selectVisibleTree(index(), "arrival", false, "World/Scenes").map((item) => item.path),
+    ).toEqual(["World/Scenes/Arrival.md"]);
   });
 
   it("falls back to the full tree if the focused folder does not exist", () => {
-    expect(selectVisibleTree(index(), "", false, "Missing").map((item) => item.path)).toEqual(["World"]);
+    expect(selectVisibleTree(index(), "", false, "Missing").map((item) => item.path)).toEqual([
+      "World",
+    ]);
   });
 
   it("includes hidden metadata only when requested", () => {
-    expect(selectVisibleTree(index(), "", true).map((item) => item.path)).toEqual([".everend", "World"]);
+    expect(selectVisibleTree(index(), "", true).map((item) => item.path)).toEqual([
+      ".everend",
+      "World",
+    ]);
   });
 
   it("can render folder notes as regular files when rebuilding the visible tree", () => {
@@ -142,7 +151,8 @@ describe("explorer selectors", () => {
       files: [
         {
           relativePath: "World.md",
-          content: "---\nfolder: World\nid: world-folder\ntype: folder-description\nname: World\n---\n",
+          content:
+            "---\nfolder: World\nid: world-folder\ntype: folder-description\nname: World\n---\n",
         },
         { relativePath: "World/Ada.md", content: "" },
       ],
@@ -178,7 +188,9 @@ describe("explorer selectors", () => {
   });
 
   it("selects primary tag colors for entities", () => {
-    expect(Array.from(selectEntityTagColors(index()).entries())).toEqual([["World/Ada.md", "#00ff00"]]);
+    expect(Array.from(selectEntityTagColors(index()).entries())).toEqual([
+      ["World/Ada.md", "#00ff00"],
+    ]);
   });
 
   it("flattens only expanded tree rows", () => {
@@ -193,7 +205,9 @@ describe("explorer selectors", () => {
   });
 
   it("does not include children of collapsed folders", () => {
-    expect(flattenVisibleExplorerTree(index().tree, new Set()).map((item) => item.path)).toEqual(["World"]);
+    expect(flattenVisibleExplorerTree(index().tree, new Set()).map((item) => item.path)).toEqual([
+      "World",
+    ]);
   });
 
   it("expands ancestors for an active path", () => {

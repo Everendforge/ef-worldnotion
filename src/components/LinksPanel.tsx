@@ -14,7 +14,13 @@ function contextForLink(entity: Entity, target: string) {
   const line = entity.body.split("\n").find((candidate) => {
     const matches = candidate.match(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g);
     if (!matches) return false;
-    return matches.some((match) => match.match(/\[\[([^\]|#]+)/)?.[1]?.trim().toLowerCase() === normalized);
+    return matches.some(
+      (match) =>
+        match
+          .match(/\[\[([^\]|#]+)/)?.[1]
+          ?.trim()
+          .toLowerCase() === normalized,
+    );
   });
   return line ?? "";
 }
@@ -56,7 +62,11 @@ export function LinksPanel({ entity, index, onOpenEntity }: LinksPanelProps) {
   return (
     <div className="backlinks-panel relationship-panel">
       <button className="backlinks-header" onClick={() => setIsExpanded(!isExpanded)} type="button">
-        {isExpanded ? <ChevronDown className="icon-inline" size={16} /> : <ChevronRight className="icon-inline" size={16} />}
+        {isExpanded ? (
+          <ChevronDown className="icon-inline" size={16} />
+        ) : (
+          <ChevronRight className="icon-inline" size={16} />
+        )}
         <h4 className="inline">
           Links <span className="muted">({links.length})</span>
         </h4>
@@ -71,11 +81,15 @@ export function LinksPanel({ entity, index, onOpenEntity }: LinksPanelProps) {
                 onClick={() => resolved.targetPath && onOpenEntity(resolved.targetPath)}
                 type="button"
                 disabled={!resolved.targetPath}
-                title={resolved.targetPath ? `Open ${resolved.targetPath}` : `Missing link: ${target}`}
+                title={
+                  resolved.targetPath ? `Open ${resolved.targetPath}` : `Missing link: ${target}`
+                }
               >
                 <div className="backlink-header">
                   <span className="backlink-name">{targetEntity?.name ?? target}</span>
-                  <span className="backlink-type-badge">{targetEntity?.type ?? (resolved.status === "missing" ? "missing" : "note")}</span>
+                  <span className="backlink-type-badge">
+                    {targetEntity?.type ?? (resolved.status === "missing" ? "missing" : "note")}
+                  </span>
                   {resolved.status === "missing" ? (
                     <AlertTriangle className="backlink-icon" size={14} />
                   ) : (

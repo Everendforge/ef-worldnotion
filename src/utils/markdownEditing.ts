@@ -74,12 +74,12 @@ export function footnoteInsertion(documentText: string): TextInsertion {
   const footnoteRegex = /\[\^(\d+)\]/g;
   let maxNum = 0;
   let match: RegExpExecArray | null;
-  
+
   while ((match = footnoteRegex.exec(documentText)) !== null) {
     const num = parseInt(match[1], 10);
     if (num > maxNum) maxNum = num;
   }
-  
+
   const nextNum = maxNum + 1;
   return {
     text: `[^${nextNum}]`,
@@ -103,9 +103,7 @@ export function headingLine(line: string, level: 1 | 2 | 3 | 4 | 5 | 6) {
 }
 
 export function listLine(line: string, index: number, kind: "bullet" | "ordered" | "task") {
-  const clean = line
-    .replace(/^(\s*)(- \[[ xX]\]|\d+\.|[-*])\s+/, "$1")
-    .replace(/^#{1,6}\s+/, "");
+  const clean = line.replace(/^(\s*)(- \[[ xX]\]|\d+\.|[-*])\s+/, "$1").replace(/^#{1,6}\s+/, "");
   const indent = /^(\s*)/.exec(line)?.[1] ?? "";
   const content = clean.trim() ? clean.trimStart() : "List item";
   if (kind === "ordered") return `${indent}${index + 1}. ${content}`;

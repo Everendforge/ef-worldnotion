@@ -17,15 +17,21 @@ describe("markdown frontmatter utilities", () => {
   });
 
   it("reports missing or unterminated frontmatter fences", () => {
-    expect(() => parseMarkdownFrontmatter("# No frontmatter")).toThrow("Missing YAML frontmatter fence.");
-    expect(() => parseMarkdownFrontmatter("---\nid: mara")).toThrow("Unterminated YAML frontmatter fence.");
+    expect(() => parseMarkdownFrontmatter("# No frontmatter")).toThrow(
+      "Missing YAML frontmatter fence.",
+    );
+    expect(() => parseMarkdownFrontmatter("---\nid: mara")).toThrow(
+      "Unterminated YAML frontmatter fence.",
+    );
   });
 
   it("splits and joins markdown while normalizing leading body whitespace", () => {
     const parts = splitMarkdown("---\nid: mara\n---\n\n\n# Mara");
 
     expect(parts).toEqual({ frontmatterRaw: "---\nid: mara\n---", bodyMarkdown: "# Mara" });
-    expect(joinMarkdown(parts.frontmatterRaw, parts.bodyMarkdown)).toBe("---\nid: mara\n---\n\n# Mara");
+    expect(joinMarkdown(parts.frontmatterRaw, parts.bodyMarkdown)).toBe(
+      "---\nid: mara\n---\n\n# Mara",
+    );
   });
 
   it("extracts unique wikilink targets without aliases or headings", () => {

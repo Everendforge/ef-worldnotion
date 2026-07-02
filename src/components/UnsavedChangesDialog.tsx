@@ -35,24 +35,24 @@ export function UnsavedChangesDialog({
           </p>
         </div>
         <div className="modal-footer">
-          <button 
-            onClick={onCancel} 
+          <button
+            onClick={onCancel}
             className="modal-button modal-button-cancel"
             disabled={isSaving}
             type="button"
           >
             Cancelar
           </button>
-          <button 
-            onClick={onDiscard} 
+          <button
+            onClick={onDiscard}
             className="modal-button modal-button-discard"
             disabled={isSaving}
             type="button"
           >
             Descartar
           </button>
-          <button 
-            onClick={handleSave} 
+          <button
+            onClick={handleSave}
             className="modal-button modal-button-confirm"
             disabled={isSaving}
             type="button"

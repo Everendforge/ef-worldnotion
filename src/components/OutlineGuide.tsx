@@ -39,7 +39,7 @@ export function OutlineGuide({
   }
 
   return (
-    <div 
+    <div
       className={`outline-guide-notion position-${position} ${isHovered ? "hovered" : ""}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}

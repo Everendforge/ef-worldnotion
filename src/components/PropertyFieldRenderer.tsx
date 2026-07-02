@@ -39,43 +39,43 @@ export function PropertyFieldRenderer({
   switch (property.type) {
     case "text":
       return renderTextInput(property, value, onChange, isReadOnly, isRequired);
-    
+
     case "number":
       return renderNumberInput(property, value, onChange, isReadOnly, isRequired);
-    
+
     case "boolean":
       return renderCheckbox(property, value, onChange, isReadOnly);
-    
+
     case "date":
       return renderDateInput(property, value, onChange, isReadOnly, isRequired);
-    
+
     case "select":
       return renderSelect(property, value, onChange, isReadOnly, isRequired, availableOptions);
-    
+
     case "multiselect":
       return renderMultiselect(property, value, onChange, isReadOnly, availableOptions);
-    
+
     case "entity-ref":
       return renderEntityRef(property, value, onChange, isReadOnly, isRequired);
-    
+
     case "entity-ref-list":
       return renderEntityRefList(property, value, onChange, isReadOnly);
-    
+
     case "url":
       return renderUrlInput(property, value, onChange, isReadOnly, isRequired);
-    
+
     case "email":
       return renderEmailInput(property, value, onChange, isReadOnly, isRequired);
-    
+
     case "phone":
       return renderPhoneInput(property, value, onChange, isReadOnly, isRequired);
-    
+
     case "file":
       return renderFileInput(property, value, onChange, isReadOnly);
-    
+
     case "image":
       return renderImageInput(property, value, onChange, isReadOnly);
-    
+
     default:
       return <div className={FIELD_UNSUPPORTED_CLASS}>Unsupported type: {property.type}</div>;
   }
@@ -93,7 +93,7 @@ function renderTextInput(
   required: boolean,
 ): React.JSX.Element {
   const stringValue = typeof value === "string" ? value : "";
-  
+
   return (
     <input
       type="text"
@@ -117,7 +117,7 @@ function renderNumberInput(
   required: boolean,
 ): React.JSX.Element {
   const numValue = typeof value === "number" ? value : undefined;
-  
+
   return (
     <input
       type="number"
@@ -141,7 +141,7 @@ function renderCheckbox(
   readOnly: boolean | undefined,
 ): React.JSX.Element {
   const checked = value === true;
-  
+
   return (
     <div className={FIELD_CHECKBOX_ROW_CLASS}>
       <input
@@ -164,7 +164,7 @@ function renderDateInput(
   required: boolean,
 ): React.JSX.Element {
   const dateValue = typeof value === "string" ? value : "";
-  
+
   return (
     <input
       type="date"
@@ -189,7 +189,7 @@ function renderSelect(
 ): React.JSX.Element {
   const options = availableOptions || property.options || [];
   const stringValue = typeof value === "string" ? value : "";
-  
+
   return (
     <select
       value={stringValue}
@@ -217,17 +217,17 @@ function renderMultiselect(
 ): React.JSX.Element {
   const options = availableOptions || property.options || [];
   const selectedValues = Array.isArray(value) ? value : [];
-  
+
   const handleToggle = (optionValue: string) => {
     if (readOnly) return;
-    
+
     const newValues = selectedValues.includes(optionValue)
       ? selectedValues.filter((v) => v !== optionValue)
       : [...selectedValues, optionValue];
-    
+
     onChange(newValues);
   };
-  
+
   return (
     <div className={FIELD_MULTISELECT_CLASS}>
       {options.map((opt) => {
@@ -243,10 +243,7 @@ function renderMultiselect(
             />
             <label>
               {opt.color && (
-                <span
-                  className={FIELD_SWATCH_CLASS}
-                  style={{ backgroundColor: opt.color }}
-                />
+                <span className={FIELD_SWATCH_CLASS} style={{ backgroundColor: opt.color }} />
               )}
               {opt.label}
             </label>
@@ -266,7 +263,7 @@ function renderEntityRef(
 ): React.JSX.Element {
   const property = _property as BasePropertyDefinition | CustomFieldDefinition;
   const stringValue = typeof value === "string" ? value : "";
-  
+
   // TODO: Implement entity picker with autocomplete
   return (
     <input
@@ -290,13 +287,20 @@ function renderEntityRefList(
 ): React.JSX.Element {
   const property = _property as BasePropertyDefinition | CustomFieldDefinition;
   const arrayValue = Array.isArray(value) ? value.join(", ") : "";
-  
+
   // TODO: Implement multi-entity picker
   return (
     <input
       type="text"
       value={arrayValue}
-      onChange={(e) => onChange(e.target.value.split(",").map((s) => s.trim()).filter(Boolean))}
+      onChange={(e) =>
+        onChange(
+          e.target.value
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
+        )
+      }
       readOnly={readOnly}
       placeholder={`References to ${property.targetTypes?.join(", ") || "entities"} (comma-separated)`}
       className={FIELD_CONTROL_CLASS}
@@ -313,7 +317,7 @@ function renderUrlInput(
   required: boolean,
 ): React.JSX.Element {
   const stringValue = typeof value === "string" ? value : "";
-  
+
   return (
     <div className={FIELD_INLINE_CLASS}>
       <input
@@ -335,7 +339,12 @@ function renderUrlInput(
           title="Open link"
         >
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+            />
           </svg>
         </a>
       )}
@@ -351,7 +360,7 @@ function renderEmailInput(
   required: boolean,
 ): React.JSX.Element {
   const stringValue = typeof value === "string" ? value : "";
-  
+
   return (
     <div className={FIELD_INLINE_CLASS}>
       <input
@@ -365,13 +374,14 @@ function renderEmailInput(
         disabled={readOnly}
       />
       {stringValue && (
-        <a
-          href={`mailto:${stringValue}`}
-          className={FIELD_LINK_CLASS}
-          title="Send email"
-        >
+        <a href={`mailto:${stringValue}`} className={FIELD_LINK_CLASS} title="Send email">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+            />
           </svg>
         </a>
       )}
@@ -387,7 +397,7 @@ function renderPhoneInput(
   required: boolean,
 ): React.JSX.Element {
   const stringValue = typeof value === "string" ? value : "";
-  
+
   return (
     <div className={FIELD_INLINE_CLASS}>
       <input
@@ -401,13 +411,14 @@ function renderPhoneInput(
         disabled={readOnly}
       />
       {stringValue && (
-        <a
-          href={`tel:${stringValue}`}
-          className={FIELD_LINK_CLASS}
-          title="Call number"
-        >
+        <a href={`tel:${stringValue}`} className={FIELD_LINK_CLASS} title="Call number">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+            />
           </svg>
         </a>
       )}
@@ -422,7 +433,7 @@ function renderFileInput(
   readOnly: boolean | undefined,
 ): React.JSX.Element {
   const stringValue = typeof value === "string" ? value : "";
-  
+
   // TODO: Implement file picker with vault file browser
   return (
     <div className={FIELD_MULTISELECT_CLASS}>
@@ -438,7 +449,12 @@ function renderFileInput(
       {stringValue && (
         <div className={FIELD_HELPER_CLASS}>
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+            />
           </svg>
           <span>{stringValue}</span>
         </div>
@@ -454,7 +470,7 @@ function renderImageInput(
   readOnly: boolean | undefined,
 ): React.JSX.Element {
   const stringValue = typeof value === "string" ? value : "";
-  
+
   // TODO: Implement image picker with preview
   return (
     <div className={FIELD_MULTISELECT_CLASS}>

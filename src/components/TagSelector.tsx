@@ -17,7 +17,7 @@ type TagSuggestion = {
 
 function flattenTagHierarchy(nodes: TagHierarchyNode[], depth = 0): TagSuggestion[] {
   const result: TagSuggestion[] = [];
-  
+
   nodes.forEach((node) => {
     result.push({
       fullPath: node.fullPath,
@@ -25,12 +25,12 @@ function flattenTagHierarchy(nodes: TagHierarchyNode[], depth = 0): TagSuggestio
       depth,
       color: node.color,
     });
-    
+
     if (node.children.length > 0) {
       result.push(...flattenTagHierarchy(node.children, depth + 1));
     }
   });
-  
+
   return result;
 }
 
@@ -40,21 +40,17 @@ export function TagSelector({ selectedTags, taxonomyConfig, onChange }: TagSelec
   const [focusedIndex, setFocusedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const allTags = taxonomyConfig
-    ? flattenTagHierarchy(taxonomyConfig.tags.rootNodes)
-    : [];
+  const allTags = taxonomyConfig ? flattenTagHierarchy(taxonomyConfig.tags.rootNodes) : [];
 
   const suggestions = inputValue.trim()
     ? allTags.filter(
         (tag) =>
           tag.fullPath.toLowerCase().includes(inputValue.toLowerCase()) ||
-          tag.label.toLowerCase().includes(inputValue.toLowerCase())
+          tag.label.toLowerCase().includes(inputValue.toLowerCase()),
       )
     : allTags;
 
-  const filteredSuggestions = suggestions.filter(
-    (tag) => !selectedTags.includes(tag.fullPath)
-  );
+  const filteredSuggestions = suggestions.filter((tag) => !selectedTags.includes(tag.fullPath));
 
   useEffect(() => {
     setFocusedIndex(0);
@@ -79,24 +75,15 @@ export function TagSelector({ selectedTags, taxonomyConfig, onChange }: TagSelec
       handleAddTag(filteredSuggestions[focusedIndex].fullPath);
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
-      setFocusedIndex((prev) =>
-        prev < filteredSuggestions.length - 1 ? prev + 1 : prev
-      );
+      setFocusedIndex((prev) => (prev < filteredSuggestions.length - 1 ? prev + 1 : prev));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setFocusedIndex((prev) => (prev > 0 ? prev - 1 : prev));
     } else if (e.key === "Escape") {
       setShowSuggestions(false);
-    } else if (
-      e.key === "Backspace" &&
-      !inputValue &&
-      selectedTags.length > 0
-    ) {
+    } else if (e.key === "Backspace" && !inputValue && selectedTags.length > 0) {
       handleRemoveTag(selectedTags[selectedTags.length - 1]);
-    } else if (
-      e.key === "," ||
-      (e.key === "Enter" && taxonomyConfig?.tags.allowCustomTags)
-    ) {
+    } else if (e.key === "," || (e.key === "Enter" && taxonomyConfig?.tags.allowCustomTags)) {
       // Create custom tag with slash notation
       e.preventDefault();
       const trimmed = inputValue.trim();
@@ -175,10 +162,7 @@ export function TagSelector({ selectedTags, taxonomyConfig, onChange }: TagSelec
               >
                 {suggestion.depth > 0 && <ChevronRight size={12} className="tag-indent" />}
                 {suggestion.color && (
-                  <span
-                    className="tag-color-dot"
-                    style={{ backgroundColor: suggestion.color }}
-                  />
+                  <span className="tag-color-dot" style={{ backgroundColor: suggestion.color }} />
                 )}
                 <span className="tag-suggestion-label">{suggestion.label}</span>
                 <span className="tag-suggestion-path">{suggestion.fullPath}</span>
@@ -190,7 +174,8 @@ export function TagSelector({ selectedTags, taxonomyConfig, onChange }: TagSelec
 
       {taxonomyConfig?.tags.allowCustomTags && (
         <p className="tag-selector-hint">
-          Type tag name and press Enter to create custom tags. Use / for hierarchy (e.g., "character/protagonist").
+          Type tag name and press Enter to create custom tags. Use / for hierarchy (e.g.,
+          "character/protagonist").
         </p>
       )}
     </div>

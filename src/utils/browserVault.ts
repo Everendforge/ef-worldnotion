@@ -4,7 +4,10 @@ import { pathName } from "./pathUtils";
 
 export type BrowserFileHandle = {
   getFile: () => Promise<File>;
-  createWritable: () => Promise<{ write: (content: string) => Promise<void>; close: () => Promise<void> }>;
+  createWritable: () => Promise<{
+    write: (content: string) => Promise<void>;
+    close: () => Promise<void>;
+  }>;
   queryPermission?: (descriptor?: { mode?: "read" | "readwrite" }) => Promise<PermissionState>;
   requestPermission?: (descriptor?: { mode?: "read" | "readwrite" }) => Promise<PermissionState>;
 };
@@ -12,7 +15,10 @@ export type BrowserFileHandle = {
 export type BrowserDirectoryHandle = {
   name: string;
   entries: () => AsyncIterableIterator<[string, BrowserDirectoryHandle | BrowserFileHandle]>;
-  getDirectoryHandle: (name: string, options?: { create?: boolean }) => Promise<BrowserDirectoryHandle>;
+  getDirectoryHandle: (
+    name: string,
+    options?: { create?: boolean },
+  ) => Promise<BrowserDirectoryHandle>;
   getFileHandle: (name: string, options?: { create?: boolean }) => Promise<BrowserFileHandle>;
   removeEntry?: (name: string, options?: { recursive?: boolean }) => Promise<void>;
   queryPermission?: (descriptor?: { mode?: "read" | "readwrite" }) => Promise<PermissionState>;
@@ -22,7 +28,11 @@ export type BrowserDirectoryHandle = {
 export function browserPathParts(relativePath: string, options: { allowRoot?: boolean } = {}) {
   if (relativePath === "" && options.allowRoot) return [];
   if (!relativePath) throw new Error("Path is required.");
-  if (/^[a-zA-Z]:/.test(relativePath) || relativePath.startsWith("/") || relativePath.startsWith("\\")) {
+  if (
+    /^[a-zA-Z]:/.test(relativePath) ||
+    relativePath.startsWith("/") ||
+    relativePath.startsWith("\\")
+  ) {
     throw new Error("Browser vault paths must be relative.");
   }
   if (relativePath.includes("\0")) {
@@ -54,7 +64,9 @@ export function validateBrowserPathSegment(
     const isPathBranchingMetadata =
       segment === ".pathbranching" && context.index === 1 && context.parts?.[0] === ".everend";
     if (!isEverendRoot && !isPathBranchingMetadata) {
-      throw new Error("Browser vault paths can only use .everend and .everend/.pathbranching as hidden segments.");
+      throw new Error(
+        "Browser vault paths can only use .everend and .everend/.pathbranching as hidden segments.",
+      );
     }
   }
 }
@@ -77,7 +89,12 @@ export async function readBrowserUniverse(root: BrowserDirectoryHandle): Promise
         continue;
       }
 
-      if (!relativePath.endsWith(".md") && !relativePath.endsWith(".yaml") && !relativePath.endsWith(".json")) continue;
+      if (
+        !relativePath.endsWith(".md") &&
+        !relativePath.endsWith(".yaml") &&
+        !relativePath.endsWith(".json")
+      )
+        continue;
 
       try {
         const file = await maybeFile.getFile();
@@ -101,7 +118,11 @@ export async function readBrowserUniverse(root: BrowserDirectoryHandle): Promise
   return { rootPath: `browser:${root.name}`, files, directories, errors };
 }
 
-export async function getBrowserDirectory(root: BrowserDirectoryHandle, relativePath: string, create = false) {
+export async function getBrowserDirectory(
+  root: BrowserDirectoryHandle,
+  relativePath: string,
+  create = false,
+) {
   const parts = browserPathParts(relativePath, { allowRoot: true });
   let current = root;
   for (const part of parts) {
@@ -120,36 +141,44 @@ export async function ensureBrowserWritePermission(root: BrowserDirectoryHandle)
     console.log("[ensureBrowserWritePermission] Querying permission...");
     const current = await root.queryPermission(descriptor);
     console.log("[ensureBrowserWritePermission] Current permission state:", current);
-    
+
     if (current === "granted") {
       console.log("[ensureBrowserWritePermission] Permission already granted");
       return;
     }
-    
+
     console.log("[ensureBrowserWritePermission] Requesting write permission...");
     const requested = await root.requestPermission(descriptor);
     console.log("[ensureBrowserWritePermission] Permission request result:", requested);
-    
+
     if (requested !== "granted") {
-      console.warn("Write permission was not granted for this universe folder. Some operations may fail.");
+      console.warn(
+        "Write permission was not granted for this universe folder. Some operations may fail.",
+      );
     }
   } catch (error: unknown) {
     const errorName = (error as any)?.name;
     console.error("[ensureBrowserWritePermission] Error:", { errorName, error });
-    
+
     // If it's an AbortError, it's usually from user cancellation or restricted environment
     // We'll continue anyway in read-only mode
     if (errorName === "AbortError") {
-      console.warn("[ensureBrowserWritePermission] Permission request aborted. Continuing in read-only mode.");
+      console.warn(
+        "[ensureBrowserWritePermission] Permission request aborted. Continuing in read-only mode.",
+      );
       return;
     }
-    
+
     // For other errors, just warn
     console.warn("Could not request write permission for this universe folder.", error);
   }
 }
 
-export async function getBrowserFile(root: BrowserDirectoryHandle, relativePath: string, create = false) {
+export async function getBrowserFile(
+  root: BrowserDirectoryHandle,
+  relativePath: string,
+  create = false,
+) {
   const parts = browserPathParts(relativePath);
   const filename = parts.pop();
   if (!filename) throw new Error("File path is required.");
@@ -167,7 +196,11 @@ export async function getBrowserParent(root: BrowserDirectoryHandle, relativePat
   };
 }
 
-export async function writeBrowserFile(root: BrowserDirectoryHandle, relativePath: string, content: string) {
+export async function writeBrowserFile(
+  root: BrowserDirectoryHandle,
+  relativePath: string,
+  content: string,
+) {
   await ensureBrowserWritePermission(root);
   const fileHandle = await getBrowserFile(root, relativePath, true);
   const writable = await fileHandle.createWritable();
@@ -177,7 +210,11 @@ export async function writeBrowserFile(root: BrowserDirectoryHandle, relativePat
   return file.lastModified;
 }
 
-export async function removeBrowserPath(root: BrowserDirectoryHandle, relativePath: string, recursive = true) {
+export async function removeBrowserPath(
+  root: BrowserDirectoryHandle,
+  relativePath: string,
+  recursive = true,
+) {
   await ensureBrowserWritePermission(root);
   const { directory, name } = await getBrowserParent(root, relativePath);
   if (!directory.removeEntry) {
@@ -186,7 +223,10 @@ export async function removeBrowserPath(root: BrowserDirectoryHandle, relativePa
   await directory.removeEntry(name, { recursive });
 }
 
-export async function copyBrowserDirectory(source: BrowserDirectoryHandle, target: BrowserDirectoryHandle) {
+export async function copyBrowserDirectory(
+  source: BrowserDirectoryHandle,
+  target: BrowserDirectoryHandle,
+) {
   await ensureBrowserWritePermission(target);
   for await (const [name, handle] of source.entries()) {
     const maybeDirectory = handle as BrowserDirectoryHandle;

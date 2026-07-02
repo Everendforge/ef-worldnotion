@@ -1,27 +1,31 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { DockTabRef } from "../editorTypes";
-import { createDefaultWorkspaceLayout, documentDockTabId, panelDockTabId } from "../utils/workspaceLayout";
+import {
+  createDefaultWorkspaceLayout,
+  documentDockTabId,
+  panelDockTabId,
+} from "../utils/workspaceLayout";
 import { DockWorkspace } from "./DockWorkspace";
 
 function renderDockWorkspace(options: { emptyDocuments?: boolean } = {}) {
   const documentTabs = options.emptyDocuments
     ? []
     : [
-    {
-      path: "A.md",
-      title: "A",
-      mode: "write" as const,
-      modifiedMs: 1,
-      isTemplate: false,
-    },
-    {
-      path: "B.md",
-      title: "B",
-      mode: "write" as const,
-      modifiedMs: 1,
-      isTemplate: false,
-    },
+        {
+          path: "A.md",
+          title: "A",
+          mode: "write" as const,
+          modifiedMs: 1,
+          isTemplate: false,
+        },
+        {
+          path: "B.md",
+          title: "B",
+          mode: "write" as const,
+          modifiedMs: 1,
+          isTemplate: false,
+        },
       ];
   const layout = createDefaultWorkspaceLayout(documentTabs);
   const handlers = {
@@ -52,11 +56,20 @@ function mockDockGroupRects() {
       group.dataset.dockGroupId === "dock-explorer"
         ? { left: 0, top: 0, right: 220, bottom: 600, width: 220, height: 600 }
         : { left: 224, top: 0, right: 900, bottom: 600, width: 676, height: 600 };
-    group.getBoundingClientRect = vi.fn(() => ({ ...rect, x: rect.left, y: rect.top, toJSON: () => rect }));
+    group.getBoundingClientRect = vi.fn(() => ({
+      ...rect,
+      x: rect.left,
+      y: rect.top,
+      toJSON: () => rect,
+    }));
   }
 }
 
-function pointerDrag(element: Element, from: { x: number; y: number }, to: { x: number; y: number }) {
+function pointerDrag(
+  element: Element,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+) {
   fireEvent.pointerDown(element, { button: 0, pointerId: 1, clientX: from.x, clientY: from.y });
   fireEvent.pointerMove(window, { pointerId: 1, clientX: to.x, clientY: to.y });
   fireEvent.pointerUp(window, { pointerId: 1, clientX: to.x, clientY: to.y });

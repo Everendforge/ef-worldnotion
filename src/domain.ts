@@ -28,7 +28,13 @@ export { parseMarkdownFrontmatter, slugify, splitMarkdown, joinMarkdown };
 export { createDefaultTaxonomyConfig, generateTaxonomyFromEntities, mergeTagHierarchy };
 export { validateAgainstTaxonomy };
 export { buildTree };
-export { STARTER_TAXONOMY, PROPERTY_TYPES, taxonomyToYaml, defaultTemplateForType, createTypeDefinition };
+export {
+  STARTER_TAXONOMY,
+  PROPERTY_TYPES,
+  taxonomyToYaml,
+  defaultTemplateForType,
+  createTypeDefinition,
+};
 export type { ParsedMarkdown, SplitMarkdown };
 
 export type VaultFile = {
@@ -199,7 +205,12 @@ function _processTagsWithHierarchy(value: unknown): string[] {
 */
 
 function pathName(path: string): string {
-  return path.replace(/^browser:/, "").split(/[\\/]/).pop() ?? path;
+  return (
+    path
+      .replace(/^browser:/, "")
+      .split(/[\\/]/)
+      .pop() ?? path
+  );
 }
 
 export function dirname(path: string): string {
@@ -222,7 +233,10 @@ export type IndexVaultOptions = {
   ignoreFolderNoteMetadata?: boolean;
 };
 
-export function indexVault(readResult: VaultReadResult, options: IndexVaultOptions = {}): VaultIndex {
+export function indexVault(
+  readResult: VaultReadResult,
+  options: IndexVaultOptions = {},
+): VaultIndex {
   const findings: ValidationFinding[] = [];
   const markdownFiles = readResult.files.filter((file) => file.relativePath.endsWith(".md"));
   const templates = parseTemplates(readResult.files);
@@ -250,7 +264,13 @@ export function indexVault(readResult: VaultReadResult, options: IndexVaultOptio
     templates,
     universeProfile,
     universes,
-    tree: buildTree(readResult.files, directories, false, hiddenRootFile, options.ignoreFolderNoteMetadata),
+    tree: buildTree(
+      readResult.files,
+      directories,
+      false,
+      hiddenRootFile,
+      options.ignoreFolderNoteMetadata,
+    ),
     entities: entityIndex.entities,
     findings,
     readErrors: readResult.errors,

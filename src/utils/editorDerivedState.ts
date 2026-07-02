@@ -11,7 +11,10 @@ export function outlineForTab(tab: OpenTab | undefined): OutlineHeader[] {
   return extractOutline(editorDisplayValue(tab));
 }
 
-export function currentHeaderForLine(tab: OpenTab | undefined, cursorLine: number): OutlineHeader | null {
+export function currentHeaderForLine(
+  tab: OpenTab | undefined,
+  cursorLine: number,
+): OutlineHeader | null {
   if (!tab) return null;
   return findCurrentHeader(outlineForTab(tab), cursorLine, 0);
 }

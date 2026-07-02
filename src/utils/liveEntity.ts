@@ -49,8 +49,12 @@ function liveEntityFromTab(index: VaultIndex | undefined, tab: OpenTab): Entity 
     return {
       id: String(parsed.data.id || slugify(fallbackName) || fallbackName),
       name: String(parsed.data.name || fallbackName),
-      type: String(parsed.data.type || index?.propertiesConfig?.entityTypes.defaultType || "concept"),
-      status: String(parsed.data.status || index?.propertiesConfig?.statuses.defaultStatus || "draft"),
+      type: String(
+        parsed.data.type || index?.propertiesConfig?.entityTypes.defaultType || "concept",
+      ),
+      status: String(
+        parsed.data.status || index?.propertiesConfig?.statuses.defaultStatus || "draft",
+      ),
       tags: listFromFrontmatter(parsed.data.tags),
       aliases: listFromFrontmatter(parsed.data.aliases),
       parentId: typeof parsed.data.parentId === "string" ? parsed.data.parentId : undefined,
@@ -95,7 +99,8 @@ export function selectLiveEntity(
       status: String(parsed.data.status || indexEntity.status),
       tags: listFromFrontmatter(parsed.data.tags, indexEntity.tags),
       aliases: listFromFrontmatter(parsed.data.aliases, indexEntity.aliases),
-      parentId: typeof parsed.data.parentId === "string" ? parsed.data.parentId : indexEntity.parentId,
+      parentId:
+        typeof parsed.data.parentId === "string" ? parsed.data.parentId : indexEntity.parentId,
       childrenIds: listFromFrontmatter(parsed.data.childrenIds, indexEntity.childrenIds),
       folder: typeof parsed.data.folder === "string" ? parsed.data.folder : indexEntity.folder,
       customProperties: customPropertiesFromFrontmatter(parsed.data),

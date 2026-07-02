@@ -12,7 +12,7 @@ class DocumentHeaderWidget extends WidgetType {
   constructor(
     readonly documentName: string,
     readonly projectName: string | undefined,
-    readonly showProjectName: boolean
+    readonly showProjectName: boolean,
   ) {
     super();
   }
@@ -53,7 +53,7 @@ function createDecorations(config: DocumentHeaderConfig) {
   const widget = new DocumentHeaderWidget(
     config.documentName,
     config.projectName,
-    config.showProjectName
+    config.showProjectName,
   );
 
   return Decoration.set([
@@ -85,6 +85,6 @@ export function createDocumentHeaderPlugin(config: DocumentHeaderConfig): Extens
     },
     {
       decorations: (v) => v.decorations,
-    }
+    },
   );
 }

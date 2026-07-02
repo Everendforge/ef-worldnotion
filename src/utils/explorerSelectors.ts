@@ -16,7 +16,8 @@ function collectSearchMatches(
   folders: VaultTreeNode[],
 ) {
   nodes.forEach((node) => {
-    const matches = node.name.toLowerCase().includes(normalized) || node.path.toLowerCase().includes(normalized);
+    const matches =
+      node.name.toLowerCase().includes(normalized) || node.path.toLowerCase().includes(normalized);
     if (matches) {
       if (node.kind === "file") {
         files.push({ ...node, children: [] });
@@ -46,7 +47,13 @@ export function selectVisibleTree(
 ): VaultTreeNode[] {
   if (!index) return [];
   const tree = showHiddenEverend
-    ? buildTree(index.files, index.directories, true, `${pathName(index.rootPath)}.md`, ignoreFolderNoteMetadata)
+    ? buildTree(
+        index.files,
+        index.directories,
+        true,
+        `${pathName(index.rootPath)}.md`,
+        ignoreFolderNoteMetadata,
+      )
     : index.tree;
   const focusedRoot = focusedFolderPath ? findTreeNode(tree, focusedFolderPath) : undefined;
   const scopedTree = focusedFolderPath ? (focusedRoot ? [focusedRoot] : tree) : tree;
@@ -114,7 +121,10 @@ export function expandedPathsToDepth(tree: VaultTreeNode[], maxDepth: number): S
   return expanded;
 }
 
-export function selectFavoriteItems(index: VaultIndex | undefined, favorites: ExplorerFavorite[]): ExplorerFavorite[] {
+export function selectFavoriteItems(
+  index: VaultIndex | undefined,
+  favorites: ExplorerFavorite[],
+): ExplorerFavorite[] {
   if (!index) return [];
   const treePaths = new Set<string>();
 
@@ -134,7 +144,11 @@ export function selectFavoriteItems(index: VaultIndex | undefined, favorites: Ex
   });
 }
 
-function flattenTags(nodes: TagHierarchyNode[], tagMap: Map<string, { color?: string; fullPath: string }>, parentPath = "") {
+function flattenTags(
+  nodes: TagHierarchyNode[],
+  tagMap: Map<string, { color?: string; fullPath: string }>,
+  parentPath = "",
+) {
   nodes.forEach((node) => {
     const fullPath = parentPath ? `${parentPath}/${node.label}` : node.label;
     tagMap.set(node.label, { color: node.color, fullPath });

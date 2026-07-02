@@ -4,10 +4,7 @@
  */
 
 import { PropertiesConfig, PropertyDefinition, CustomFieldDefinition } from "../editorTypes";
-import {
-  migrateV1toV2,
-  flattenPropertyTree,
-} from "./propertyTreeUtils";
+import { migrateV1toV2, flattenPropertyTree } from "./propertyTreeUtils";
 import { validatePropertyStructure, ValidationResult } from "./propertyValidator";
 
 const CURRENT_VERSION = "2.0";
@@ -82,14 +79,14 @@ export function migratePropertiesV1toV2(config: PropertiesConfig): PropertiesCon
   // Migrate customFields definitions
   if (migratedConfig.customFields?.definitions) {
     migratedConfig.customFields.definitions = migrateV1toV2(
-      migratedConfig.customFields.definitions
+      migratedConfig.customFields.definitions,
     ) as CustomFieldDefinition[];
   }
 
   // Migrate baseProperties if exists
   if (migratedConfig.baseProperties?.definitions) {
     migratedConfig.baseProperties.definitions = migrateV1toV2(
-      migratedConfig.baseProperties.definitions
+      migratedConfig.baseProperties.definitions,
     ) as any;
   }
 
@@ -102,7 +99,7 @@ export function migratePropertiesV1toV2(config: PropertiesConfig): PropertiesCon
 export function exportPropertiesTemplate(
   definitions: PropertyDefinition[],
   templateName: string,
-  description?: string
+  description?: string,
 ): string {
   const template = {
     version: CURRENT_VERSION,
@@ -146,9 +143,7 @@ export function importPropertiesTemplate(jsonString: string): {
 
   // Migrate if template is v1.0
   const definitions =
-    template.version === V1_VERSION
-      ? migrateV1toV2(template.definitions)
-      : template.definitions;
+    template.version === V1_VERSION ? migrateV1toV2(template.definitions) : template.definitions;
 
   // Validate imported structure
   const validation = validatePropertyStructure(definitions);
@@ -169,7 +164,7 @@ export function importPropertiesTemplate(jsonString: string): {
 export function mergePropertyTemplates(
   existing: PropertyDefinition[],
   imported: PropertyDefinition[],
-  strategy: "skip-existing" | "rename-new" | "replace" = "skip-existing"
+  strategy: "skip-existing" | "rename-new" | "replace" = "skip-existing",
 ): PropertyDefinition[] {
   const existingIds = new Set(flattenPropertyTree(existing).map((n) => n.definition.id));
   const result = [...existing];
@@ -266,7 +261,7 @@ export function cleanupPropertiesConfig(config: PropertiesConfig): PropertiesCon
 export function addCustomFieldToSchema(
   config: PropertiesConfig,
   fieldName: string,
-  inferredType: string
+  inferredType: string,
 ): PropertiesConfig {
   // Normalize field name
   const id = fieldName.trim() || fieldName;
@@ -295,7 +290,9 @@ export function addCustomFieldToSchema(
 
   // Ensure field is in globalFields
   const existingGlobalFields = config.customFields?.globalFields ?? [];
-  const nextGlobalFields = existingGlobalFields.includes(id) ? existingGlobalFields : [...existingGlobalFields, id];
+  const nextGlobalFields = existingGlobalFields.includes(id)
+    ? existingGlobalFields
+    : [...existingGlobalFields, id];
 
   return {
     ...config,
@@ -365,7 +362,7 @@ export function getPropertyStructureStats(definitions: PropertyDefinition[]): {
  */
 export function diffPropertiesConfigs(
   oldConfig: PropertiesConfig,
-  newConfig: PropertiesConfig
+  newConfig: PropertiesConfig,
 ): {
   added: PropertyDefinition[];
   removed: PropertyDefinition[];

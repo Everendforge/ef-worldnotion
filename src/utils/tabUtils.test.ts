@@ -55,7 +55,7 @@ describe("tab utilities", () => {
     const openTab = createOpenTabFromFile(
       {
         relativePath: ".everend/properties.json",
-        content: "{\"version\":\"1.0\"}",
+        content: '{"version":"1.0"}',
         modifiedMs: 123,
       },
       "write",
@@ -65,7 +65,7 @@ describe("tab utilities", () => {
       path: ".everend/properties.json",
       mode: "source",
       sourceView: "json",
-      rawMarkdown: "{\"version\":\"1.0\"}",
+      rawMarkdown: '{"version":"1.0"}',
     });
   });
 
@@ -75,7 +75,16 @@ describe("tab utilities", () => {
     expect(session).toEqual({
       rootPath: "C:/vault",
       activePath: "A.md",
-      tabs: [{ path: "A.md", title: "A", mode: "write", sourceView: undefined, modifiedMs: undefined, isTemplate: false }],
+      tabs: [
+        {
+          path: "A.md",
+          title: "A",
+          mode: "write",
+          sourceView: undefined,
+          modifiedMs: undefined,
+          isTemplate: false,
+        },
+      ],
       layout: undefined,
     });
   });

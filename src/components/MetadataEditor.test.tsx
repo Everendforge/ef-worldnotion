@@ -49,12 +49,17 @@ describe("MetadataEditor property manager", () => {
     fireEvent.click(screen.getByRole("button", { name: /customize/i }));
     const dialog = screen.getByRole("dialog", { name: /customize properties/i });
 
-    fireEvent.change(within(dialog).getByLabelText("New property name"), { target: { value: "Lore Level" } });
+    fireEvent.change(within(dialog).getByLabelText("New property name"), {
+      target: { value: "Lore Level" },
+    });
     fireEvent.click(within(dialog).getByRole("button", { name: "Add" }));
 
-    const savedConfig = onUpdatePropertiesConfig.mock.calls[onUpdatePropertiesConfig.mock.calls.length - 1]?.[0];
+    const savedConfig =
+      onUpdatePropertiesConfig.mock.calls[onUpdatePropertiesConfig.mock.calls.length - 1]?.[0];
 
-    expect(savedConfig.customFields.definitions.map((property: { id: string }) => property.id)).toContain("lore-level");
+    expect(
+      savedConfig.customFields.definitions.map((property: { id: string }) => property.id),
+    ).toContain("lore-level");
   }, 10000);
 
   it("shows visible and hidden properties in the inspector context menu", () => {
@@ -95,7 +100,9 @@ describe("MetadataEditor property manager", () => {
 
   it("customize modal creates child properties inside the selected tree branch", () => {
     function Harness() {
-      const [config, setConfig] = useState<PropertiesConfig>(() => applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE));
+      const [config, setConfig] = useState<PropertiesConfig>(() =>
+        applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE),
+      );
       return (
         <MetadataEditor
           entity={entity()}
@@ -112,10 +119,14 @@ describe("MetadataEditor property manager", () => {
     fireEvent.click(screen.getByRole("button", { name: /customize/i }));
     const dialog = screen.getByRole("dialog", { name: /customize properties/i });
 
-    fireEvent.change(within(dialog).getByLabelText("New property name"), { target: { value: "Magic" } });
+    fireEvent.change(within(dialog).getByLabelText("New property name"), {
+      target: { value: "Magic" },
+    });
     fireEvent.click(within(dialog).getByRole("button", { name: "Add" }));
 
-    fireEvent.change(within(dialog).getByLabelText("New child property name"), { target: { value: "Power Level" } });
+    fireEvent.change(within(dialog).getByLabelText("New child property name"), {
+      target: { value: "Power Level" },
+    });
     fireEvent.click(within(dialog).getByRole("button", { name: "Add child" }));
 
     expect(within(dialog).getAllByText("Power Level").length).toBeGreaterThan(0);

@@ -152,7 +152,9 @@ export function indexMarkdownEntities(
   for (const [id, matchingEntities] of ids.entries()) {
     if (matchingEntities.length > 1) {
       matchingEntities.forEach((entity) =>
-        findings.push(createFinding("duplicate_id", "error", `Duplicate entity id "${id}".`, entity.path, "id")),
+        findings.push(
+          createFinding("duplicate_id", "error", `Duplicate entity id "${id}".`, entity.path, "id"),
+        ),
       );
     }
   }
@@ -170,7 +172,12 @@ export function indexMarkdownEntities(
       const target = linkTargets.get(normalizeKey(wikilink));
       if (!target) {
         findings.push(
-          createFinding("broken_wikilink", "warning", `Could not resolve wikilink [[${wikilink}]].`, source.path),
+          createFinding(
+            "broken_wikilink",
+            "warning",
+            `Could not resolve wikilink [[${wikilink}]].`,
+            source.path,
+          ),
         );
         return;
       }

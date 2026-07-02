@@ -19,10 +19,10 @@ export function rememberUniverse(
   rootPath: string,
   profile?: RecentUniverseProfile,
 ): AppSettingsV4 {
-  const recentUniverses = [rootPath, ...settings.recentUniverses.filter((candidate) => candidate !== rootPath)].slice(
-    0,
-    8,
-  );
+  const recentUniverses = [
+    rootPath,
+    ...settings.recentUniverses.filter((candidate) => candidate !== rootPath),
+  ].slice(0, 8);
 
   return {
     ...settings,

@@ -36,7 +36,11 @@ export function renamePathTarget(fromPath: string, newName: string) {
   return parent ? `${parent}/${newName}` : newName;
 }
 
-export function renamePathChange(fromPath: string, newName: string, kind: "file" | "folder"): PathChange {
+export function renamePathChange(
+  fromPath: string,
+  newName: string,
+  kind: "file" | "folder",
+): PathChange {
   return {
     fromPath,
     toPath: renamePathTarget(fromPath, newName),
@@ -80,7 +84,9 @@ export function planFolderDescriptionRename(
     oldDescriptionPath !== newDescriptionPath &&
     index.files.some((file) => file.relativePath === newDescriptionPath)
   ) {
-    throw new Error(`Cannot rename folder description because ${newDescriptionPath} already exists.`);
+    throw new Error(
+      `Cannot rename folder description because ${newDescriptionPath} already exists.`,
+    );
   }
 
   const oldFolderName = pathName(folderPath);
@@ -88,7 +94,11 @@ export function planFolderDescriptionRename(
     oldDescriptionPath,
     newDescriptionPath,
     newFileName: `${newFolderName}.md`,
-    content: updateFolderDescriptionContent(oldDescriptionFile.content, oldFolderName, newFolderName),
+    content: updateFolderDescriptionContent(
+      oldDescriptionFile.content,
+      oldFolderName,
+      newFolderName,
+    ),
     change: {
       fromPath: oldDescriptionPath,
       toPath: newDescriptionPath,

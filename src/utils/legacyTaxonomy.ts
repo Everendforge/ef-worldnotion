@@ -43,7 +43,10 @@ function createFinding(
   return { code, severity, message, file, field };
 }
 
-export function parseLegacyTaxonomy(files: VaultFile[], findings: ValidationFinding[]): Taxonomy | undefined {
+export function parseLegacyTaxonomy(
+  files: VaultFile[],
+  findings: ValidationFinding[],
+): Taxonomy | undefined {
   const taxonomyFile = files.find((file) => file.relativePath === ".everend/taxonomy.yaml");
   if (!taxonomyFile) {
     return undefined;
@@ -100,19 +103,21 @@ export function parseLegacyTaxonomy(files: VaultFile[], findings: ValidationFind
         );
       }
 
-      Object.entries(typeDefinition.properties ?? {}).forEach(([propertyName, propertyDefinition]) => {
-        if (!ALLOWED_PROPERTY_TYPES.has(propertyDefinition.type)) {
-          findings.push(
-            createFinding(
-              "missing_required_field",
-              "error",
-              `Property "${propertyName}" uses unsupported type "${propertyDefinition.type}".`,
-              taxonomyFile.relativePath,
-              `types.${typeName}.properties.${propertyName}.type`,
-            ),
-          );
-        }
-      });
+      Object.entries(typeDefinition.properties ?? {}).forEach(
+        ([propertyName, propertyDefinition]) => {
+          if (!ALLOWED_PROPERTY_TYPES.has(propertyDefinition.type)) {
+            findings.push(
+              createFinding(
+                "missing_required_field",
+                "error",
+                `Property "${propertyName}" uses unsupported type "${propertyDefinition.type}".`,
+                taxonomyFile.relativePath,
+                `types.${typeName}.properties.${propertyName}.type`,
+              ),
+            );
+          }
+        },
+      );
     });
 
     return parsed;

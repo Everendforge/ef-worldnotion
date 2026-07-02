@@ -1,4 +1,9 @@
-import type { DocumentTabGroup, OpenTab, WorkspaceLayoutV1, WorkspaceSession } from "../editorTypes";
+import type {
+  DocumentTabGroup,
+  OpenTab,
+  WorkspaceLayoutV1,
+  WorkspaceSession,
+} from "../editorTypes";
 import type { VaultIndex } from "../domain";
 import {
   type PathChangeSet,
@@ -36,7 +41,10 @@ export type UniverseWorkspacePlan = {
   documentTabGroups: DocumentTabGroup[];
 };
 
-function pathAfterOptionalChange(path: string | undefined, change: PathChangeSet | undefined): string | undefined {
+function pathAfterOptionalChange(
+  path: string | undefined,
+  change: PathChangeSet | undefined,
+): string | undefined {
   if (!path || !change || !pathIsAffectedByChanges(path, change)) {
     return path;
   }
@@ -47,7 +55,9 @@ function fileExists(index: VaultIndex, path: string | undefined): path is string
   return Boolean(path && index.files.some((file) => file.relativePath === path));
 }
 
-export function planUniverseWorkspaceState(input: UniverseWorkspacePlanInput): UniverseWorkspacePlan {
+export function planUniverseWorkspaceState(
+  input: UniverseWorkspacePlanInput,
+): UniverseWorkspacePlan {
   const {
     nextIndex,
     readRootPath,
@@ -71,7 +81,9 @@ export function planUniverseWorkspaceState(input: UniverseWorkspacePlanInput): U
       ? tabs
           .map((tab) => {
             const nextTabPath = pathAfterOptionalChange(tab.path, pathChange) ?? tab.path;
-            const file = nextIndex.files.find((candidate) => candidate.relativePath === nextTabPath);
+            const file = nextIndex.files.find(
+              (candidate) => candidate.relativePath === nextTabPath,
+            );
             if (!file) return undefined;
             return tab.dirty
               ? {
@@ -113,7 +125,8 @@ export function planUniverseWorkspaceState(input: UniverseWorkspacePlanInput): U
       ? pathChange
         ? updateLayoutForPathChange(workspaceLayout, pathChange)
         : workspaceLayout
-      : restoredSession?.layout ?? createDefaultWorkspaceLayout(restoredTabs, { activePath: nextPath });
+      : (restoredSession?.layout ??
+        createDefaultWorkspaceLayout(restoredTabs, { activePath: nextPath }));
 
   const baseGroups =
     currentRootPath === readRootPath && documentTabGroups

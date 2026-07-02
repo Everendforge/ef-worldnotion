@@ -29,7 +29,11 @@ describe("universe detection", () => {
     const universes = detectUniverses(
       [file("Beta/Notes.md"), file("Root.md"), file(".everend/universe.json")],
       ["Alpha", "Alpha/Cast", ".everend"],
-      [entity("ada", "Alpha/Cast/Ada.md"), entity("gate", "Beta/Gate.md"), entity("loose", "Loose.md")],
+      [
+        entity("ada", "Alpha/Cast/Ada.md"),
+        entity("gate", "Beta/Gate.md"),
+        entity("loose", "Loose.md"),
+      ],
     );
 
     expect(universes).toEqual([

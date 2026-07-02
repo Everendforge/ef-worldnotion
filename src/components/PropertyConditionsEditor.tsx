@@ -22,17 +22,14 @@ export function PropertyConditionsEditor({
   onCancel,
 }: PropertyConditionsEditorProps) {
   const [conditions, setConditions] = useState<Record<string, string[]>>(
-    property.visibleWhen || {}
+    property.visibleWhen || {},
   );
 
   // Find potential parent properties (properties that could be parents for this one)
   const potentialParents = useMemo(() => {
     const parents: PropertyDefinition[] = [];
 
-    function findParents(
-      defs: PropertyDefinition[],
-      excludeId: string
-    ): void {
+    function findParents(defs: PropertyDefinition[], excludeId: string): void {
       defs.forEach((def) => {
         // Can only depend on parents that come before in tree
         if (def.id !== excludeId && def.type !== "group") {
@@ -101,7 +98,7 @@ export function PropertyConditionsEditor({
   const handleSave = () => {
     // Clean up empty conditions
     const cleaned = Object.fromEntries(
-      Object.entries(conditions).filter(([, values]) => values.length > 0)
+      Object.entries(conditions).filter(([, values]) => values.length > 0),
     );
 
     onSave(Object.keys(cleaned).length > 0 ? cleaned : undefined);
@@ -120,8 +117,8 @@ export function PropertyConditionsEditor({
 
       <div className="property-conditions-content">
         <p className="property-conditions-description">
-          Choose when this property should appear based on parent property values.
-          If no conditions are set, this property always appears.
+          Choose when this property should appear based on parent property values. If no conditions
+          are set, this property always appears.
         </p>
 
         {hasConditions && (
@@ -160,9 +157,7 @@ export function PropertyConditionsEditor({
                             <input
                               type="checkbox"
                               checked={values.includes(option.value)}
-                              onChange={() =>
-                                toggleOptionValue(parentId, option.value)
-                              }
+                              onChange={() => toggleOptionValue(parentId, option.value)}
                             />
                             <span>{option.label}</span>
                           </label>
@@ -180,9 +175,7 @@ export function PropertyConditionsEditor({
           <button
             className="condition-add-btn"
             onClick={addCondition}
-            disabled={
-              Object.keys(conditions).length >= potentialParents.length
-            }
+            disabled={Object.keys(conditions).length >= potentialParents.length}
           >
             <Plus size={16} />
             Add Condition
@@ -192,9 +185,7 @@ export function PropertyConditionsEditor({
         {potentialParents.length === 0 && (
           <div className="condition-empty">
             <p>No eligible parent properties available.</p>
-            <p className="text-muted">
-              Parent properties must be select/multiselect types.
-            </p>
+            <p className="text-muted">Parent properties must be select/multiselect types.</p>
           </div>
         )}
       </div>

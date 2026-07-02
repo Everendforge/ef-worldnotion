@@ -36,17 +36,23 @@ describe("plugin registry", () => {
   });
 
   it("respects optional plugin toggles", () => {
-    expect(isPluginEnabled({ enabled: { "font-family-rendering": false } }, "font-family-rendering")).toBe(false);
+    expect(
+      isPluginEnabled({ enabled: { "font-family-rendering": false } }, "font-family-rendering"),
+    ).toBe(false);
   });
 
   it("keeps protected core plugins active unless a legacy safe setting disables them", () => {
     expect(isPluginEnabled({ enabled: { wikilinks: false } }, "wikilinks")).toBe(true);
-    expect(isPluginEnabled({ enabled: { "code-folding": true } }, "code-folding", false)).toBe(false);
+    expect(isPluginEnabled({ enabled: { "code-folding": true } }, "code-folding", false)).toBe(
+      false,
+    );
   });
 
   it("does not enable planned runtime adapters", () => {
     expect(isPluginEnabled({ enabled: { "unity-adapter": true } }, "unity-adapter")).toBe(false);
-    expect(getPluginDefinitions().find((plugin) => plugin.id === "unity-adapter")?.status).toBe("planned");
+    expect(getPluginDefinitions().find((plugin) => plugin.id === "unity-adapter")?.status).toBe(
+      "planned",
+    );
   });
 
   it("updates optional plugins and mirrors legacy editor settings", () => {

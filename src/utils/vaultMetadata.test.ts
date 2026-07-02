@@ -12,15 +12,30 @@ describe("vault metadata parsers", () => {
     ]);
 
     expect(templates).toEqual([
-      { type: "character", path: ".everend/templates/character.md", content: "character", modifiedMs: 1 },
-      { type: "location", path: ".everend/templates/location.md", content: "location", modifiedMs: 2 },
+      {
+        type: "character",
+        path: ".everend/templates/character.md",
+        content: "character",
+        modifiedMs: 1,
+      },
+      {
+        type: "location",
+        path: ".everend/templates/location.md",
+        content: "location",
+        modifiedMs: 2,
+      },
     ]);
   });
 
   it("parses and normalizes universe profile JSON", () => {
     const findings: ValidationFinding[] = [];
     const profile = parseUniverseProfile(
-      [{ relativePath: ".everend/universe.json", content: '{"name":"  Demo  ","icon":{"type":"unknown","value":"castle"}}' }],
+      [
+        {
+          relativePath: ".everend/universe.json",
+          content: '{"name":"  Demo  ","icon":{"type":"unknown","value":"castle"}}',
+        },
+      ],
       findings,
     );
 
@@ -31,7 +46,9 @@ describe("vault metadata parsers", () => {
   it("reports invalid universe profile JSON", () => {
     const findings: ValidationFinding[] = [];
 
-    expect(parseUniverseProfile([{ relativePath: ".everend/universe.json", content: "{" }], findings)).toBeUndefined();
+    expect(
+      parseUniverseProfile([{ relativePath: ".everend/universe.json", content: "{" }], findings),
+    ).toBeUndefined();
     expect(findings).toEqual([
       expect.objectContaining({
         code: "missing_runtime_asset",

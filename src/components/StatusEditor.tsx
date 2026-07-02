@@ -271,11 +271,7 @@ export function StatusEditor({ statuses, onChange }: StatusEditorProps) {
           </div>
         </div>
       ) : (
-        <button
-          type="button"
-          className="status-add-button"
-          onClick={() => setShowAddForm(true)}
-        >
+        <button type="button" className="status-add-button" onClick={() => setShowAddForm(true)}>
           <Plus size={14} />
           Add Status
         </button>

@@ -34,7 +34,7 @@ export function PropertyHierarchyEditor({
   selectedPropertyId,
   onAddChild,
 }: PropertyHierarchyEditorProps) {
-  const [nodeState, setNodeState] = useState<TreeNodeState>({}); 
+  const [nodeState, setNodeState] = useState<TreeNodeState>({});
 
   const toggleExpanded = useCallback((propertyId: string) => {
     setNodeState((prev) => ({
@@ -50,21 +50,17 @@ export function PropertyHierarchyEditor({
     (property: PropertyDefinition, path: string[] = []) => {
       onSelectProperty({ ...property }, [...path, property.id]);
     },
-    [onSelectProperty]
+    [onSelectProperty],
   );
 
   const handleDeleteProperty = useCallback(
     (propertyId: string) => {
-      if (
-        confirm(
-          "Delete this property? This will also delete all child properties."
-        )
-      ) {
+      if (confirm("Delete this property? This will also delete all child properties.")) {
         const updated = removePropertyFromTree(properties, propertyId);
         onChange(updated);
       }
     },
-    [properties, onChange]
+    [properties, onChange],
   );
 
   const handleAddChild = useCallback(
@@ -79,13 +75,13 @@ export function PropertyHierarchyEditor({
         }));
       }
     },
-    [onAddChild]
+    [onAddChild],
   );
 
   const renderTreeNode = (
     property: PropertyDefinition,
     depth: number = 0,
-    path: string[] = []
+    path: string[] = [],
   ): React.ReactNode => {
     const currentPath = [...path, property.id];
     const isExpanded = nodeState[property.id]?.expanded ?? true;
@@ -105,21 +101,14 @@ export function PropertyHierarchyEditor({
               onClick={() => toggleExpanded(property.id)}
               aria-label="Toggle children"
             >
-              {isExpanded ? (
-                <ChevronDown size={16} />
-              ) : (
-                <ChevronRight size={16} />
-              )}
+              {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </button>
           ) : (
             <div className="property-tree-expander-placeholder" />
           )}
 
           {/* Label and select */}
-          <div
-            className="property-tree-label"
-            onClick={() => handleSelectProperty(property, path)}
-          >
+          <div className="property-tree-label" onClick={() => handleSelectProperty(property, path)}>
             <span className="property-tree-type">{property.type}</span>
             <span className="property-tree-name">{property.label || property.id}</span>
             {property.visibleWhen && Object.keys(property.visibleWhen).length > 0 && (
@@ -158,9 +147,7 @@ export function PropertyHierarchyEditor({
         {/* Children */}
         {hasChildren && isExpanded && (
           <div className="property-tree-children">
-            {property.children!.map((child) =>
-              renderTreeNode(child, depth + 1, currentPath)
-            )}
+            {property.children!.map((child) => renderTreeNode(child, depth + 1, currentPath))}
           </div>
         )}
       </div>

@@ -3,7 +3,11 @@ import type { PropertiesConfig } from "../editorTypes";
 import type { VaultIndex } from "../domain";
 import { dirname, joinMarkdown, slugify, splitMarkdown } from "../domain";
 import { pathName } from "./pathUtils";
-import { frontmatterDataToRaw, getConfiguredFrontmatterOrder, reorderFrontmatter } from "./propertiesConfig";
+import {
+  frontmatterDataToRaw,
+  getConfiguredFrontmatterOrder,
+  reorderFrontmatter,
+} from "./propertiesConfig";
 
 export const FOLDER_SYSTEM_PROPERTY_COMMENT =
   "Don't delete; it's a WorldNotion system property: indicates whether this note corresponds to a folder.";

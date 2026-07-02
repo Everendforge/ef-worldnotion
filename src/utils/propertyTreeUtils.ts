@@ -12,7 +12,7 @@ export function traversePropertyTree(
   definitions: PropertyDefinition[],
   callback: (def: PropertyDefinition, depth: number, parent?: PropertyDefinition) => void,
   depth: number = 0,
-  parent?: PropertyDefinition
+  parent?: PropertyDefinition,
 ): void {
   definitions.forEach((def) => {
     callback(def, depth, parent);
@@ -27,7 +27,7 @@ export function traversePropertyTree(
  */
 export function findPropertyById(
   definitions: PropertyDefinition[],
-  id: string
+  id: string,
 ): PropertyDefinition | null {
   let result: PropertyDefinition | null = null;
 
@@ -45,7 +45,7 @@ export function findPropertyById(
  */
 export function findChildrenOf(
   definitions: PropertyDefinition[],
-  parentId: string
+  parentId: string,
 ): PropertyDefinition[] {
   const children: PropertyDefinition[] = [];
 
@@ -88,7 +88,7 @@ export function flattenPropertyTree(definitions: PropertyDefinition[]): FlatProp
  */
 export function getPropertiesAtDepth(
   definitions: PropertyDefinition[],
-  depth: number
+  depth: number,
 ): PropertyDefinition[] {
   const result: PropertyDefinition[] = [];
 
@@ -105,10 +105,7 @@ export function getPropertiesAtDepth(
  * Get path from root to a property.
  * Example: ['character-powers', 'power-level']
  */
-export function getPropertyPath(
-  definitions: PropertyDefinition[],
-  targetId: string
-): string[] {
+export function getPropertyPath(definitions: PropertyDefinition[], targetId: string): string[] {
   let path: string[] = [];
 
   function findPath(defs: PropertyDefinition[], target: string, current: string[]): boolean {
@@ -135,7 +132,7 @@ export function getPropertyPath(
 export function isChildOf(
   definitions: PropertyDefinition[],
   childId: string,
-  parentId: string
+  parentId: string,
 ): boolean {
   const path = getPropertyPath(definitions, childId);
   return path.includes(parentId);
@@ -168,7 +165,7 @@ export function hasCircularDependency(definitions: PropertyDefinition[]): boolea
  * Returns array of {propertyId, missingParentIds}.
  */
 export function findBrokenReferences(
-  definitions: PropertyDefinition[]
+  definitions: PropertyDefinition[],
 ): Array<{ propertyId: string; missingParentIds: string[] }> {
   const flat = flattenPropertyTree(definitions);
   const allIds = new Set(flat.map((n) => n.definition.id));
@@ -195,7 +192,7 @@ export function findBrokenReferences(
  */
 export function isPropertyVisible(
   property: PropertyDefinition,
-  parentValues: Record<string, unknown>
+  parentValues: Record<string, unknown>,
 ): boolean {
   if (!property.visibleWhen) return true;
 
@@ -211,7 +208,7 @@ export function isPropertyVisible(
  */
 export function getVisibleChildren(
   property: PropertyDefinition,
-  parentValues: Record<string, unknown>
+  parentValues: Record<string, unknown>,
 ): PropertyDefinition[] {
   if (!property.children) return [];
 
@@ -223,7 +220,7 @@ export function getVisibleChildren(
  */
 export function getVisiblePropertiesRecursive(
   definitions: PropertyDefinition[],
-  parentValues: Record<string, unknown>
+  parentValues: Record<string, unknown>,
 ): PropertyDefinition[] {
   const visible: PropertyDefinition[] = [];
 
@@ -257,7 +254,7 @@ export function sortPropertiesByOrder(definitions: PropertyDefinition[]): Proper
  * Group properties by their `group` field for UI rendering.
  */
 export function groupPropertiesByCategory(
-  definitions: PropertyDefinition[]
+  definitions: PropertyDefinition[],
 ): Map<string | undefined, PropertyDefinition[]> {
   const grouped = new Map<string | undefined, PropertyDefinition[]>();
 
@@ -290,7 +287,7 @@ export function migrateV1toV2(v1Properties: PropertyDefinition[]): PropertyDefin
  */
 export function getPropertyByPath(
   definitions: PropertyDefinition[],
-  path: string[]
+  path: string[],
 ): PropertyDefinition | null {
   if (path.length === 0) return null;
 
@@ -324,7 +321,7 @@ export function deepCloneProperty(property: PropertyDefinition): PropertyDefinit
 export function updatePropertyInTree(
   definitions: PropertyDefinition[],
   propertyId: string,
-  updates: Partial<PropertyDefinition>
+  updates: Partial<PropertyDefinition>,
 ): PropertyDefinition[] {
   return definitions.map((def) => {
     if (def.id === propertyId) {
@@ -345,7 +342,7 @@ export function updatePropertyInTree(
  */
 export function removePropertyFromTree(
   definitions: PropertyDefinition[],
-  propertyId: string
+  propertyId: string,
 ): PropertyDefinition[] {
   return definitions
     .filter((def) => def.id !== propertyId)

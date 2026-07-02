@@ -26,7 +26,7 @@ export function selectionTouches(
   selectionFrom: number,
   selectionTo: number,
   from: number,
-  to: number
+  to: number,
 ): boolean {
   if (selectionFrom === selectionTo) {
     // The left edge is editable, but the right edge must behave like
@@ -46,11 +46,7 @@ export function selectionTouches(
  * @param className - CSS class to apply
  * @returns Range<Decoration> or null if invalid
  */
-export function marker(
-  from: number,
-  to: number,
-  className: string
-): Range<Decoration> | null {
+export function marker(from: number, to: number, className: string): Range<Decoration> | null {
   if (from >= to) return null;
   return Decoration.mark({ class: className }).range(from, to);
 }
@@ -68,7 +64,7 @@ export function marker(
 export function syntaxMarker(
   from: number,
   to: number,
-  isActive: boolean
+  isActive: boolean,
 ): Range<Decoration> | null {
   if (from >= to) return null;
   if (!isActive) {
@@ -89,10 +85,7 @@ export function syntaxMarker(
  * @param to - End position
  * @returns Range<Decoration> or null if invalid
  */
-export function createSyntaxHiddenDecoration(
-  from: number,
-  to: number
-): Range<Decoration> | null {
+export function createSyntaxHiddenDecoration(from: number, to: number): Range<Decoration> | null {
   if (from >= to) return null;
   return Decoration.replace({
     inclusive: false,
@@ -117,7 +110,7 @@ export function createStyledDecoration(
   to: number,
   className: string,
   attributes?: Record<string, string>,
-  inclusive = false
+  inclusive = false,
 ): Range<Decoration> | null {
   if (from >= to) return null;
   return Decoration.mark({
@@ -151,7 +144,7 @@ export function limitMatches<T>(matches: T[], limit = 50): T[] {
 export function isChangeInVisibleRange(
   changedFrom: number,
   changedTo: number,
-  visibleRanges: ReadonlyArray<{ from: number; to: number }>
+  visibleRanges: ReadonlyArray<{ from: number; to: number }>,
 ): boolean {
   return visibleRanges.some((range) => changedFrom <= range.to && changedTo >= range.from);
 }

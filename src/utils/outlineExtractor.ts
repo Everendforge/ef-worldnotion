@@ -62,7 +62,7 @@ export function extractOutline(markdown: string): OutlineHeader[] {
 export function findCurrentHeader(
   outline: OutlineHeader[],
   currentLine: number,
-  frontmatterOffset = 0
+  frontmatterOffset = 0,
 ): OutlineHeader | null {
   let current: OutlineHeader | null = null;
   const adjustedLine = currentLine + frontmatterOffset;
@@ -87,7 +87,7 @@ export function findCurrentHeader(
  */
 export function getHeaderPath(
   outline: OutlineHeader[],
-  targetHeader: OutlineHeader
+  targetHeader: OutlineHeader,
 ): OutlineHeader[] {
   const path: OutlineHeader[] = [];
 

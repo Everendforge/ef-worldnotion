@@ -34,10 +34,27 @@ describe("app environment helpers", () => {
   });
 
   it("matches keyboard shortcuts with Mod, Alt, Shift, and normalized single-letter keys", () => {
-    expect(shortcutMatches(new KeyboardEvent("keydown", { key: "s", ctrlKey: true }), "Mod+S")).toBe(true);
-    expect(shortcutMatches(new KeyboardEvent("keydown", { key: "P", metaKey: true, shiftKey: true }), "Mod+Shift+P")).toBe(true);
-    expect(shortcutMatches(new KeyboardEvent("keydown", { key: "ArrowRight", altKey: true }), "Alt+ArrowRight")).toBe(true);
+    expect(
+      shortcutMatches(new KeyboardEvent("keydown", { key: "s", ctrlKey: true }), "Mod+S"),
+    ).toBe(true);
+    expect(
+      shortcutMatches(
+        new KeyboardEvent("keydown", { key: "P", metaKey: true, shiftKey: true }),
+        "Mod+Shift+P",
+      ),
+    ).toBe(true);
+    expect(
+      shortcutMatches(
+        new KeyboardEvent("keydown", { key: "ArrowRight", altKey: true }),
+        "Alt+ArrowRight",
+      ),
+    ).toBe(true);
     expect(shortcutMatches(new KeyboardEvent("keydown", { key: "s" }), "Mod+S")).toBe(false);
-    expect(shortcutMatches(new KeyboardEvent("keydown", { key: "s", ctrlKey: true, altKey: true }), "Mod+S")).toBe(false);
+    expect(
+      shortcutMatches(
+        new KeyboardEvent("keydown", { key: "s", ctrlKey: true, altKey: true }),
+        "Mod+S",
+      ),
+    ).toBe(false);
   });
 });

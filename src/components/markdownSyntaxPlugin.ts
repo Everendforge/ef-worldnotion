@@ -1,6 +1,18 @@
 import { Range } from "@codemirror/state";
-import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate, WidgetType } from "@codemirror/view";
-import { isStructuralChange, selectionTouches as sharedSelectionTouches, marker as sharedMarker, syntaxMarker as sharedSyntaxMarker } from "./pluginUtils";
+import {
+  Decoration,
+  DecorationSet,
+  EditorView,
+  ViewPlugin,
+  ViewUpdate,
+  WidgetType,
+} from "@codemirror/view";
+import {
+  isStructuralChange,
+  selectionTouches as sharedSelectionTouches,
+  marker as sharedMarker,
+  syntaxMarker as sharedSyntaxMarker,
+} from "./pluginUtils";
 
 // List configuration - matches Obsidian standard
 const LIST_INDENT_WIDTH = 2; // 2 spaces per indent level
@@ -17,7 +29,10 @@ const MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\(([^)]+)\)/g;
 const MAX_INLINE_MATCHES_PER_RANGE = 50;
 
 class ListMarkerWidget extends WidgetType {
-  constructor(private readonly label: string, private readonly kind: "bullet" | "ordered" | "task") {
+  constructor(
+    private readonly label: string,
+    private readonly kind: "bullet" | "ordered" | "task",
+  ) {
     super();
   }
 
@@ -99,7 +114,7 @@ function parseListItem(text: string, lineStart: number): ListItemInfo | null {
     const indent = listMatch[1];
     const markerText = listMatch[2];
     const isOrdered = /^\d+\./.test(markerText);
-    
+
     return {
       indentLevel: calculateIndentLevel(indent),
       markerStart: lineStart + indent.length,
@@ -116,14 +131,14 @@ function isListContinuation(text: string, prevListLevel: number): boolean {
   // A line is a continuation if it's indented more than list marker indentation
   // but doesn't start with a list marker
   if (LIST_MARKER_REGEX.test(text)) return false;
-  
+
   const indentMatch = /^\s*/.exec(text);
   if (!indentMatch) return false;
-  
+
   const indentStr = indentMatch[0];
   const currentLevel = calculateIndentLevel(indentStr);
   const expectedMinLevel = prevListLevel + 1;
-  
+
   return currentLevel >= expectedMinLevel && text.trim().length > 0;
 }
 
@@ -135,15 +150,23 @@ function addInlineMatches(
   decorations: Range<Decoration>[],
 ) {
   let matchCount = 0;
-  
+
   let boldMatch: RegExpExecArray | null;
   BOLD_PATTERN.lastIndex = 0;
-  while ((boldMatch = BOLD_PATTERN.exec(text)) !== null && matchCount < MAX_INLINE_MATCHES_PER_RANGE) {
+  while (
+    (boldMatch = BOLD_PATTERN.exec(text)) !== null &&
+    matchCount < MAX_INLINE_MATCHES_PER_RANGE
+  ) {
     matchCount++;
     const openFrom = from + boldMatch.index;
     const contentFrom = openFrom + boldMatch[1].length;
     const contentTo = contentFrom + boldMatch[2].length;
-    const active = selectionTouches(selectionFrom, selectionTo, openFrom, contentTo + boldMatch[1].length);
+    const active = selectionTouches(
+      selectionFrom,
+      selectionTo,
+      openFrom,
+      contentTo + boldMatch[1].length,
+    );
     const m1 = syntaxMarker(openFrom, contentFrom, active);
     if (m1) decorations.push(m1);
     const m2 = marker(contentFrom, contentTo, "cm-md-bold");
@@ -154,12 +177,20 @@ function addInlineMatches(
 
   let italicMatch: RegExpExecArray | null;
   ITALIC_PATTERN.lastIndex = 0;
-  while ((italicMatch = ITALIC_PATTERN.exec(text)) !== null && matchCount < MAX_INLINE_MATCHES_PER_RANGE) {
+  while (
+    (italicMatch = ITALIC_PATTERN.exec(text)) !== null &&
+    matchCount < MAX_INLINE_MATCHES_PER_RANGE
+  ) {
     matchCount++;
     const openFrom = from + italicMatch.index + italicMatch[1].length;
     const contentFrom = openFrom + italicMatch[2].length;
     const contentTo = contentFrom + italicMatch[3].length;
-    const active = selectionTouches(selectionFrom, selectionTo, openFrom, contentTo + italicMatch[2].length);
+    const active = selectionTouches(
+      selectionFrom,
+      selectionTo,
+      openFrom,
+      contentTo + italicMatch[2].length,
+    );
     const m1 = syntaxMarker(openFrom, contentFrom, active);
     if (m1) decorations.push(m1);
     const m2 = marker(contentFrom, contentTo, "cm-md-italic");
@@ -170,7 +201,10 @@ function addInlineMatches(
 
   let codeMatch: RegExpExecArray | null;
   CODE_PATTERN.lastIndex = 0;
-  while ((codeMatch = CODE_PATTERN.exec(text)) !== null && matchCount < MAX_INLINE_MATCHES_PER_RANGE) {
+  while (
+    (codeMatch = CODE_PATTERN.exec(text)) !== null &&
+    matchCount < MAX_INLINE_MATCHES_PER_RANGE
+  ) {
     matchCount++;
     const openFrom = from + codeMatch.index;
     const contentFrom = openFrom + 1;
@@ -186,14 +220,21 @@ function addInlineMatches(
 
   let linkMatch: RegExpExecArray | null;
   MARKDOWN_LINK_PATTERN.lastIndex = 0;
-  while ((linkMatch = MARKDOWN_LINK_PATTERN.exec(text)) !== null && matchCount < MAX_INLINE_MATCHES_PER_RANGE) {
+  while (
+    (linkMatch = MARKDOWN_LINK_PATTERN.exec(text)) !== null &&
+    matchCount < MAX_INLINE_MATCHES_PER_RANGE
+  ) {
     matchCount++;
     const linkFrom = from + linkMatch.index;
     const linkTo = linkFrom + linkMatch[0].length;
     const active = selectionTouches(selectionFrom, selectionTo, linkFrom, linkTo);
     const m1 = syntaxMarker(linkFrom, linkFrom + 1, active);
     if (m1) decorations.push(m1);
-    const m2 = marker(from + linkMatch.index + 1, from + linkMatch.index + 1 + linkMatch[1].length, "cm-md-link-label");
+    const m2 = marker(
+      from + linkMatch.index + 1,
+      from + linkMatch.index + 1 + linkMatch[1].length,
+      "cm-md-link-label",
+    );
     if (m2) decorations.push(m2);
     const labelEnd = from + linkMatch.index + 1 + linkMatch[1].length;
     const m3 = syntaxMarker(labelEnd, linkTo, active);
@@ -250,7 +291,8 @@ function getDecorations(view: EditorView): DecorationSet {
           decorations.push(lineClass(lineClasses.join(" "), line.from));
 
           // Only show syntax when cursor is in the marker itself
-          const cursorInMarker = selectionFrom > listItem.markerStart && selectionFrom <= listItem.markerEnd;
+          const cursorInMarker =
+            selectionFrom > listItem.markerStart && selectionFrom <= listItem.markerEnd;
 
           if (!cursorInMarker) {
             decorations.push(

@@ -30,8 +30,8 @@ export function PropertiesManager({ config, onChange }: PropertiesManagerProps) 
       </div>
 
       <div className="ecosystem-content">
-          <div className="ecosystem-panel">
-            {showTagSettings ? (
+        <div className="ecosystem-panel">
+          {showTagSettings ? (
             <div className="panel-settings">
               <label className="setting-toggle">
                 <input
@@ -46,7 +46,9 @@ export function PropertiesManager({ config, onChange }: PropertiesManagerProps) 
                 />
                 <div className="setting-info">
                   <span className="setting-label">Permitir etiquetas personalizadas</span>
-                  <span className="setting-description">Acepta etiquetas que no estén en la jerarquía</span>
+                  <span className="setting-description">
+                    Acepta etiquetas que no estén en la jerarquía
+                  </span>
                 </div>
               </label>
               <label className="setting-toggle">
@@ -62,21 +64,23 @@ export function PropertiesManager({ config, onChange }: PropertiesManagerProps) 
                 />
                 <div className="setting-info">
                   <span className="setting-label">Auto-detectar notación de barras</span>
-                  <span className="setting-description">Reconoce automáticamente la estructura jerárquica</span>
+                  <span className="setting-description">
+                    Reconoce automáticamente la estructura jerárquica
+                  </span>
                 </div>
               </label>
             </div>
-            ) : null}
-            <TagHierarchyEditor
-              nodes={config.tags.rootNodes}
-              onChange={(rootNodes) =>
-                onChange({
-                  ...config,
-                  tags: { ...config.tags, rootNodes },
-                })
-              }
-            />
-          </div>
+          ) : null}
+          <TagHierarchyEditor
+            nodes={config.tags.rootNodes}
+            onChange={(rootNodes) =>
+              onChange({
+                ...config,
+                tags: { ...config.tags, rootNodes },
+              })
+            }
+          />
+        </div>
       </div>
     </div>
   );

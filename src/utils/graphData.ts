@@ -42,7 +42,11 @@ type NoteLookup = {
  * Build Obsidian-like graph data from the full vault index.
  * Markdown files are the primary nodes; frontmatter enriches labels, colors and filters.
  */
-export function buildGraphData(index: VaultIndex, settings: GraphSettings, activePath?: string): GraphData {
+export function buildGraphData(
+  index: VaultIndex,
+  settings: GraphSettings,
+  activePath?: string,
+): GraphData {
   const lookup = buildNoteLookup(index);
   let nodes = [...lookup.nodes];
   const links: GraphLink[] = [];
@@ -103,7 +107,9 @@ function buildNoteLookup(index: VaultIndex): NoteLookup {
   const byPath = new Map<string, GraphNode>();
   const targetToNodeId = new Map<string, string>();
   const nodes = index.markdownFiles
-    .filter((file) => file.relativePath.endsWith(".md") && !file.relativePath.startsWith(".everend/"))
+    .filter(
+      (file) => file.relativePath.endsWith(".md") && !file.relativePath.startsWith(".everend/"),
+    )
     .map((file) => {
       const entity = entityByPath.get(file.relativePath);
       const basename = fileTitle(file.relativePath);
@@ -272,7 +278,13 @@ function filterNodeIdsBySearch(nodes: GraphNode[], query: string): Set<string> |
   return new Set(
     nodes
       .filter((node) => {
-        const haystack = [node.label, node.path, node.type, ...node.tags.map((tag) => `#${tag}`), ...node.aliases]
+        const haystack = [
+          node.label,
+          node.path,
+          node.type,
+          ...node.tags.map((tag) => `#${tag}`),
+          ...node.aliases,
+        ]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
@@ -282,7 +294,12 @@ function filterNodeIdsBySearch(nodes: GraphNode[], query: string): Set<string> |
   );
 }
 
-function getLocalGraphNodeIds(centerNodeId: string, nodes: GraphNode[], links: GraphLink[], depth: number): Set<string> {
+function getLocalGraphNodeIds(
+  centerNodeId: string,
+  nodes: GraphNode[],
+  links: GraphLink[],
+  depth: number,
+): Set<string> {
   const nodeIds = new Set(nodes.map((node) => node.id));
   const adjacency = new Map<string, Set<string>>();
   links.forEach((link) => {
@@ -325,7 +342,9 @@ function calculateDegrees(links: GraphLink[]): Map<string, number> {
 }
 
 function colorForNode(node: GraphNode, groups: GraphGroupRule[]): string {
-  const matchedGroup = groups.find((group) => group.query.trim() && nodeMatchesQuery(node, group.query));
+  const matchedGroup = groups.find(
+    (group) => group.query.trim() && nodeMatchesQuery(node, group.query),
+  );
   if (matchedGroup) return matchedGroup.color;
   if (node.kind === "unresolved") return "#d29922";
   if (node.kind === "tag") return "#7cc7a2";
@@ -351,7 +370,10 @@ function nodeMatchesQuery(node: GraphNode, query: string): boolean {
 
 function pushUniqueLink(links: GraphLink[], link: GraphLink) {
   const exists = links.some(
-    (candidate) => candidate.source === link.source && candidate.target === link.target && candidate.type === link.type,
+    (candidate) =>
+      candidate.source === link.source &&
+      candidate.target === link.target &&
+      candidate.type === link.type,
   );
   if (!exists) links.push(link);
 }

@@ -69,7 +69,10 @@ describe("wikilink resolver", () => {
   it("returns missing for empty labels, absent indexes, and unresolved targets", () => {
     expect(resolveWikilinkInIndex(undefined, "Ada")).toEqual({ label: "Ada", status: "missing" });
     expect(resolveWikilinkInIndex(index(), "   ")).toEqual({ label: "   ", status: "missing" });
-    expect(resolveWikilinkInIndex(index(), "Unknown")).toEqual({ label: "Unknown", status: "missing" });
+    expect(resolveWikilinkInIndex(index(), "Unknown")).toEqual({
+      label: "Unknown",
+      status: "missing",
+    });
   });
 
   it("prefers entity matches over loose files with the same title", () => {

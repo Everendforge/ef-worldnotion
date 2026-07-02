@@ -26,7 +26,9 @@ export function buildFileResults(index: VaultIndex | null): FileResult[] {
   }));
 }
 
-export function buildCommandResults(keybindings: Array<{ commandId: EditorCommandId; shortcut: string }>): CommandResult[] {
+export function buildCommandResults(
+  keybindings: Array<{ commandId: EditorCommandId; shortcut: string }>,
+): CommandResult[] {
   return EDITOR_COMMANDS.map((command) => ({
     type: "command",
     id: command.id,

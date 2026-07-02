@@ -1,6 +1,11 @@
 import { Range } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from "@codemirror/view";
-import { isStructuralChange, selectionTouches, createSyntaxHiddenDecoration, createStyledDecoration } from "./pluginUtils";
+import {
+  isStructuralChange,
+  selectionTouches,
+  createSyntaxHiddenDecoration,
+  createStyledDecoration,
+} from "./pluginUtils";
 import type { ResolvedWikilink } from "../editorTypes";
 
 // Compiled once at module load
@@ -26,74 +31,68 @@ export function wikilinkPlugin(options: {
         if (!rawTarget) continue;
         const hasAlias = match[2] !== undefined;
         const alias = match[2]?.trim();
-        
+
         const start = from + match.index;
         const end = start + match[0].length;
         const visibleFrom = hasAlias ? start + 2 + match[1].length + 1 : start + 2;
-        const isAtRightVisualEdge = selectionFrom === selectionTo && selectionFrom > visibleFrom && selectionFrom === end;
-        const isSelected = selectionTouches(selectionFrom, selectionTo, start, end) || isAtRightVisualEdge;
-        
-        const resolved = options.resolveWikilink?.(rawTarget) ?? { label: (alias || rawTarget), status: "missing" as const };
-        
+        const isAtRightVisualEdge =
+          selectionFrom === selectionTo && selectionFrom > visibleFrom && selectionFrom === end;
+        const isSelected =
+          selectionTouches(selectionFrom, selectionTo, start, end) || isAtRightVisualEdge;
+
+        const resolved = options.resolveWikilink?.(rawTarget) ?? {
+          label: alias || rawTarget,
+          status: "missing" as const,
+        };
+
         if (!isSelected) {
           // When not editing: hide syntax and target/pipe, show only alias (or target if no alias)
           // Opening brackets [[
           const openHidden = createSyntaxHiddenDecoration(start, start + 2);
           if (openHidden) decorations.push(openHidden);
-          
+
           if (hasAlias) {
             // Hide target and pipe: [[Realidades|
             const targetAndPipeEnd = start + 2 + match[1].length + 1; // +1 for the pipe
             const targetHidden = createSyntaxHiddenDecoration(start + 2, targetAndPipeEnd);
             if (targetHidden) decorations.push(targetHidden);
-            
+
             // Style the alias part
             const aliasStart = targetAndPipeEnd;
             const aliasEnd = end - 2;
             const baseClass = resolved.status === "missing" ? "cm-wikilink-missing" : "cm-wikilink";
-            const aliasDecoration = createStyledDecoration(
-              aliasStart,
-              aliasEnd,
-              baseClass,
-              {
-                "data-wikilink": rawTarget,
-                "data-wikilink-status": resolved.status,
-                title: resolved.targetPath ? `Cmd/Ctrl-click to open ${resolved.targetPath}` : `Missing wikilink: ${rawTarget}`,
-              }
-            );
+            const aliasDecoration = createStyledDecoration(aliasStart, aliasEnd, baseClass, {
+              "data-wikilink": rawTarget,
+              "data-wikilink-status": resolved.status,
+              title: resolved.targetPath
+                ? `Cmd/Ctrl-click to open ${resolved.targetPath}`
+                : `Missing wikilink: ${rawTarget}`,
+            });
             if (aliasDecoration) decorations.push(aliasDecoration);
           } else {
             // No alias, just hide brackets and style the target
             const contentStart = start + 2;
             const contentEnd = end - 2;
             const baseClass = resolved.status === "missing" ? "cm-wikilink-missing" : "cm-wikilink";
-            const contentDecoration = createStyledDecoration(
-              contentStart,
-              contentEnd,
-              baseClass,
-              {
-                "data-wikilink": rawTarget,
-                "data-wikilink-status": resolved.status,
-                title: resolved.targetPath ? `Cmd/Ctrl-click to open ${resolved.targetPath}` : `Missing wikilink: ${rawTarget}`,
-              }
-            );
+            const contentDecoration = createStyledDecoration(contentStart, contentEnd, baseClass, {
+              "data-wikilink": rawTarget,
+              "data-wikilink-status": resolved.status,
+              title: resolved.targetPath
+                ? `Cmd/Ctrl-click to open ${resolved.targetPath}`
+                : `Missing wikilink: ${rawTarget}`,
+            });
             if (contentDecoration) decorations.push(contentDecoration);
           }
-          
+
           // Closing brackets ]]
           const closeHidden = createSyntaxHiddenDecoration(end - 2, end);
           if (closeHidden) decorations.push(closeHidden);
         } else {
           // When editing: show everything with muted syntax
-          const editDecoration = createStyledDecoration(
-            start,
-            end,
-            "cm-wikilink-editing",
-            {
-              "data-wikilink": rawTarget,
-              "data-wikilink-status": resolved.status,
-            }
-          );
+          const editDecoration = createStyledDecoration(start, end, "cm-wikilink-editing", {
+            "data-wikilink": rawTarget,
+            "data-wikilink-status": resolved.status,
+          });
           if (editDecoration) decorations.push(editDecoration);
         }
       }

@@ -168,7 +168,10 @@ export type OpenTab = {
   savedMarkdown: string;
 };
 
-export type PersistedOpenTab = Pick<OpenTab, "path" | "title" | "mode" | "sourceView" | "modifiedMs" | "isTemplate">;
+export type PersistedOpenTab = Pick<
+  OpenTab,
+  "path" | "title" | "mode" | "sourceView" | "modifiedMs" | "isTemplate"
+>;
 
 export type DocumentTabGroup = {
   id: string;
@@ -178,7 +181,8 @@ export type DocumentTabGroup = {
   tabPaths: string[];
 };
 
-export type DockPanelKind = "document" | "explorer" | "graph" | "outline" | "links" | "backlinks" | "inspector";
+export type DockPanelKind =
+  "document" | "explorer" | "graph" | "outline" | "links" | "backlinks" | "inspector";
 
 export type DockTabRef = {
   id: string;
@@ -362,14 +366,14 @@ export type TagHierarchyNode = {
   parentId?: string; // Reference to parent node ID
 };
 
-export type CustomFieldType = 
-  | "text" 
-  | "number" 
-  | "boolean" 
-  | "date" 
-  | "select" 
-  | "multiselect" 
-  | "entity-ref" 
+export type CustomFieldType =
+  | "text"
+  | "number"
+  | "boolean"
+  | "date"
+  | "select"
+  | "multiselect"
+  | "entity-ref"
   | "entity-ref-list"
   | "url"
   | "email"
@@ -503,7 +507,8 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   defaultMode: "write",
   pageStyle: "theme",
   customPageColor: "#ffffff",
-  writeFontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  writeFontFamily:
+    'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   sourceFontFamily: '"SFMono-Regular", Consolas, monospace',
   hideMarkdownSyntaxInWrite: true,
   persistTabs: true,
@@ -594,24 +599,54 @@ export const EDITOR_COMMANDS: EditorCommand[] = [
   { id: "link", label: "Link", group: "insert", defaultShortcut: "Mod+K" },
   { id: "wikilink", label: "Wikilink", group: "insert", defaultShortcut: "Mod+Shift+K" },
   { id: "footnote", label: "Footnote", group: "insert", defaultShortcut: "Mod+Alt+F" },
-  { id: "horizontalRule", label: "Horizontal Rule", group: "insert", defaultShortcut: "Mod+Shift+H" },
-  { id: "foldBlock", label: "Fold Current Block", group: "navigation", defaultShortcut: "Mod+Alt+[" },
+  {
+    id: "horizontalRule",
+    label: "Horizontal Rule",
+    group: "insert",
+    defaultShortcut: "Mod+Shift+H",
+  },
+  {
+    id: "foldBlock",
+    label: "Fold Current Block",
+    group: "navigation",
+    defaultShortcut: "Mod+Alt+[",
+  },
   { id: "commandPalette", label: "Command Palette", group: "workspace", defaultShortcut: "Mod+P" },
-  { id: "quickSwitcher", label: "Quick Switcher", group: "workspace", defaultShortcut: "Mod+Alt+O" },
-  { id: "toggleOutline", label: "Toggle Outline", group: "workspace", defaultShortcut: "Mod+Shift+O" },
-  { id: "collapseExplorerFolders", label: "Collapse Explorer Folders", group: "workspace", defaultShortcut: "Mod+Shift+E" },
-  { id: "switchMode", label: "Switch Write/Source Mode", group: "workspace", defaultShortcut: "Mod+/" },
+  {
+    id: "quickSwitcher",
+    label: "Quick Switcher",
+    group: "workspace",
+    defaultShortcut: "Mod+Alt+O",
+  },
+  {
+    id: "toggleOutline",
+    label: "Toggle Outline",
+    group: "workspace",
+    defaultShortcut: "Mod+Shift+O",
+  },
+  {
+    id: "collapseExplorerFolders",
+    label: "Collapse Explorer Folders",
+    group: "workspace",
+    defaultShortcut: "Mod+Shift+E",
+  },
+  {
+    id: "switchMode",
+    label: "Switch Write/Source Mode",
+    group: "workspace",
+    defaultShortcut: "Mod+/",
+  },
   { id: "closeTab", label: "Close Tab", group: "workspace", defaultShortcut: "Mod+W" },
   { id: "nextTab", label: "Next Tab", group: "workspace", defaultShortcut: "Mod+Shift+]" },
   { id: "previousTab", label: "Previous Tab", group: "workspace", defaultShortcut: "Mod+Shift+[" },
 ];
 
-export const DEFAULT_KEYBINDINGS: Keybinding[] = EDITOR_COMMANDS
-  .filter((command) => command.defaultShortcut)
-  .map((command) => ({
-    commandId: command.id,
-    shortcut: command.defaultShortcut ?? "",
-  }));
+export const DEFAULT_KEYBINDINGS: Keybinding[] = EDITOR_COMMANDS.filter(
+  (command) => command.defaultShortcut,
+).map((command) => ({
+  commandId: command.id,
+  shortcut: command.defaultShortcut ?? "",
+}));
 
 export function shortcutFor(commandId: EditorCommandId, keybindings: Keybinding[]) {
   return keybindings.find((binding) => binding.commandId === commandId)?.shortcut ?? "";

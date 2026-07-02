@@ -1,5 +1,11 @@
 import type { PropertiesConfig } from "../editorTypes";
-import type { EntityTemplate, UniverseIcon, UniverseProfile, ValidationFinding, VaultFile } from "../domain";
+import type {
+  EntityTemplate,
+  UniverseIcon,
+  UniverseProfile,
+  ValidationFinding,
+  VaultFile,
+} from "../domain";
 import { normalizeCoreBaseProperties } from "./taxonomyConfig";
 
 function basenameWithoutExtension(path: string): string {
@@ -30,7 +36,10 @@ export function parseTemplates(files: VaultFile[]): EntityTemplate[] {
     .sort((a, b) => a.type.localeCompare(b.type));
 }
 
-export function parseUniverseProfile(files: VaultFile[], findings: ValidationFinding[]): UniverseProfile | undefined {
+export function parseUniverseProfile(
+  files: VaultFile[],
+  findings: ValidationFinding[],
+): UniverseProfile | undefined {
   const profileFile = files.find((file) => file.relativePath === ".everend/universe.json");
   if (!profileFile) return undefined;
 
@@ -61,7 +70,10 @@ export function parseUniverseProfile(files: VaultFile[], findings: ValidationFin
   }
 }
 
-export function parsePropertiesConfig(files: VaultFile[], findings: ValidationFinding[]): PropertiesConfig | undefined {
+export function parsePropertiesConfig(
+  files: VaultFile[],
+  findings: ValidationFinding[],
+): PropertiesConfig | undefined {
   const propertiesFile = files.find((file) => file.relativePath === ".everend/properties.json");
   if (!propertiesFile) return undefined;
 
@@ -70,7 +82,13 @@ export function parsePropertiesConfig(files: VaultFile[], findings: ValidationFi
     if (!parsed || typeof parsed !== "object") return undefined;
 
     const config = parsed as PropertiesConfig;
-    if (!config.version || !config.tags || !config.entityTypes || !config.statuses || !config.customFields) {
+    if (
+      !config.version ||
+      !config.tags ||
+      !config.entityTypes ||
+      !config.statuses ||
+      !config.customFields
+    ) {
       findings.push(
         createFinding(
           "missing_runtime_asset",

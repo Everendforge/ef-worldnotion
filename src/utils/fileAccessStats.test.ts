@@ -48,7 +48,9 @@ describe("file access stats", () => {
         "C:/Vault": {
           rootPath: "C:/Vault",
           activePath: "Notes/Ada.md",
-          tabs: [{ path: "Notes/Ada.md", title: "Ada", mode: "write", modifiedMs: 1, isTemplate: false }],
+          tabs: [
+            { path: "Notes/Ada.md", title: "Ada", mode: "write", modifiedMs: 1, isTemplate: false },
+          ],
           fileAccessStats: [{ path: "Notes/Ada.md", count: 1, lastAccessed: 1 }],
         },
       },

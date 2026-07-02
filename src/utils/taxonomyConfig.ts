@@ -31,7 +31,16 @@ const SPEC_ENTITY_TYPE_IDS = [
   "scene",
   "quest",
 ];
-const PROTECTED_BASE_PROPERTY_IDS = ["id", "name", "type", "status", "tags", "aliases", "parentId", "childrenIds"] as const;
+const PROTECTED_BASE_PROPERTY_IDS = [
+  "id",
+  "name",
+  "type",
+  "status",
+  "tags",
+  "aliases",
+  "parentId",
+  "childrenIds",
+] as const;
 const VISIBLE_CORE_PROPERTY_IDS = ["type", "status", "aliases"] as const;
 const NON_PROPERTY_FIELD_IDS = new Set(["folder", "tags"]);
 export const WORLDBUILDING_DETAILS_GROUP_ID = "worldbuilding-details";
@@ -120,34 +129,48 @@ export function normalizeCoreBaseProperties(config: TaxonomyConfig): TaxonomyCon
     .filter((definition) => !allowedIds.has(definition.id))
     .filter((definition) => !NON_PROPERTY_FIELD_IDS.has(definition.id))
     .map((definition) => {
-      const { immutable: _immutable, readOnly: _readOnly, order: _order, hidden: _hidden, ...customDefinition } = definition;
+      const {
+        immutable: _immutable,
+        readOnly: _readOnly,
+        order: _order,
+        hidden: _hidden,
+        ...customDefinition
+      } = definition;
       return {
         ...customDefinition,
         label: customDefinition.label ?? definition.id,
       };
     });
-  const existingCustomIds = new Set(config.customFields.definitions.map((definition) => definition.id));
+  const existingCustomIds = new Set(
+    config.customFields.definitions.map((definition) => definition.id),
+  );
   const nextCustomDefinitions = [
-    ...config.customFields.definitions.filter((definition) => !NON_PROPERTY_FIELD_IDS.has(definition.id) && !allowedIds.has(definition.id)),
+    ...config.customFields.definitions.filter(
+      (definition) => !NON_PROPERTY_FIELD_IDS.has(definition.id) && !allowedIds.has(definition.id),
+    ),
     ...movableDefinitions.filter((definition) => !existingCustomIds.has(definition.id)),
   ];
   const previousVisible = config.baseProperties?.visibleByDefault ?? [...VISIBLE_CORE_PROPERTY_IDS];
   const visibleCore = previousVisible.filter((id) => allowedIds.has(id));
-  const visibleCustom = previousVisible.filter((id) => !allowedIds.has(id) && !NON_PROPERTY_FIELD_IDS.has(id));
+  const visibleCustom = previousVisible.filter(
+    (id) => !allowedIds.has(id) && !NON_PROPERTY_FIELD_IDS.has(id),
+  );
 
   return unwrapWorldbuildingDetailsGroup({
     ...config,
     baseProperties: {
       definitions: coreDefinitions,
-      visibleByDefault: visibleCore.length ? visibleCore.filter((id) => id !== "folder") : [...VISIBLE_CORE_PROPERTY_IDS],
+      visibleByDefault: visibleCore.length
+        ? visibleCore.filter((id) => id !== "folder")
+        : [...VISIBLE_CORE_PROPERTY_IDS],
       order: [...PROTECTED_BASE_PROPERTY_IDS],
     },
     customFields: {
       ...config.customFields,
       definitions: nextCustomDefinitions,
-      globalFields: [...new Set([...(config.customFields.globalFields ?? []), ...visibleCustom])].filter(
-        (id) => !NON_PROPERTY_FIELD_IDS.has(id) && !allowedIds.has(id),
-      ),
+      globalFields: [
+        ...new Set([...(config.customFields.globalFields ?? []), ...visibleCustom]),
+      ].filter((id) => !NON_PROPERTY_FIELD_IDS.has(id) && !allowedIds.has(id)),
     },
     entityTypes: {
       ...config.entityTypes,
@@ -171,9 +194,7 @@ function replaceWorldbuildingDetailIds(
 ): string[] | undefined {
   if (!ids) return ids;
   const replacementIds = entityType
-    ? children
-        .filter((child) => propertyAppliesToType(child, entityType))
-        .map((child) => child.id)
+    ? children.filter((child) => propertyAppliesToType(child, entityType)).map((child) => child.id)
     : [];
   const next: string[] = [];
   ids.forEach((id) => {
@@ -193,12 +214,16 @@ export function unwrapWorldbuildingDetailsGroup(config: TaxonomyConfig): Taxonom
   if (!group?.children?.length) return config;
   const groupChildren = group.children;
 
-  const rootDefinitions = config.customFields.definitions.filter((definition) => definition.id !== WORLDBUILDING_DETAILS_GROUP_ID);
+  const rootDefinitions = config.customFields.definitions.filter(
+    (definition) => definition.id !== WORLDBUILDING_DETAILS_GROUP_ID,
+  );
   const rootIds = new Set(rootDefinitions.map((definition) => definition.id));
   const childrenToLift = groupChildren
     .filter((child) => !rootIds.has(child.id))
     .map((child) => ({ ...child })) as CustomFieldDefinition[];
-  const groupIndex = config.customFields.definitions.findIndex((definition) => definition.id === WORLDBUILDING_DETAILS_GROUP_ID);
+  const groupIndex = config.customFields.definitions.findIndex(
+    (definition) => definition.id === WORLDBUILDING_DETAILS_GROUP_ID,
+  );
   const nextDefinitions = [
     ...rootDefinitions.slice(0, Math.max(groupIndex, 0)),
     ...childrenToLift,
@@ -210,15 +235,29 @@ export function unwrapWorldbuildingDetailsGroup(config: TaxonomyConfig): Taxonom
     customFields: {
       ...config.customFields,
       definitions: nextDefinitions,
-      globalFields: replaceWorldbuildingDetailIds(config.customFields.globalFields, groupChildren) ?? config.customFields.globalFields,
+      globalFields:
+        replaceWorldbuildingDetailIds(config.customFields.globalFields, groupChildren) ??
+        config.customFields.globalFields,
     },
     entityTypes: {
       ...config.entityTypes,
       definitions: config.entityTypes.definitions.map((definition) => ({
         ...definition,
-        customFields: replaceWorldbuildingDetailIds(definition.customFields, groupChildren, definition.id),
-        visibleProperties: replaceWorldbuildingDetailIds(definition.visibleProperties, groupChildren, definition.id),
-        propertyOrder: replaceWorldbuildingDetailIds(definition.propertyOrder, groupChildren, definition.id),
+        customFields: replaceWorldbuildingDetailIds(
+          definition.customFields,
+          groupChildren,
+          definition.id,
+        ),
+        visibleProperties: replaceWorldbuildingDetailIds(
+          definition.visibleProperties,
+          groupChildren,
+          definition.id,
+        ),
+        propertyOrder: replaceWorldbuildingDetailIds(
+          definition.propertyOrder,
+          groupChildren,
+          definition.id,
+        ),
       })),
     },
   };
@@ -504,7 +543,11 @@ export function generateTaxonomyFromEntities(entities: TaxonomyEntityInput[]): T
         fieldType = "boolean";
       } else if (examples.every((value) => typeof value === "number")) {
         fieldType = "number";
-      } else if (examples.every((value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(String(value)))) {
+      } else if (
+        examples.every(
+          (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(String(value)),
+        )
+      ) {
         fieldType = "date";
       } else if (examples.length <= 10 && examples.every((value) => typeof value === "string")) {
         fieldType = "select";
@@ -531,12 +574,18 @@ export function generateTaxonomyFromEntities(entities: TaxonomyEntityInput[]): T
       autoDetectSlashNotation: true,
     },
     entityTypes: {
-      definitions: entityTypeDefinitions.length > 0 ? entityTypeDefinitions : createDefaultTaxonomyConfig().entityTypes.definitions,
+      definitions:
+        entityTypeDefinitions.length > 0
+          ? entityTypeDefinitions
+          : createDefaultTaxonomyConfig().entityTypes.definitions,
       defaultType: entityTypeDefinitions.length > 0 ? entityTypeDefinitions[0].id : "concept",
       allowCustomTypes: true,
     },
     statuses: {
-      definitions: statusDefinitions.length > 0 ? statusDefinitions : createDefaultTaxonomyConfig().statuses.definitions,
+      definitions:
+        statusDefinitions.length > 0
+          ? statusDefinitions
+          : createDefaultTaxonomyConfig().statuses.definitions,
       defaultStatus: statusDefinitions.length > 0 ? statusDefinitions[0].id : "draft",
       allowCustomStatuses: true,
     },
@@ -547,7 +596,10 @@ export function generateTaxonomyFromEntities(entities: TaxonomyEntityInput[]): T
   };
 }
 
-export function mergeTagHierarchy(predefinedTags: TagHierarchyNode[], detectedTags: string[]): TagHierarchyNode[] {
+export function mergeTagHierarchy(
+  predefinedTags: TagHierarchyNode[],
+  detectedTags: string[],
+): TagHierarchyNode[] {
   const tagMap = new Map<string, TagHierarchyNode>();
 
   const addToMap = (node: TagHierarchyNode) => {
@@ -637,7 +689,7 @@ export function migrateTaxonomyConfig(config: TaxonomyConfig): TaxonomyConfig {
     // Check if folder-description exists in entityTypes and remove it
     if (migratedConfig.entityTypes?.definitions) {
       const folderDescIndex = migratedConfig.entityTypes.definitions.findIndex(
-        (def) => def.id === "folder-description"
+        (def) => def.id === "folder-description",
       );
       if (folderDescIndex >= 0) {
         console.log("[Migration] Moving folder-description from entityTypes to contentTypes");

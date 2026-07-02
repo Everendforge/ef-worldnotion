@@ -110,7 +110,9 @@ const PLUGIN_DEFINITIONS: PluginDefinition[] = [
   },
 ];
 
-const definitionsById = new Map(PLUGIN_DEFINITIONS.map((definition) => [definition.id, definition]));
+const definitionsById = new Map(
+  PLUGIN_DEFINITIONS.map((definition) => [definition.id, definition]),
+);
 
 export function getPluginDefinitions(): PluginDefinition[] {
   return PLUGIN_DEFINITIONS;
@@ -122,7 +124,9 @@ export function pluginSettingDefaults(): PluginSettings {
   };
 }
 
-export function normalizePluginSettings(settings: Partial<PluginSettings> | undefined): PluginSettings {
+export function normalizePluginSettings(
+  settings: Partial<PluginSettings> | undefined,
+): PluginSettings {
   return {
     enabled: {
       ...pluginSettingDefaults().enabled,
@@ -140,11 +144,16 @@ export function isPluginEnabled(
   if (!definition) return false;
   if (definition.status === "planned") return false;
   if (definition.status === "core" && !definition.configurable) return legacyEnabled;
-  const enabled = normalizePluginSettings(pluginSettings).enabled[pluginId] ?? definition.defaultEnabled;
+  const enabled =
+    normalizePluginSettings(pluginSettings).enabled[pluginId] ?? definition.defaultEnabled;
   return enabled && legacyEnabled;
 }
 
-export function updatePluginEnabled(settings: AppSettingsV4, pluginId: PluginId, enabled: boolean): AppSettingsV4 {
+export function updatePluginEnabled(
+  settings: AppSettingsV4,
+  pluginId: PluginId,
+  enabled: boolean,
+): AppSettingsV4 {
   const nextPlugins = normalizePluginSettings(settings.plugins);
   const definition = definitionsById.get(pluginId);
   if (!definition || !definition.configurable || definition.status === "planned") {

@@ -121,9 +121,7 @@ function FieldItem({ field, onUpdate, onDelete }: FieldItemProps) {
                 <span>Type:</span>
                 <select
                   value={draft.type}
-                  onChange={(e) =>
-                    setDraft({ ...draft, type: e.target.value as CustomFieldType })
-                  }
+                  onChange={(e) => setDraft({ ...draft, type: e.target.value as CustomFieldType })}
                 >
                   {Object.entries(FIELD_TYPE_LABELS).map(([value, label]) => (
                     <option key={value} value={value}>
@@ -204,10 +202,7 @@ function FieldItem({ field, onUpdate, onDelete }: FieldItemProps) {
                     {draft.options?.map((opt) => (
                       <div key={opt.value} className="option-item">
                         <span>{opt.label}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveOption(opt.value)}
-                        >
+                        <button type="button" onClick={() => handleRemoveOption(opt.value)}>
                           <Trash2 size={12} />
                         </button>
                       </div>
@@ -290,9 +285,7 @@ function FieldItem({ field, onUpdate, onDelete }: FieldItemProps) {
               {field.required && <span className="required-badge">Required</span>}
               <span className="field-id">({field.id})</span>
               <span className="field-type">{FIELD_TYPE_LABELS[field.type]}</span>
-              {field.description && (
-                <p className="field-description">{field.description}</p>
-              )}
+              {field.description && <p className="field-description">{field.description}</p>}
               {field.options && field.options.length > 0 && (
                 <p className="field-options-count">
                   {field.options.length} option
@@ -300,18 +293,12 @@ function FieldItem({ field, onUpdate, onDelete }: FieldItemProps) {
                 </p>
               )}
               {field.visibleWhen && Object.keys(field.visibleWhen).length > 0 && (
-                <p className="field-conditional">
-                  Conditional visibility set
-                </p>
+                <p className="field-conditional">Conditional visibility set</p>
               )}
             </div>
           </div>
           <div className="custom-field-controls">
-            <button
-              type="button"
-              onClick={() => setIsEditing(true)}
-              title="Edit"
-            >
+            <button type="button" onClick={() => setIsEditing(true)} title="Edit">
               <Edit2 size={14} />
             </button>
             <button
@@ -333,9 +320,7 @@ export function CustomFieldEditor({ fields, onChange }: CustomFieldEditorProps) 
   const [viewMode, setViewMode] = useState<EditorViewMode>("flat");
   const [showAddForm, setShowAddForm] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
-  const [selectedProperty, setSelectedProperty] = useState<PropertyDefinition | null>(
-    null
-  );
+  const [selectedProperty, setSelectedProperty] = useState<PropertyDefinition | null>(null);
   const [newField, setNewField] = useState<PropertyDefinition>({
     id: "",
     label: "",
@@ -369,17 +354,13 @@ export function CustomFieldEditor({ fields, onChange }: CustomFieldEditorProps) 
   };
 
   const handleUpdate = (updatedField: PropertyDefinition) => {
-    onChange(
-      fields.map((f) => (f.id === updatedField.id ? updatedField : f))
-    );
+    onChange(fields.map((f) => (f.id === updatedField.id ? updatedField : f)));
   };
 
   const handleDelete = (fieldId: string) => {
     const field = fields.find((f) => f.id === fieldId);
     if (
-      confirm(
-        `Delete custom field "${field?.label}"? This will also delete any child properties.`
-      )
+      confirm(`Delete custom field "${field?.label}"? This will also delete any child properties.`)
     ) {
       onChange(fields.filter((f) => f.id !== fieldId));
     }
@@ -419,10 +400,7 @@ export function CustomFieldEditor({ fields, onChange }: CustomFieldEditorProps) 
       </div>
 
       <div className="custom-field-editor-controls">
-        <button
-          className="btn-secondary"
-          onClick={() => setShowTemplateDialog(true)}
-        >
+        <button className="btn-secondary" onClick={() => setShowTemplateDialog(true)}>
           <DownloadCloud size={14} /> Templates
         </button>
       </div>
@@ -448,9 +426,7 @@ export function CustomFieldEditor({ fields, onChange }: CustomFieldEditorProps) 
                 <input
                   type="text"
                   value={newField.label ?? ""}
-                  onChange={(e) =>
-                    setNewField({ ...newField, label: e.target.value })
-                  }
+                  onChange={(e) => setNewField({ ...newField, label: e.target.value })}
                   placeholder="Hit Points"
                 />
               </label>
@@ -486,10 +462,7 @@ export function CustomFieldEditor({ fields, onChange }: CustomFieldEditorProps) 
                 <button type="button" onClick={handleAdd}>
                   Add Field
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAddForm(false)}
-                >
+                <button type="button" onClick={() => setShowAddForm(false)}>
                   Cancel
                 </button>
               </div>

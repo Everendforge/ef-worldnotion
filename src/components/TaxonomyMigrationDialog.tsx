@@ -108,16 +108,14 @@ export function TaxonomyMigrationDialog({
             </div>
           )}
 
-          <button
-            className="toggle-details-button"
-            onClick={() => setShowDetails(!showDetails)}
-          >
+          <button className="toggle-details-button" onClick={() => setShowDetails(!showDetails)}>
             {showDetails ? "Hide" : "Show"} Details
           </button>
 
           <div className="dialog-note">
             <p>
-              You can customize these properties anytime in <strong>Settings → Universe → Properties</strong>.
+              You can customize these properties anytime in{" "}
+              <strong>Settings → Universe → Properties</strong>.
             </p>
           </div>
         </div>
@@ -130,7 +128,10 @@ export function TaxonomyMigrationDialog({
           <button className="action-button customize-button" onClick={onCustomize}>
             Customize First
           </button>
-          <button className="action-button accept-button" onClick={() => onAccept(generatedTaxonomy)}>
+          <button
+            className="action-button accept-button"
+            onClick={() => onAccept(generatedTaxonomy)}
+          >
             <Check size={16} />
             Accept &amp; Save
           </button>

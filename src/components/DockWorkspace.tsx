@@ -10,8 +10,18 @@ import {
   type ReactNode,
 } from "react";
 import { ChevronRight, FileEdit, Plus, X } from "lucide-react";
-import type { DockGroupNode, DockNode, DockSplitNode, DockTabRef, DocumentTabGroup, WorkspaceLayoutV1 } from "../editorTypes";
-import { isDockMoveAllowedAroundDocumentAnchor, type DockDropPosition } from "../utils/workspaceLayout";
+import type {
+  DockGroupNode,
+  DockNode,
+  DockSplitNode,
+  DockTabRef,
+  DocumentTabGroup,
+  WorkspaceLayoutV1,
+} from "../editorTypes";
+import {
+  isDockMoveAllowedAroundDocumentAnchor,
+  type DockDropPosition,
+} from "../utils/workspaceLayout";
 
 export type DockMoveRequest = {
   tabId: string;
@@ -127,7 +137,9 @@ export function DockWorkspace({
         documentTabGroups={documentTabGroups}
         onPointerDragStart={dragController.startDrag}
       />
-      {dragController.dragState?.active ? <DockDragGhost dragState={dragController.dragState} /> : null}
+      {dragController.dragState?.active ? (
+        <DockDragGhost dragState={dragController.dragState} />
+      ) : null}
     </div>
   );
 }
@@ -275,7 +287,11 @@ function DockGroup({
         documentTabGroups={documentTabGroups}
       />
       <div className="dock-group-content">
-        {activeTab ? renderTab(activeTab) : <EmptyDockGroup groupId={group.id} renderEmptyDocuments={renderEmptyDocuments} />}
+        {activeTab ? (
+          renderTab(activeTab)
+        ) : (
+          <EmptyDockGroup groupId={group.id} renderEmptyDocuments={renderEmptyDocuments} />
+        )}
       </div>
       {isDragOver ? <DockDropOverlay target={dragState.target} /> : null}
     </section>
@@ -317,7 +333,11 @@ function DockTabBar({
   const panelTabs = group.tabs.filter((tab) => tab.kind !== "document");
   const isWritingGroup = group.id === "dock-documents";
 
-  function startDragFromEvent(event: PointerEvent<HTMLElement>, tab: DockTabRef, handleKind: DockDragHandleKind) {
+  function startDragFromEvent(
+    event: PointerEvent<HTMLElement>,
+    tab: DockTabRef,
+    handleKind: DockDragHandleKind,
+  ) {
     if (event.button !== 0) return;
     if ((event.target as HTMLElement).closest(INTERACTIVE_DOCK_SELECTOR)) return;
     event.preventDefault();
@@ -399,7 +419,9 @@ function DockTabBar({
   }
 
   function renderDocumentTabs() {
-    const tabByPath = new Map(documentTabs.filter((tab) => tab.path).map((tab) => [tab.path as string, tab]));
+    const tabByPath = new Map(
+      documentTabs.filter((tab) => tab.path).map((tab) => [tab.path as string, tab]),
+    );
     const groupByPath = new Map<string, DocumentTabGroup>();
     for (const group of documentTabGroups) {
       for (const path of group.tabPaths) {
@@ -414,7 +436,9 @@ function DockTabBar({
       if (!tabGroup) return renderTabButton(tab);
       if (renderedGroups.has(tabGroup.id)) return null;
       renderedGroups.add(tabGroup.id);
-      const groupTabs = tabGroup.tabPaths.map((groupPath) => tabByPath.get(groupPath)).filter((candidate): candidate is DockTabRef => Boolean(candidate));
+      const groupTabs = tabGroup.tabPaths
+        .map((groupPath) => tabByPath.get(groupPath))
+        .filter((candidate): candidate is DockTabRef => Boolean(candidate));
       const groupDirty = groupTabs.some(tabIsDirty);
       return (
         <div
@@ -467,9 +491,7 @@ function DockTabBar({
       title={activeTab ? `Drag ${activeTab.title}` : undefined}
     >
       <div className="dock-tab-strip">
-        <div
-          className="dock-document-tabs"
-        >
+        <div className="dock-document-tabs">
           {isWritingGroup ? renderDocumentTabs() : documentTabs.map((tab) => renderTabButton(tab))}
         </div>
         {isWritingGroup ? (
@@ -513,13 +535,22 @@ function DockDropOverlay({ target }: { target?: DockDropTarget }) {
 
 function DockDragGhost({ dragState }: { dragState: DockDragState }) {
   return (
-    <div className="dock-drag-ghost" style={{ transform: `translate(${dragState.x + 12}px, ${dragState.y + 10}px)` }}>
+    <div
+      className="dock-drag-ghost"
+      style={{ transform: `translate(${dragState.x + 12}px, ${dragState.y + 10}px)` }}
+    >
       <span>{dragState.item.title}</span>
     </div>
   );
 }
 
-function EmptyDockGroup({ groupId, renderEmptyDocuments }: { groupId: string; renderEmptyDocuments?: () => ReactNode }) {
+function EmptyDockGroup({
+  groupId,
+  renderEmptyDocuments,
+}: {
+  groupId: string;
+  renderEmptyDocuments?: () => ReactNode;
+}) {
   if (groupId === "dock-documents") {
     if (renderEmptyDocuments) {
       return <div className="dock-empty-group">{renderEmptyDocuments()}</div>;
@@ -601,15 +632,17 @@ function useDockDragController({
         if (!current) return current;
         const distanceX = event.clientX - current.startX;
         const distanceY = event.clientY - current.startY;
-        const active =
-          current.active || Math.hypot(distanceX, distanceY) >= DOCK_DRAG_THRESHOLD;
+        const active = current.active || Math.hypot(distanceX, distanceY) >= DOCK_DRAG_THRESHOLD;
         const nextState = {
           ...current,
           x: event.clientX,
           y: event.clientY,
           active,
           target: active
-            ? getAllowedDockDropTarget(current.item, getDockDropTarget(workspaceRef.current, event.clientX, event.clientY))
+            ? getAllowedDockDropTarget(
+                current.item,
+                getDockDropTarget(workspaceRef.current, event.clientX, event.clientY),
+              )
             : undefined,
         };
         latestDragState.current = nextState;
@@ -642,7 +675,11 @@ function useDockDragController({
   return useMemo(() => ({ dragState, startDrag }), [dragState, startDrag]);
 }
 
-function getDockDropTarget(workspaceElement: HTMLDivElement | null, x: number, y: number): DockDropTarget | undefined {
+function getDockDropTarget(
+  workspaceElement: HTMLDivElement | null,
+  x: number,
+  y: number,
+): DockDropTarget | undefined {
   if (!workspaceElement) return undefined;
   const groups = [...workspaceElement.querySelectorAll<HTMLElement>("[data-dock-group-id]")];
   let smallestArea = Number.POSITIVE_INFINITY;
@@ -664,7 +701,9 @@ function getDockDropTarget(workspaceElement: HTMLDivElement | null, x: number, y
   const elementAtPoint = document.elementFromPoint?.(x, y) as HTMLElement | null | undefined;
   const tabElement = elementAtPoint?.closest<HTMLElement>("[data-dock-tab-id]") ?? null;
   const targetTabId =
-    position === "center" && targetGroup.contains(tabElement) ? tabElement?.dataset.dockTabId : undefined;
+    position === "center" && targetGroup.contains(tabElement)
+      ? tabElement?.dataset.dockTabId
+      : undefined;
   const groupId = targetGroup.dataset.dockGroupId;
 
   return groupId ? { groupId, position, targetTabId } : undefined;
@@ -683,7 +722,10 @@ function getDropPosition(rect: DOMRect, x: number, y: number): DockDropPosition 
   return "center";
 }
 
-function getAllowedDockDropTarget(item: DraggedDockTab, target?: DockDropTarget): DockDropTarget | undefined {
+function getAllowedDockDropTarget(
+  item: DraggedDockTab,
+  target?: DockDropTarget,
+): DockDropTarget | undefined {
   if (!target) return undefined;
   return isDockMoveAllowedAroundDocumentAnchor({
     tabId: item.tabId,

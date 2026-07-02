@@ -32,9 +32,7 @@ export interface ValidationResult {
 /**
  * Comprehensive validation of property structure.
  */
-export function validatePropertyStructure(
-  definitions: PropertyDefinition[]
-): ValidationResult {
+export function validatePropertyStructure(definitions: PropertyDefinition[]): ValidationResult {
   const errors: ValidationError[] = [];
   const warnings: string[] = [];
   const seenIds = new Set<string>();
@@ -87,9 +85,7 @@ export function validatePropertyStructure(
 /**
  * Validate a single property definition.
  */
-export function validatePropertyDefinition(
-  definition: PropertyDefinition
-): ValidationError[] {
+export function validatePropertyDefinition(definition: PropertyDefinition): ValidationError[] {
   const errors: ValidationError[] = [];
 
   // Required fields
@@ -181,12 +177,7 @@ function validatePropertyType(definition: PropertyDefinition): ValidationError[]
   }
 
   // Options should not be on non-select types
-  if (
-    type !== "select" &&
-    type !== "multiselect" &&
-    options &&
-    options.length > 0
-  ) {
+  if (type !== "select" && type !== "multiselect" && options && options.length > 0) {
     errors.push({
       type: "invalid-type",
       propertyId: definition.id,
@@ -221,7 +212,10 @@ function validatePropertyType(definition: PropertyDefinition): ValidationError[]
   }
 
   // Entity-ref must have targetTypes
-  if ((type === "entity-ref" || type === "entity-ref-list") && (!targetTypes || targetTypes.length === 0)) {
+  if (
+    (type === "entity-ref" || type === "entity-ref-list") &&
+    (!targetTypes || targetTypes.length === 0)
+  ) {
     errors.push({
       type: "invalid-type",
       propertyId: definition.id,
@@ -284,9 +278,11 @@ export function getSuggestionForError(error: ValidationError): string {
 /**
  * Validate a single option in select/multiselect.
  */
-export function validateSelectOption(
-  option: { value: string; label: string; color?: string }
-): ValidationError[] {
+export function validateSelectOption(option: {
+  value: string;
+  label: string;
+  color?: string;
+}): ValidationError[] {
   const errors: ValidationError[] = [];
 
   if (!option.value || option.value.trim().length === 0) {

@@ -99,7 +99,7 @@ export function planFrontmatterNormalization({
         id: String(data.id),
         type: String(data.type),
         status: "draft" as const,
-        kind: isFolderDescription ? "folder-description" as const : "note" as const,
+        kind: isFolderDescription ? ("folder-description" as const) : ("note" as const),
         reason: normalizationReason(file.content),
         folder: isFolderDescription ? name : undefined,
         nextContent: joinMarkdown(frontmatter, bodyMarkdown),

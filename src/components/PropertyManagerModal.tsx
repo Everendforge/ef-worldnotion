@@ -1,7 +1,24 @@
 import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
-import { ArrowDown, ArrowUp, Check, Copy, Eye, EyeOff, FolderTree, GitBranch, Plus, Trash2, X } from "lucide-react";
-import type { CustomFieldDefinition, CustomFieldType, PropertiesConfig, PropertyDefinition } from "../editorTypes";
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Copy,
+  Eye,
+  EyeOff,
+  FolderTree,
+  GitBranch,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
+import type {
+  CustomFieldDefinition,
+  CustomFieldType,
+  PropertiesConfig,
+  PropertyDefinition,
+} from "../editorTypes";
 import {
   buildPropertySchemaSections,
   flattenPropertyDefinitions,
@@ -47,8 +64,16 @@ const PROPERTY_TYPES: Array<{ value: CustomFieldType; label: string }> = [
 ];
 
 function toCustomDefinition(property: PropertyDefinition): CustomFieldDefinition {
-  const { hidden: _hidden, immutable: _immutable, readOnly: _readOnly, ...customProperty } =
-    property as PropertyDefinition & { hidden?: boolean; immutable?: boolean; readOnly?: boolean };
+  const {
+    hidden: _hidden,
+    immutable: _immutable,
+    readOnly: _readOnly,
+    ...customProperty
+  } = property as PropertyDefinition & {
+    hidden?: boolean;
+    immutable?: boolean;
+    readOnly?: boolean;
+  };
   return {
     ...customProperty,
     label: customProperty.label ?? customProperty.id,
@@ -65,19 +90,26 @@ function duplicatePropertyBranch(
   idMap = new Map<string, string>(),
   root = true,
 ): CustomFieldDefinition {
-  const label = root ? `${property.label ?? property.id} copy` : property.label ?? property.id;
+  const label = root ? `${property.label ?? property.id} copy` : (property.label ?? property.id);
   const id = uniquePropertyId(label, existingIds);
   existingIds.add(id);
   idMap.set(property.id, id);
   const visibleWhen = property.visibleWhen
-    ? Object.fromEntries(Object.entries(property.visibleWhen).map(([parentId, values]) => [idMap.get(parentId) ?? parentId, values]))
+    ? Object.fromEntries(
+        Object.entries(property.visibleWhen).map(([parentId, values]) => [
+          idMap.get(parentId) ?? parentId,
+          values,
+        ]),
+      )
     : undefined;
   return {
     ...toCustomDefinition(property),
     id,
     label,
     visibleWhen,
-    children: property.children?.map((child) => duplicatePropertyBranch(child, existingIds, idMap, false)),
+    children: property.children?.map((child) =>
+      duplicatePropertyBranch(child, existingIds, idMap, false),
+    ),
   };
 }
 
@@ -89,13 +121,23 @@ export function PropertyManagerModal({
   onClose,
 }: PropertyManagerModalProps) {
   const allProperties = useMemo(() => listAllProperties(propertiesConfig), [propertiesConfig]);
-  const visibleProperties = useMemo(() => listVisibleProperties(propertiesConfig, entityType), [entityType, propertiesConfig]);
+  const visibleProperties = useMemo(
+    () => listVisibleProperties(propertiesConfig, entityType),
+    [entityType, propertiesConfig],
+  );
   const visibleIds = useMemo(
-    () => new Set(visibleProperties.flatMap((property) => flattenPropertyDefinitions([property]).map((definition) => definition.id))),
+    () =>
+      new Set(
+        visibleProperties.flatMap((property) =>
+          flattenPropertyDefinitions([property]).map((definition) => definition.id),
+        ),
+      ),
     [visibleProperties],
   );
   const existingIds = useMemo(() => allProperties.map((property) => property.id), [allProperties]);
-  const [selectedId, setSelectedId] = useState(initialPropertyId ?? visibleProperties[0]?.id ?? allProperties[0]?.id);
+  const [selectedId, setSelectedId] = useState(
+    initialPropertyId ?? visibleProperties[0]?.id ?? allProperties[0]?.id,
+  );
   const [newLabel, setNewLabel] = useState("");
   const [newType, setNewType] = useState<CustomFieldType>("text");
   const [optionLabel, setOptionLabel] = useState("");
@@ -103,7 +145,8 @@ export function PropertyManagerModal({
   const [newChildType, setNewChildType] = useState<CustomFieldType>("text");
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
-  const selectedProperty = allProperties.find((property) => property.id === selectedId) ?? allProperties[0];
+  const selectedProperty =
+    allProperties.find((property) => property.id === selectedId) ?? allProperties[0];
   const roots = [
     ...(propertiesConfig.baseProperties?.definitions ?? []),
     ...(propertiesConfig.customFields.definitions ?? []),
@@ -111,7 +154,9 @@ export function PropertyManagerModal({
   const selectedPath = selectedProperty ? getPropertyPath(roots, selectedProperty.id) : [];
   const selectedParentId = selectedPath.length > 1 ? selectedPath[selectedPath.length - 2] : "";
   const parentCandidates = allProperties.filter(
-    (property) => property.id !== selectedProperty?.id && !getPropertyPath(roots, property.id).includes(selectedProperty?.id ?? ""),
+    (property) =>
+      property.id !== selectedProperty?.id &&
+      !getPropertyPath(roots, property.id).includes(selectedProperty?.id ?? ""),
   );
   const propertySections = useMemo(
     () => buildPropertySchemaSections(propertiesConfig, entityType, { includeHidden: true }),
@@ -151,7 +196,10 @@ export function PropertyManagerModal({
       required: false,
       options: propertyUsesOptions(newChildType) ? [] : undefined,
     };
-    saveConfig(upsertInspectorProperty(propertiesConfig, property, entityType, selectedProperty.id), id);
+    saveConfig(
+      upsertInspectorProperty(propertiesConfig, property, entityType, selectedProperty.id),
+      id,
+    );
     setNewChildLabel("");
     setNewChildType("text");
   }
@@ -162,10 +210,17 @@ export function PropertyManagerModal({
       ...toCustomDefinition(selectedProperty),
       ...patch,
       options: propertyUsesOptions(patch.type ?? selectedProperty.type)
-        ? patch.options ?? selectedProperty.options ?? []
+        ? (patch.options ?? selectedProperty.options ?? [])
         : undefined,
     };
-    saveConfig(upsertInspectorProperty(propertiesConfig, nextProperty, entityType, selectedParentId || undefined));
+    saveConfig(
+      upsertInspectorProperty(
+        propertiesConfig,
+        nextProperty,
+        entityType,
+        selectedParentId || undefined,
+      ),
+    );
   }
 
   function duplicateSelected() {
@@ -176,20 +231,33 @@ export function PropertyManagerModal({
 
   function deleteSelected() {
     if (!selectedProperty) return;
-    const confirmed = window.confirm("Delete this property from universe properties? Existing note values will stay as unconfigured fields.");
+    const confirmed = window.confirm(
+      "Delete this property from universe properties? Existing note values will stay as unconfigured fields.",
+    );
     if (!confirmed) return;
     const nextConfig = removeInspectorProperty(propertiesConfig, selectedProperty.id);
-    const nextSelected = listVisibleProperties(nextConfig, entityType)[0]?.id ?? listAllProperties(nextConfig)[0]?.id;
+    const nextSelected =
+      listVisibleProperties(nextConfig, entityType)[0]?.id ?? listAllProperties(nextConfig)[0]?.id;
     saveConfig(nextConfig, nextSelected);
   }
 
   function toggleVisible(propertyId: string) {
-    saveConfig(setInspectorPropertyVisibility(propertiesConfig, entityType, propertyId, !visibleIds.has(propertyId)), propertyId);
+    saveConfig(
+      setInspectorPropertyVisibility(
+        propertiesConfig,
+        entityType,
+        propertyId,
+        !visibleIds.has(propertyId),
+      ),
+      propertyId,
+    );
   }
 
   function moveSelectedParent(parentId: string) {
     if (!selectedProperty) return;
-    saveConfig(moveInspectorProperty(propertiesConfig, entityType, selectedProperty.id, parentId || null));
+    saveConfig(
+      moveInspectorProperty(propertiesConfig, entityType, selectedProperty.id, parentId || null),
+    );
   }
 
   function updateDependency(parentId: string, values: string[]) {
@@ -215,14 +283,26 @@ export function PropertyManagerModal({
     if (!target) return;
     const nextConfig =
       direction === "up"
-        ? reorderInspectorPropertySiblings(propertiesConfig, entityType, selectedProperty.id, target.id)
-        : reorderInspectorPropertySiblings(propertiesConfig, entityType, target.id, selectedProperty.id);
+        ? reorderInspectorPropertySiblings(
+            propertiesConfig,
+            entityType,
+            selectedProperty.id,
+            target.id,
+          )
+        : reorderInspectorPropertySiblings(
+            propertiesConfig,
+            entityType,
+            target.id,
+            selectedProperty.id,
+          );
     saveConfig(nextConfig);
   }
 
   function addOption() {
     if (!selectedProperty || !optionLabel.trim()) return;
-    updateSelected({ options: [...(selectedProperty.options ?? []), valuesToOptions([optionLabel.trim()])[0]] });
+    updateSelected({
+      options: [...(selectedProperty.options ?? []), valuesToOptions([optionLabel.trim()])[0]],
+    });
     setOptionLabel("");
   }
 
@@ -245,19 +325,32 @@ export function PropertyManagerModal({
           onClick={() => setSelectedId(property.id)}
         >
           <span className="property-manager-check">{visible ? <Check size={13} /> : null}</span>
-          <span className="property-manager-branch-icon">{node.children.length ? <FolderTree size={13} /> : <GitBranch size={13} />}</span>
+          <span className="property-manager-branch-icon">
+            {node.children.length ? <FolderTree size={13} /> : <GitBranch size={13} />}
+          </span>
           <span>
             <strong>{property.label ?? property.id}</strong>
-            <small>{visible ? typeLabel(property.type) : `${typeLabel(property.type)} · hidden`}</small>
+            <small>
+              {visible ? typeLabel(property.type) : `${typeLabel(property.type)} · hidden`}
+            </small>
           </span>
         </button>
-        {node.children.length ? <div className="property-manager-tree-children">{node.children.map((child) => renderTreeNode(child))}</div> : null}
+        {node.children.length ? (
+          <div className="property-manager-tree-children">
+            {node.children.map((child) => renderTreeNode(child))}
+          </div>
+        ) : null}
       </div>
     );
   }
 
   return (
-    <div className="property-manager-backdrop" role="dialog" aria-modal="true" aria-label="Customize properties">
+    <div
+      className="property-manager-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Customize properties"
+    >
       <div className="property-manager-modal">
         <header className="property-manager-header">
           <div>
@@ -284,7 +377,11 @@ export function PropertyManagerModal({
                 placeholder="New property"
                 aria-label="New property name"
               />
-              <select value={newType} onChange={(event) => setNewType(event.target.value as CustomFieldType)} aria-label="New property type">
+              <select
+                value={newType}
+                onChange={(event) => setNewType(event.target.value as CustomFieldType)}
+                aria-label="New property type"
+              >
                 {PROPERTY_TYPES.map((type) => (
                   <option key={type.value} value={type.value}>
                     {type.label}
@@ -303,25 +400,30 @@ export function PropertyManagerModal({
                 .map((section) => {
                   const isCollapsed = collapsedSections.has(section.id);
                   return (
-                  <section key={section.id} className={`property-manager-tree-section property-manager-tree-section-${section.kind}`}>
-                    <button
-                      type="button"
-                      className="property-manager-tree-section-title"
-                      onClick={() =>
-                        setCollapsedSections((current) => {
-                          const next = new Set(current);
-                          if (next.has(section.id)) next.delete(section.id);
-                          else next.add(section.id);
-                          return next;
-                        })
-                      }
-                      aria-expanded={!isCollapsed}
+                    <section
+                      key={section.id}
+                      className={`property-manager-tree-section property-manager-tree-section-${section.kind}`}
                     >
-                      <span>{section.title}</span>
-                      <small>{isCollapsed ? "+" : "-"} {section.nodes.length}</small>
-                    </button>
-                    {!isCollapsed ? section.nodes.map((node) => renderTreeNode(node)) : null}
-                  </section>
+                      <button
+                        type="button"
+                        className="property-manager-tree-section-title"
+                        onClick={() =>
+                          setCollapsedSections((current) => {
+                            const next = new Set(current);
+                            if (next.has(section.id)) next.delete(section.id);
+                            else next.add(section.id);
+                            return next;
+                          })
+                        }
+                        aria-expanded={!isCollapsed}
+                      >
+                        <span>{section.title}</span>
+                        <small>
+                          {isCollapsed ? "+" : "-"} {section.nodes.length}
+                        </small>
+                      </button>
+                      {!isCollapsed ? section.nodes.map((node) => renderTreeNode(node)) : null}
+                    </section>
                   );
                 })}
             </div>
@@ -332,7 +434,11 @@ export function PropertyManagerModal({
               <>
                 <div className="property-manager-detail-header">
                   <div>
-                    <p>{visibleIds.has(selectedProperty.id) ? "Shown in this note type" : "Hidden from this note type"}</p>
+                    <p>
+                      {visibleIds.has(selectedProperty.id)
+                        ? "Shown in this note type"
+                        : "Hidden from this note type"}
+                    </p>
                     <h4>{selectedProperty.label ?? selectedProperty.id}</h4>
                   </div>
                   <button type="button" onClick={() => toggleVisible(selectedProperty.id)}>
@@ -344,11 +450,19 @@ export function PropertyManagerModal({
                 <div className="property-manager-form">
                   <label>
                     <span>Name</span>
-                    <input value={selectedProperty.label ?? ""} onChange={(event) => updateSelected({ label: event.target.value })} />
+                    <input
+                      value={selectedProperty.label ?? ""}
+                      onChange={(event) => updateSelected({ label: event.target.value })}
+                    />
                   </label>
                   <label>
                     <span>Type</span>
-                    <select value={selectedProperty.type} onChange={(event) => updateSelected({ type: event.target.value as CustomFieldType })}>
+                    <select
+                      value={selectedProperty.type}
+                      onChange={(event) =>
+                        updateSelected({ type: event.target.value as CustomFieldType })
+                      }
+                    >
                       {PROPERTY_TYPES.map((type) => (
                         <option key={type.value} value={type.value}>
                           {type.label}
@@ -358,7 +472,10 @@ export function PropertyManagerModal({
                   </label>
                   <label>
                     <span>Parent / Location</span>
-                    <select value={selectedParentId} onChange={(event) => moveSelectedParent(event.target.value)}>
+                    <select
+                      value={selectedParentId}
+                      onChange={(event) => moveSelectedParent(event.target.value)}
+                    >
                       <option value="">Root level</option>
                       {parentCandidates.map((property) => (
                         <option key={property.id} value={property.id}>
@@ -377,7 +494,11 @@ export function PropertyManagerModal({
                       >
                         <option value="">No dependency</option>
                         {allProperties
-                          .filter((property) => property.id !== selectedProperty.id && (property.type === "select" || property.type === "multiselect"))
+                          .filter(
+                            (property) =>
+                              property.id !== selectedProperty.id &&
+                              (property.type === "select" || property.type === "multiselect"),
+                          )
                           .map((property) => (
                             <option key={property.id} value={property.id}>
                               {property.label ?? property.id}
@@ -431,9 +552,18 @@ export function PropertyManagerModal({
                     <div className="property-manager-options">
                       <span>Options</span>
                       {(selectedProperty.options ?? []).map((option, index) => (
-                        <div key={`${option.value}-${index}`} className="property-manager-option-row">
-                          <input value={option.label} onChange={(event) => updateOption(index, { label: event.target.value })} />
-                          <input value={option.value} onChange={(event) => updateOption(index, { value: event.target.value })} />
+                        <div
+                          key={`${option.value}-${index}`}
+                          className="property-manager-option-row"
+                        >
+                          <input
+                            value={option.label}
+                            onChange={(event) => updateOption(index, { label: event.target.value })}
+                          />
+                          <input
+                            value={option.value}
+                            onChange={(event) => updateOption(index, { value: event.target.value })}
+                          />
                           <input
                             type="color"
                             value={option.color ?? "#64748b"}
@@ -443,7 +573,13 @@ export function PropertyManagerModal({
                           <button
                             type="button"
                             className="danger"
-                            onClick={() => updateSelected({ options: (selectedProperty.options ?? []).filter((_, optionIndex) => optionIndex !== index) })}
+                            onClick={() =>
+                              updateSelected({
+                                options: (selectedProperty.options ?? []).filter(
+                                  (_, optionIndex) => optionIndex !== index,
+                                ),
+                              })
+                            }
                             title="Delete option"
                           >
                             <Trash2 size={13} />
@@ -469,7 +605,10 @@ export function PropertyManagerModal({
                       </div>
                     </div>
                   ) : selectedProperty.type !== "group" ? (
-                    <p className="property-manager-warning">Changing property type updates the schema only. Existing frontmatter values are kept as-is.</p>
+                    <p className="property-manager-warning">
+                      Changing property type updates the schema only. Existing frontmatter values
+                      are kept as-is.
+                    </p>
                   ) : null}
 
                   <div className="property-manager-children-panel">
@@ -477,7 +616,11 @@ export function PropertyManagerModal({
                     {selectedProperty.children?.length ? (
                       <div className="property-manager-child-list">
                         {selectedProperty.children.map((child) => (
-                          <button key={child.id} type="button" onClick={() => setSelectedId(child.id)}>
+                          <button
+                            key={child.id}
+                            type="button"
+                            onClick={() => setSelectedId(child.id)}
+                          >
                             <GitBranch size={13} />
                             <span>{child.label ?? child.id}</span>
                           </button>
@@ -499,7 +642,11 @@ export function PropertyManagerModal({
                         placeholder="New child property"
                         aria-label="New child property name"
                       />
-                      <select value={newChildType} onChange={(event) => setNewChildType(event.target.value as CustomFieldType)} aria-label="New child property type">
+                      <select
+                        value={newChildType}
+                        onChange={(event) => setNewChildType(event.target.value as CustomFieldType)}
+                        aria-label="New child property type"
+                      >
                         {PROPERTY_TYPES.map((type) => (
                           <option key={type.value} value={type.value}>
                             {type.label}
@@ -523,11 +670,21 @@ export function PropertyManagerModal({
                 </div>
 
                 <footer className="property-manager-actions">
-                  <button type="button" onClick={() => moveSelectedOrder("up")} disabled={visibleProperties[0]?.id === selectedProperty.id}>
+                  <button
+                    type="button"
+                    onClick={() => moveSelectedOrder("up")}
+                    disabled={visibleProperties[0]?.id === selectedProperty.id}
+                  >
                     <ArrowUp size={14} />
                     Up
                   </button>
-                  <button type="button" onClick={() => moveSelectedOrder("down")} disabled={visibleProperties[visibleProperties.length - 1]?.id === selectedProperty.id}>
+                  <button
+                    type="button"
+                    onClick={() => moveSelectedOrder("down")}
+                    disabled={
+                      visibleProperties[visibleProperties.length - 1]?.id === selectedProperty.id
+                    }
+                  >
                     <ArrowDown size={14} />
                     Down
                   </button>
@@ -535,7 +692,11 @@ export function PropertyManagerModal({
                     <Copy size={14} />
                     Duplicate
                   </button>
-                  <button type="button" onClick={() => moveSelectedParent("")} disabled={!selectedParentId}>
+                  <button
+                    type="button"
+                    onClick={() => moveSelectedParent("")}
+                    disabled={!selectedParentId}
+                  >
                     <FolderTree size={14} />
                     Make root
                   </button>
@@ -550,7 +711,9 @@ export function PropertyManagerModal({
                 </footer>
               </>
             ) : (
-              <div className="property-manager-empty">Create a property to start shaping this note type.</div>
+              <div className="property-manager-empty">
+                Create a property to start shaping this note type.
+              </div>
             )}
           </section>
         </div>

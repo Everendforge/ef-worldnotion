@@ -5,13 +5,10 @@ interface BreadcrumbsProps {
   onNavigateFolder?: (path: string) => void;
 }
 
-export function Breadcrumbs({
-  filePath,
-  onNavigateFolder,
-}: BreadcrumbsProps) {
+export function Breadcrumbs({ filePath, onNavigateFolder }: BreadcrumbsProps) {
   // Split path into segments
   const pathSegments = filePath.split("/").filter(Boolean);
-  
+
   // Build folder path segments (excluding filename)
   const folderSegments = pathSegments.slice(0, -1);
   const fileName = pathSegments[pathSegments.length - 1];

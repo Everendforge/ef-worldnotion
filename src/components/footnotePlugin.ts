@@ -1,6 +1,11 @@
 import { Range } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from "@codemirror/view";
-import { isStructuralChange, selectionTouches, createSyntaxHiddenDecoration, createStyledDecoration } from "./pluginUtils";
+import {
+  isStructuralChange,
+  selectionTouches,
+  createSyntaxHiddenDecoration,
+  createStyledDecoration,
+} from "./pluginUtils";
 
 // Compiled once at module load - matches [^1], [^abc], etc. (inline footnote references)
 const FOOTNOTE_REF_REGEX = /\[\^([^\]]+)\]/g;
@@ -34,12 +39,9 @@ export function footnotePlugin() {
           if (caretHidden) decorations.push(caretHidden);
 
           // Style the reference ID as superscript
-          const refDecoration = createStyledDecoration(
-            start + 2,
-            end - 1,
-            "cm-footnote-ref",
-            { "data-footnote": refId }
-          );
+          const refDecoration = createStyledDecoration(start + 2, end - 1, "cm-footnote-ref", {
+            "data-footnote": refId,
+          });
           if (refDecoration) decorations.push(refDecoration);
 
           // Hide closing bracket ]
@@ -47,12 +49,9 @@ export function footnotePlugin() {
           if (closeHidden) decorations.push(closeHidden);
         } else {
           // When editing, show everything normally
-          const editDecoration = createStyledDecoration(
-            start,
-            end,
-            "cm-footnote-editing",
-            { "data-footnote": refId }
-          );
+          const editDecoration = createStyledDecoration(start, end, "cm-footnote-editing", {
+            "data-footnote": refId,
+          });
           if (editDecoration) decorations.push(editDecoration);
         }
       }

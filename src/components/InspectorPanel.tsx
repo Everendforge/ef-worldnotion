@@ -61,7 +61,7 @@ export function InspectorPanel({
   if (!entity && activeTab) {
     const tabFrontmatter = rawToEditorParts(activeTab.rawMarkdown).frontmatterRaw;
     const tabHasFrontmatter = tabFrontmatter.trim().length > 0;
-    
+
     if (!tabHasFrontmatter && onAddFrontmatter && onChangeFrontmatter) {
       return (
         <aside className="inspector">
@@ -88,7 +88,8 @@ export function InspectorPanel({
   }
 
   const propertiesConfig = index.propertiesConfig;
-  const editableFrontmatter = activeTab?.path === entity.path ? rawToEditorParts(activeTab.rawMarkdown).frontmatterRaw : "";
+  const editableFrontmatter =
+    activeTab?.path === entity.path ? rawToEditorParts(activeTab.rawMarkdown).frontmatterRaw : "";
   const hasFrontmatter = editableFrontmatter.trim().length > 0;
 
   if (!propertiesConfig) {
@@ -102,12 +103,16 @@ export function InspectorPanel({
             <div>
               <h3>Set up properties</h3>
               <p>
-                This universe does not have `.everend/properties.json` yet. Apply a starter template here, then shape
-                properties directly from the inspector.
+                This universe does not have `.everend/properties.json` yet. Apply a starter template
+                here, then shape properties directly from the inspector.
               </p>
             </div>
             <div className="inspector-setup-actions">
-              <button type="button" className="btn btn-primary" onClick={() => void onApplyPropertiesTemplate?.()}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void onApplyPropertiesTemplate?.()}
+              >
                 <Sparkles size={14} />
                 Apply template
               </button>

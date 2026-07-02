@@ -86,10 +86,14 @@ export function validateAgainstTaxonomy(
     }
   }
 
-  const entityTypeDef = taxonomyConfig.entityTypes.definitions.find((type) => type.id === entity.type);
+  const entityTypeDef = taxonomyConfig.entityTypes.definitions.find(
+    (type) => type.id === entity.type,
+  );
   if (entityTypeDef?.customFields) {
     entityTypeDef.customFields.forEach((fieldId) => {
-      const fieldDef = taxonomyConfig.customFields.definitions.find((field) => field.id === fieldId);
+      const fieldDef = taxonomyConfig.customFields.definitions.find(
+        (field) => field.id === fieldId,
+      );
       if (fieldDef?.required && !(fieldId in entity.customProperties)) {
         findings.push(
           createFinding(

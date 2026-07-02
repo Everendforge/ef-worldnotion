@@ -54,7 +54,7 @@ export function TemplateDialog({
       templateName,
       currentProperties,
       templateDescription,
-      []
+      [],
     );
 
     savePropertyTemplate(template);
@@ -108,10 +108,7 @@ export function TemplateDialog({
 
   return (
     <div className="template-dialog-overlay" onClick={onClose}>
-      <div
-        className="template-dialog"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="template-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="template-dialog-header">
           <h2>Property Templates</h2>
           <button className="close-btn" onClick={onClose}>
@@ -177,13 +174,10 @@ export function TemplateDialog({
                         </span>
                       </div>
                       {template.description && (
-                        <p className="template-item-description">
-                          {template.description}
-                        </p>
+                        <p className="template-item-description">{template.description}</p>
                       )}
                       <div className="template-item-meta">
-                        Updated:{" "}
-                        {new Date(template.updatedAt).toLocaleDateString()}
+                        Updated: {new Date(template.updatedAt).toLocaleDateString()}
                       </div>
 
                       <div className="template-item-actions">

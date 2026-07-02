@@ -45,14 +45,17 @@ export function BacklinksPanel({ entity, allEntities, onOpenEntity }: BacklinksP
     const lines = backlinkEntity.body.split("\n");
     const targetName = entity.name.toLowerCase();
     const targetAliases = entity.aliases.map((alias) => alias.toLowerCase());
-    
+
     // Search for wikilink references to this entity
     const contextLine = lines.find((line) => {
       const wikilinkMatches = line.match(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g);
       if (!wikilinkMatches) return false;
-      
+
       return wikilinkMatches.some((match) => {
-        const target = match.match(/\[\[([^\]|#]+)/)?.[1]?.trim().toLowerCase();
+        const target = match
+          .match(/\[\[([^\]|#]+)/)?.[1]
+          ?.trim()
+          .toLowerCase();
         return target === targetName || targetAliases.includes(target || "");
       });
     });
@@ -74,11 +77,7 @@ export function BacklinksPanel({ entity, allEntities, onOpenEntity }: BacklinksP
 
   return (
     <div className="backlinks-panel">
-      <button
-        className="backlinks-header"
-        onClick={() => setIsExpanded(!isExpanded)}
-        type="button"
-      >
+      <button className="backlinks-header" onClick={() => setIsExpanded(!isExpanded)} type="button">
         {isExpanded ? (
           <ChevronDown className="icon-inline" size={16} />
         ) : (

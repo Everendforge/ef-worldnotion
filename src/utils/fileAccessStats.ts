@@ -8,14 +8,14 @@ const STATS_EXPIRY_DAYS = 30;
  */
 export function incrementFileAccess(
   session: WorkspaceSession,
-  filePath: string
+  filePath: string,
 ): FileAccessStats[] {
   const stats = session.fileAccessStats || [];
   const now = Date.now();
-  
+
   // Buscar si ya existe entrada para este archivo
-  const existingIndex = stats.findIndex(s => s.path === filePath);
-  
+  const existingIndex = stats.findIndex((s) => s.path === filePath);
+
   let updatedStats: FileAccessStats[];
   if (existingIndex >= 0) {
     // Actualizar entrada existente
@@ -23,7 +23,7 @@ export function incrementFileAccess(
     updatedStats[existingIndex] = {
       path: filePath,
       count: updatedStats[existingIndex].count + 1,
-      lastAccessed: now
+      lastAccessed: now,
     };
   } else {
     // Crear nueva entrada
@@ -32,11 +32,11 @@ export function incrementFileAccess(
       {
         path: filePath,
         count: 1,
-        lastAccessed: now
-      }
+        lastAccessed: now,
+      },
     ];
   }
-  
+
   // Limpiar entradas antiguas y limitar tamaño
   return cleanupStats(updatedStats);
 }
@@ -70,24 +70,24 @@ export function recordFileAccessInSettings(
  */
 export function getFileFrequencyScore(
   stats: FileAccessStats[] | undefined,
-  filePath: string
+  filePath: string,
 ): number {
   if (!stats || stats.length === 0) return 0;
-  
-  const stat = stats.find(s => s.path === filePath);
+
+  const stat = stats.find((s) => s.path === filePath);
   if (!stat) return 0;
-  
+
   // Encontrar el máximo de accesos para normalizar
-  const maxCount = Math.max(...stats.map(s => s.count));
-  
+  const maxCount = Math.max(...stats.map((s) => s.count));
+
   // Score basado en cantidad de accesos (0-1)
   const countScore = stat.count / maxCount;
-  
+
   // Score basado en recencia (0-1)
   const now = Date.now();
   const daysSinceAccess = (now - stat.lastAccessed) / (1000 * 60 * 60 * 24);
   const recencyScore = Math.max(0, 1 - daysSinceAccess / STATS_EXPIRY_DAYS);
-  
+
   // Combinar scores: 70% frecuencia, 30% recencia
   return countScore * 0.7 + recencyScore * 0.3;
 }
@@ -97,18 +97,18 @@ export function getFileFrequencyScore(
  */
 export function getMostFrequentFiles(
   stats: FileAccessStats[] | undefined,
-  limit: number = 10
+  limit: number = 10,
 ): string[] {
   if (!stats || stats.length === 0) return [];
-  
+
   return [...stats]
-    .map(stat => ({
+    .map((stat) => ({
       path: stat.path,
-      score: getFileFrequencyScore(stats, stat.path)
+      score: getFileFrequencyScore(stats, stat.path),
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
-    .map(item => item.path);
+    .map((item) => item.path);
 }
 
 /**
@@ -117,13 +117,13 @@ export function getMostFrequentFiles(
 function cleanupStats(stats: FileAccessStats[]): FileAccessStats[] {
   const now = Date.now();
   const expiryMs = STATS_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
-  
+
   // Filtrar entradas expiradas
-  const validStats = stats.filter(stat => {
+  const validStats = stats.filter((stat) => {
     const age = now - stat.lastAccessed;
     return age < expiryMs;
   });
-  
+
   // Limitar tamaño manteniendo los más frecuentes
   if (validStats.length > MAX_STATS_ENTRIES) {
     return validStats
@@ -134,6 +134,6 @@ function cleanupStats(stats: FileAccessStats[]): FileAccessStats[] {
       })
       .slice(0, MAX_STATS_ENTRIES);
   }
-  
+
   return validStats;
 }

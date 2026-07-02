@@ -70,7 +70,11 @@ export function buildTree(
       const folderName = fileName.replace(/\.md$/, "");
       const potentialFolderPath = parentPath ? `${parentPath}/${folderName}` : folderName;
 
-      if (!ignoreFolderDescriptions && folderPaths.has(potentialFolderPath) && isFolderDescriptionFile(file, folderName)) {
+      if (
+        !ignoreFolderDescriptions &&
+        folderPaths.has(potentialFolderPath) &&
+        isFolderDescriptionFile(file, folderName)
+      ) {
         descriptionFiles.add(file.relativePath);
       }
     }

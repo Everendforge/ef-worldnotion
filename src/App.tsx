@@ -84,7 +84,12 @@ import {
   renameBrowserPath,
   writeBrowserFile,
 } from "./utils/browserVault";
-import { buildCommandResults, buildFileResults, buildHeaderResults, buildTagResults } from "./utils/commandResults";
+import {
+  buildCommandResults,
+  buildFileResults,
+  buildHeaderResults,
+  buildTagResults,
+} from "./utils/commandResults";
 import {
   bodyToRawMarkdown,
   contentFromTemplate,
@@ -153,7 +158,12 @@ import {
 } from "./utils/vaultOperations";
 import { editorCommandAction, nativeMenuEditorCommand } from "./utils/editorCommandActions";
 import { profileForRecent, rememberUniverse, universeDisplayName } from "./utils/universeSession";
-import { canUseBrowserDirectoryPicker, isTauriRuntime, platformLabels, shortcutMatches } from "./utils/appEnvironment";
+import {
+  canUseBrowserDirectoryPicker,
+  isTauriRuntime,
+  platformLabels,
+  shortcutMatches,
+} from "./utils/appEnvironment";
 import {
   expandedPathsToDepth,
   explorerAncestorsForPath,
@@ -167,7 +177,11 @@ import { selectLiveEntity } from "./utils/liveEntity";
 import { planUniverseWorkspaceState } from "./utils/universeApply";
 import { markSavedTabInList, saveFilePayloadForTab } from "./utils/editorPersistence";
 import { resolveWikilinkInIndex } from "./utils/wikilinkResolver";
-import { currentHeaderForLine, editorDisplayValue, outlineForTab } from "./utils/editorDerivedState";
+import {
+  currentHeaderForLine,
+  editorDisplayValue,
+  outlineForTab,
+} from "./utils/editorDerivedState";
 import {
   frontmatterNormalizationConflict,
   planFrontmatterNormalization,
@@ -274,10 +288,15 @@ function App() {
   const [documentTabGroups, setDocumentTabGroups] = useState<DocumentTabGroup[]>([]);
   const [activeTabPath, setActiveTabPath] = useState<string>();
   const [workspaceLayout, setWorkspaceLayout] = useState(() => createDefaultWorkspaceLayout());
-  const [activeWorkspacePreset, setActiveWorkspacePreset] = useState<ActiveWorkspacePreset>("default");
+  const [activeWorkspacePreset, setActiveWorkspacePreset] =
+    useState<ActiveWorkspacePreset>("default");
   const [showSettings, setShowSettings] = useState(false);
-  const [settingsInitialSection, setSettingsInitialSection] = useState<"overview" | "tags" | "utils" | "editor">("overview");
-  const [settingsInitialPropertiesMode, setSettingsInitialPropertiesMode] = useState<"template" | "blank">("template");
+  const [settingsInitialSection, setSettingsInitialSection] = useState<
+    "overview" | "tags" | "utils" | "editor"
+  >("overview");
+  const [settingsInitialPropertiesMode, setSettingsInitialPropertiesMode] = useState<
+    "template" | "blank"
+  >("template");
   const [forgeMenuOpen, setForgeMenuOpen] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showQuickSwitcher, setShowQuickSwitcher] = useState(false);
@@ -296,10 +315,10 @@ function App() {
   const inspectorSaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const propertiesOnboardingPromptedRef = useRef<Set<string>>(new Set());
   const ignoreFolderNoteMetadataBootstrappedRef = useRef(false);
-  
+
   // Font detection hook
   const { fonts } = useFonts();
-  
+
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const legacyExpandedPathsLoadedRef = useRef<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<{
@@ -369,7 +388,10 @@ function App() {
 
   const activeTab = tabs.find((tab) => tab.path === activeTabPath);
   const openTabPaths = useMemo(() => new Set(tabs.map((tab) => tab.path)), [tabs]);
-  const dirtyTabPaths = useMemo(() => new Set(tabs.filter((tab) => tab.dirty).map((tab) => tab.path)), [tabs]);
+  const dirtyTabPaths = useMemo(
+    () => new Set(tabs.filter((tab) => tab.dirty).map((tab) => tab.path)),
+    [tabs],
+  );
   const favoritePaths = useMemo(
     () => new Set(settings.explorer.favorites.map((favorite) => favorite.path)),
     [settings.explorer.favorites],
@@ -433,7 +455,15 @@ function App() {
       ...current,
       sessions: { ...current.sessions, [index.rootPath]: session },
     }));
-  }, [activeTabPath, documentTabGroups, expandedPaths, index?.rootPath, settings.editor.persistTabs, tabs, workspaceLayout]);
+  }, [
+    activeTabPath,
+    documentTabGroups,
+    expandedPaths,
+    index?.rootPath,
+    settings.editor.persistTabs,
+    tabs,
+    workspaceLayout,
+  ]);
 
   useEffect(() => {
     if (!index || settings.editor.persistTabs) return;
@@ -613,12 +643,15 @@ function App() {
   const inspectorEntity = useMemo(() => {
     return selectLiveEntity(index, activeTabPath, tabs);
   }, [activeTabPath, index, tabs]);
-  
-  const inspectorTemplate = activeTab?.isTemplate ? index?.templates.find((template) => template.path === activeTab.path) : undefined;
+
+  const inspectorTemplate = activeTab?.isTemplate
+    ? index?.templates.find((template) => template.path === activeTab.path)
+    : undefined;
   const canWrite = Boolean(index);
 
   const graphSettings = settings.graph;
-  const activeGraphPath = activeTabPath ?? (selectedPath?.endsWith(".md") ? selectedPath : undefined);
+  const activeGraphPath =
+    activeTabPath ?? (selectedPath?.endsWith(".md") ? selectedPath : undefined);
 
   const graphData = useMemo(() => {
     if (!index) return { nodes: [], links: [] };
@@ -634,7 +667,9 @@ function App() {
   }, [graphData.nodes]);
 
   const activeExplorerSection = settings.explorer.activeSection;
-  const focusedFolderPath = index ? settings.explorer.focusedFoldersByUniverse?.[index.rootPath] : undefined;
+  const focusedFolderPath = index
+    ? settings.explorer.focusedFoldersByUniverse?.[index.rootPath]
+    : undefined;
   const visibleTree = useMemo(() => {
     return selectVisibleTree(
       index,
@@ -692,7 +727,9 @@ function App() {
       fileCount: index.markdownFiles.length,
       entityCount: index.entities.length,
       templateCount: index.templates.length,
-      hasEverendWorkspace: index.directories.includes(".everend") || index.files.some((file) => file.relativePath.startsWith(".everend/")),
+      hasEverendWorkspace:
+        index.directories.includes(".everend") ||
+        index.files.some((file) => file.relativePath.startsWith(".everend/")),
       propertiesConfig: index.propertiesConfig,
     };
   }, [index]);
@@ -803,7 +840,10 @@ function App() {
     }
 
     if (action === "expandSelected") {
-      const targetPath = selectedExplorerTarget?.kind === "folder" ? selectedExplorerTarget.path : dirname(selectedPath ?? "");
+      const targetPath =
+        selectedExplorerTarget?.kind === "folder"
+          ? selectedExplorerTarget.path
+          : dirname(selectedPath ?? "");
       const paths = explorerAncestorsForPath(`${targetPath}/placeholder.md`);
       if (targetPath) paths.push(targetPath);
       setExpandedPaths((current) => new Set([...current, ...paths.filter(Boolean)]));
@@ -814,7 +854,11 @@ function App() {
     setExpandedPaths(expandedPathsToDepth(visibleTree, depth));
   }
 
-  function handleContextMenu(event: React.MouseEvent, targetPath: string, targetKind: "file" | "folder" | "empty") {
+  function handleContextMenu(
+    event: React.MouseEvent,
+    targetPath: string,
+    targetKind: "file" | "folder" | "empty",
+  ) {
     event.preventDefault();
     event.stopPropagation();
     setContextMenu({
@@ -841,7 +885,8 @@ function App() {
       const { [path]: _removedProfile, ...recentUniverseProfiles } = current.recentUniverseProfiles;
       return {
         ...current,
-        recentUniverse: current.recentUniverse === path ? recentUniverses[0] : current.recentUniverse,
+        recentUniverse:
+          current.recentUniverse === path ? recentUniverses[0] : current.recentUniverse,
         recentUniverses,
         recentUniverseProfiles,
       };
@@ -984,7 +1029,8 @@ function App() {
   ) {
     if (!index) return;
 
-    const parentPath = targetKind === "folder" ? targetPath : targetPath.split("/").slice(0, -1).join("/");
+    const parentPath =
+      targetKind === "folder" ? targetPath : targetPath.split("/").slice(0, -1).join("/");
 
     try {
       if (action === "open") {
@@ -1032,7 +1078,11 @@ function App() {
         const filePath = parentPath ? `${parentPath}/${slug}.md` : `${slug}.md`;
 
         if (browserRoot) {
-          await writeBrowserFile(browserRoot, filePath, contentFromTemplate(index, templateType, name));
+          await writeBrowserFile(
+            browserRoot,
+            filePath,
+            contentFromTemplate(index, templateType, name),
+          );
         } else {
           const result = await invoke<WriteResult>("create_entity", {
             vaultPath: index.rootPath,
@@ -1103,7 +1153,9 @@ function App() {
           if (!result.ok) throw new Error(result.message ?? "Could not rename item.");
         }
         const folderDescriptionChange =
-          targetKind === "folder" ? await renameFolderDescriptionIfNeeded(targetPath, newName) : undefined;
+          targetKind === "folder"
+            ? await renameFolderDescriptionIfNeeded(targetPath, newName)
+            : undefined;
         const change = renamePathChange(targetPath, newName, targetKind);
         const changes = folderDescriptionChange ? [change, folderDescriptionChange] : [change];
         updateTabsForPathChange(changes);
@@ -1161,9 +1213,14 @@ function App() {
     }
   }
 
-  async function moveExplorerPath(fromPath: string, toFolderPath: string, kind?: "file" | "folder") {
+  async function moveExplorerPath(
+    fromPath: string,
+    toFolderPath: string,
+    kind?: "file" | "folder",
+  ) {
     if (!index) return;
-    const itemKind = kind ?? (index.files.some((file) => file.relativePath === fromPath) ? "file" : "folder");
+    const itemKind =
+      kind ?? (index.files.some((file) => file.relativePath === fromPath) ? "file" : "folder");
     const moveProblem = movePathProblem(fromPath, toFolderPath, itemKind);
     if (moveProblem === "Cannot move a folder into itself.") {
       showToast(moveProblem);
@@ -1211,7 +1268,9 @@ function App() {
     if (!index) return;
     const affectedDirtyTabs = dirtyTabPathsAffectedByTree(tabs, path);
     if (affectedDirtyTabs.length) {
-      const confirmed = window.confirm(`${affectedDirtyTabs.length} open tab(s) have unsaved changes. ${labels.trashAction} anyway?`);
+      const confirmed = window.confirm(
+        `${affectedDirtyTabs.length} open tab(s) have unsaved changes. ${labels.trashAction} anyway?`,
+      );
       if (!confirmed) return;
     }
     const confirmed = window.confirm(
@@ -1254,7 +1313,9 @@ function App() {
         }
       }
     }
-    setTabs((current) => current.filter((tab) => !(tab.path === path || tab.path.startsWith(`${path}/`))));
+    setTabs((current) =>
+      current.filter((tab) => !(tab.path === path || tab.path.startsWith(`${path}/`))),
+    );
     if (selectedPath === path || selectedPath?.startsWith(`${path}/`)) {
       setSelectedPath(undefined);
       setActiveTabPath(undefined);
@@ -1262,8 +1323,14 @@ function App() {
     updateExplorer({
       favorites: favoritesOutsideTree(settings.explorer.favorites, path),
       focusedFoldersByUniverse:
-        index && focusedFolderPath && (focusedFolderPath === path || focusedFolderPath.startsWith(`${path}/`))
-          ? Object.fromEntries(Object.entries(settings.explorer.focusedFoldersByUniverse ?? {}).filter(([rootPath]) => rootPath !== index.rootPath))
+        index &&
+        focusedFolderPath &&
+        (focusedFolderPath === path || focusedFolderPath.startsWith(`${path}/`))
+          ? Object.fromEntries(
+              Object.entries(settings.explorer.focusedFoldersByUniverse ?? {}).filter(
+                ([rootPath]) => rootPath !== index.rootPath,
+              ),
+            )
           : settings.explorer.focusedFoldersByUniverse,
     });
     await refreshUniverse();
@@ -1272,13 +1339,13 @@ function App() {
 
   async function createFolderDescription(folderPath: string) {
     if (!index) return;
-    
+
     const folderName = folderPath.split("/").pop() ?? folderPath;
     const parentPath = dirname(folderPath);
     const descriptionPath = parentPath ? `${parentPath}/${folderName}.md` : `${folderName}.md`;
     const fullPath = `${index.rootPath}/${descriptionPath}`;
     const content = folderDescriptionContent(folderName);
-    
+
     try {
       if (browserRoot) {
         await writeBrowserFile(browserRoot, descriptionPath, content);
@@ -1290,7 +1357,7 @@ function App() {
         });
         if (!result.ok) throw new Error(result.message ?? "Could not create folder description.");
       }
-      
+
       const nextIndex = await refreshUniverse(descriptionPath);
       selectPathAfterRefresh(descriptionPath, nextIndex);
       showToast(`Created folder description: ${folderName}.md`);
@@ -1347,7 +1414,9 @@ function App() {
         });
         if (!result.ok) throw new Error(result.message ?? "Could not save universe profile.");
       }
-      setIndex((current) => (current ? { ...current, universeProfile: normalizedProfile } : current));
+      setIndex((current) =>
+        current ? { ...current, universeProfile: normalizedProfile } : current,
+      );
       await reindexUniverseMetadata();
       showToast("Universe profile updated.");
     } catch (error) {
@@ -1375,9 +1444,12 @@ function App() {
           content,
           expectedModifiedMs: null,
         });
-        if (!result.ok) throw new Error(result.message ?? "Could not save properties configuration.");
+        if (!result.ok)
+          throw new Error(result.message ?? "Could not save properties configuration.");
       }
-      setIndex((current) => (current ? { ...current, propertiesConfig: normalizedProperties } : current));
+      setIndex((current) =>
+        current ? { ...current, propertiesConfig: normalizedProperties } : current,
+      );
       await reindexUniverseMetadata();
       showToast("Properties configuration saved.");
     } catch (error) {
@@ -1387,10 +1459,15 @@ function App() {
     }
   }
 
-  async function initializeUniverseProperties(properties: import("./editorTypes.js").PropertiesConfig) {
+  async function initializeUniverseProperties(
+    properties: import("./editorTypes.js").PropertiesConfig,
+  ) {
     if (!index) return;
     try {
-      const profile = index.universeProfile ?? { name: universeDisplayName(index), icon: { type: "preset" as const, value: "book" } };
+      const profile = index.universeProfile ?? {
+        name: universeDisplayName(index),
+        icon: { type: "preset" as const, value: "book" },
+      };
       if (!index.universeProfile) {
         await saveUniverseProfile(profile);
       }
@@ -1406,13 +1483,14 @@ function App() {
 
   async function handleConserveField(fieldName: string, value: unknown) {
     const currentConfig =
-      index?.propertiesConfig ?? applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE);
+      index?.propertiesConfig ??
+      applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE);
     // Infer type from value
     let inferredType = "text";
     if (typeof value === "boolean") inferredType = "boolean";
     else if (typeof value === "number") inferredType = "number";
     else if (Array.isArray(value)) inferredType = "multiselect";
-    
+
     const nextConfig = addCustomFieldToSchema(currentConfig, fieldName, inferredType);
     await savePropertiesConfig(nextConfig);
     showToast(`Field "${fieldName}" added to universe properties.`);
@@ -1440,7 +1518,9 @@ function App() {
 
     const dirtyPaths = new Set(tabs.filter((tab) => tab.dirty).map((tab) => tab.path));
     const currentRead = await readCurrentUniverse();
-    const currentFiles = new Map((currentRead?.files ?? index.files).map((file) => [file.relativePath, file]));
+    const currentFiles = new Map(
+      (currentRead?.files ?? index.files).map((file) => [file.relativePath, file]),
+    );
     const errors: string[] = [];
     const appliedPaths: string[] = [];
     let applied = 0;
@@ -1493,13 +1573,15 @@ function App() {
     return { applied, skipped, errors };
   }
 
-
-
   function toggleBuiltinTheme() {
     setThemeById(toggledThemeMode(settings.theme));
   }
 
-  function applyUniverse(readResult: VaultReadResult, preferredPath?: string, pathChange?: PathChangeSet) {
+  function applyUniverse(
+    readResult: VaultReadResult,
+    preferredPath?: string,
+    pathChange?: PathChangeSet,
+  ) {
     const nextIndex = indexVault(readResult, {
       ignoreFolderNoteMetadata: settings.explorer.ignoreFolderNoteMetadata,
     });
@@ -1507,11 +1589,17 @@ function App() {
     setView("workspace");
     setLoadState("ready");
     setErrorMessage("");
-    setSettings((current) => rememberUniverse(current, readResult.rootPath, profileForRecent(nextIndex)));
+    setSettings((current) =>
+      rememberUniverse(current, readResult.rootPath, profileForRecent(nextIndex)),
+    );
     const hasEverendWorkspace =
-      nextIndex.directories.includes(".everend") || nextIndex.files.some((file) => file.relativePath.startsWith(".everend/"));
+      nextIndex.directories.includes(".everend") ||
+      nextIndex.files.some((file) => file.relativePath.startsWith(".everend/"));
     const needsPropertiesOnboarding = !nextIndex.propertiesConfig && !hasEverendWorkspace;
-    if (needsPropertiesOnboarding && !propertiesOnboardingPromptedRef.current.has(readResult.rootPath)) {
+    if (
+      needsPropertiesOnboarding &&
+      !propertiesOnboardingPromptedRef.current.has(readResult.rootPath)
+    ) {
       propertiesOnboardingPromptedRef.current.add(readResult.rootPath);
       setSettingsInitialSection("overview");
       setShowSettings(true);
@@ -1570,7 +1658,9 @@ function App() {
     setIndex(nextIndex);
     setView("workspace");
     setLoadState("ready");
-    setSettings((current) => rememberUniverse(current, readResult.rootPath, profileForRecent(nextIndex)));
+    setSettings((current) =>
+      rememberUniverse(current, readResult.rootPath, profileForRecent(nextIndex)),
+    );
   }
 
   function openDocument(nextIndex: VaultIndex, path: string) {
@@ -1648,7 +1738,7 @@ function App() {
   async function promptUser(
     title: string,
     placeholder: string = "Enter value",
-    defaultValue: string = ""
+    defaultValue: string = "",
   ): Promise<string | null> {
     return new Promise((resolve) => {
       setInputDialog({
@@ -1697,7 +1787,9 @@ function App() {
       }
 
       if (!canUseBrowserDirectoryPicker()) {
-        throw new Error("Folder picker is unavailable in this browser. Please use a Chromium-based browser (Chrome, Edge, Brave) or the Tauri desktop app.");
+        throw new Error(
+          "Folder picker is unavailable in this browser. Please use a Chromium-based browser (Chrome, Edge, Brave) or the Tauri desktop app.",
+        );
       }
 
       // Diagnostics for VS Code web limitations
@@ -1712,14 +1804,16 @@ function App() {
       if (isVSCodeElectron) {
         throw new Error(
           "File picker is restricted in VS Code's embedded browser. " +
-          "Please use the Tauri desktop app instead: npm run tauri dev"
+            "Please use the Tauri desktop app instead: npm run tauri dev",
         );
       }
 
       const picker = window as unknown as {
-        showDirectoryPicker: (options?: { mode?: "read" | "readwrite" }) => Promise<BrowserDirectoryHandle>;
+        showDirectoryPicker: (options?: {
+          mode?: "read" | "readwrite";
+        }) => Promise<BrowserDirectoryHandle>;
       };
-      
+
       console.log("[openUniverse] Showing directory picker...");
       let root: BrowserDirectoryHandle;
       try {
@@ -1730,7 +1824,7 @@ function App() {
         const errorName = pickerError instanceof DOMException ? pickerError.name : undefined;
         const errorCode = pickerError instanceof DOMException ? pickerError.code : undefined;
         console.log("[openUniverse] Readwrite picker failed:", { errorName, errorCode });
-        
+
         // If readwrite fails with AbortError in restricted environment, try read-only
         if (errorName === "AbortError") {
           console.log("[openUniverse] Trying read-only mode...");
@@ -1738,7 +1832,8 @@ function App() {
             root = await picker.showDirectoryPicker();
             console.log("[openUniverse] Directory selected (read-only):", root.name);
           } catch (readonlyError: unknown) {
-            const roErrorName = readonlyError instanceof DOMException ? readonlyError.name : undefined;
+            const roErrorName =
+              readonlyError instanceof DOMException ? readonlyError.name : undefined;
             console.log("[openUniverse] Read-only picker also failed:", { roErrorName });
             if (roErrorName === "AbortError") {
               console.log("[openUniverse] User cancelled directory selection");
@@ -1751,7 +1846,7 @@ function App() {
           throw pickerError;
         }
       }
-      
+
       console.log("[openUniverse] Ensuring write permission...");
       await ensureBrowserWritePermission(root);
       console.log("[openUniverse] Permission check complete (read-only or read-write mode)");
@@ -1759,7 +1854,11 @@ function App() {
       setBrowserRoot(root);
       console.log("[openUniverse] Reading browser universe...");
       const universeData = await readBrowserUniverse(root);
-      console.log("[openUniverse] Universe data loaded, entries:", Object.keys(universeData).length, "applying...");
+      console.log(
+        "[openUniverse] Universe data loaded, entries:",
+        Object.keys(universeData).length,
+        "applying...",
+      );
       applyUniverse(universeData);
       console.log("[openUniverse] Success!");
     } catch (error) {
@@ -1835,7 +1934,8 @@ function App() {
     setTabs((current) =>
       current.map((tab) => {
         if (tab.path !== path) return tab;
-        const nextRawMarkdown = tab.mode === "write" ? bodyToRawMarkdown(tab, rawMarkdown) : rawMarkdown;
+        const nextRawMarkdown =
+          tab.mode === "write" ? bodyToRawMarkdown(tab, rawMarkdown) : rawMarkdown;
         return {
           ...tab,
           rawMarkdown: nextRawMarkdown,
@@ -1852,7 +1952,10 @@ function App() {
           ? {
               ...tab,
               mode: tab.path.toLowerCase().endsWith(".json") ? "source" : mode,
-              sourceView: mode === "source" ? tab.sourceView ?? (tab.path.toLowerCase().endsWith(".json") ? "json" : "raw") : tab.sourceView,
+              sourceView:
+                mode === "source"
+                  ? (tab.sourceView ?? (tab.path.toLowerCase().endsWith(".json") ? "json" : "raw"))
+                  : tab.sourceView,
             }
           : tab,
       ),
@@ -1860,7 +1963,9 @@ function App() {
   }
 
   function setTabSourceView(path: string, sourceView: NonNullable<OpenTab["sourceView"]>) {
-    setTabs((current) => current.map((tab) => (tab.path === path ? { ...tab, mode: "source", sourceView } : tab)));
+    setTabs((current) =>
+      current.map((tab) => (tab.path === path ? { ...tab, mode: "source", sourceView } : tab)),
+    );
   }
 
   async function persistInspectorFrontmatter(path: string, content: string) {
@@ -1877,11 +1982,13 @@ function App() {
           }
         }
         const modifiedMs = await writeBrowserFile(browserRoot, tab.path, content);
-        setTabs((current) => current.map((candidate) =>
-          candidate.path === path && candidate.rawMarkdown === content
-            ? { ...candidate, savedMarkdown: content, dirty: false, modifiedMs }
-            : candidate,
-        ));
+        setTabs((current) =>
+          current.map((candidate) =>
+            candidate.path === path && candidate.rawMarkdown === content
+              ? { ...candidate, savedMarkdown: content, dirty: false, modifiedMs }
+              : candidate,
+          ),
+        );
         return;
       }
 
@@ -1892,17 +1999,21 @@ function App() {
         expectedModifiedMs: tab.modifiedMs ?? null,
       });
       if (!result.ok) throw new Error(result.message ?? "Could not save metadata.");
-      setTabs((current) => current.map((candidate) =>
-        candidate.path === path && candidate.rawMarkdown === content
-          ? { ...candidate, savedMarkdown: content, dirty: false, modifiedMs: result.modifiedMs }
-          : candidate,
-      ));
+      setTabs((current) =>
+        current.map((candidate) =>
+          candidate.path === path && candidate.rawMarkdown === content
+            ? { ...candidate, savedMarkdown: content, dirty: false, modifiedMs: result.modifiedMs }
+            : candidate,
+        ),
+      );
     } catch (error) {
-      setTabs((current) => current.map((candidate) =>
-        candidate.path === path && candidate.rawMarkdown === content
-          ? { ...candidate, dirty: true }
-          : candidate,
-      ));
+      setTabs((current) =>
+        current.map((candidate) =>
+          candidate.path === path && candidate.rawMarkdown === content
+            ? { ...candidate, dirty: true }
+            : candidate,
+        ),
+      );
       showToast(error instanceof Error ? error.message : String(error));
     }
   }
@@ -1941,7 +2052,7 @@ function App() {
 
   function updateEntityMetadata(updates: Partial<Entity>) {
     if (!activeTabPath || !activeTab) return;
-    
+
     const currentEntity = inspectorEntity;
     if (!currentEntity) return;
 
@@ -1969,14 +2080,19 @@ function App() {
     }
 
     updateActiveFrontmatter(
-      updateFrontmatterProperties(parts.frontmatterRaw, frontmatterUpdates, index?.propertiesConfig, updatedEntity.type),
+      updateFrontmatterProperties(
+        parts.frontmatterRaw,
+        frontmatterUpdates,
+        index?.propertiesConfig,
+        updatedEntity.type,
+      ),
       { persist: true },
     );
   }
 
   function addFrontmatterToActiveTab() {
     if (!activeTabPath || !activeTab) return;
-    
+
     let frontmatterRaw: string;
     if (inspectorEntity) {
       // If we have an indexed entity, use its metadata
@@ -2015,7 +2131,11 @@ function App() {
             return;
           }
         }
-        const modifiedMs = await writeBrowserFile(browserRoot, tabToSave.path, tabToSave.rawMarkdown);
+        const modifiedMs = await writeBrowserFile(
+          browserRoot,
+          tabToSave.path,
+          tabToSave.rawMarkdown,
+        );
         setTabs((current) => markSavedTabInList(current, tabToSave.path, modifiedMs));
         showToast("Saved.");
         await reindexUniverseMetadata();
@@ -2056,7 +2176,10 @@ function App() {
     const view = editorViewRef.current;
     if (!view) return;
     const selection = view.state.selection.main;
-    const insertion = fontFamilyInsertion(view.state.sliceDoc(selection.from, selection.to), fontFamily);
+    const insertion = fontFamilyInsertion(
+      view.state.sliceDoc(selection.from, selection.to),
+      fontFamily,
+    );
     view.dispatch({
       changes: { from: selection.from, to: selection.to, insert: insertion.text },
       selection: {
@@ -2088,15 +2211,15 @@ function App() {
     const selection = view.state.selection.main;
     const fullText = view.state.doc.toString();
     const insertion = footnoteInsertion(fullText);
-    
+
     // Extract footnote number from insertion text: "[^1]" -> "1"
     const footnoteMatch = insertion.text.match(/\[\^(\d+)\]/);
     const footnoteNum = footnoteMatch ? footnoteMatch[1] : "1";
-    
+
     // Add the footnote definition at the end of the document
     const docLength = view.state.doc.length;
     const footnoteDefinition = `\n\n[^${footnoteNum}]: `;
-    
+
     view.dispatch({
       changes: [
         { from: selection.from, to: selection.to, insert: insertion.text },
@@ -2230,9 +2353,9 @@ function App() {
       // Activate the tab temporarily to save it
       setActiveTabPath(unsavedDialogPath);
       // Give a moment for state to update
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
       // The saveEditor function uses activeTab, so we need to ensure it's set
-      const tabToSave = tabs.find(tab => tab.path === unsavedDialogPath);
+      const tabToSave = tabs.find((tab) => tab.path === unsavedDialogPath);
       if (tabToSave && tabToSave.absolutePath) {
         const result = await invoke<WriteResult>("save_file", saveFilePayloadForTab(tabToSave));
         if (result.ok) {
@@ -2261,17 +2384,17 @@ function App() {
 
   async function closeAllTabs() {
     if (tabs.length === 0) return;
-    
+
     // Get all dirty tabs
     const dirtyPaths = getDirtyTabPaths(tabs, settings.editor.confirmCloseDirtyTab);
-    
+
     if (dirtyPaths.length > 0) {
       const queue = pendingCloseQueueFromDirtyPaths(dirtyPaths);
       setPendingClosePaths(queue.pendingClosePaths);
       setUnsavedDialogPath(queue.unsavedDialogPath);
       return;
     }
-    
+
     // No dirty tabs, close all
     setTabs([]);
     setActiveTabPath(undefined);
@@ -2281,17 +2404,17 @@ function App() {
 
   async function closeOtherTabs(path: string) {
     const tabsToClose = tabs.filter((tab) => tab.path !== path);
-    
+
     // Get dirty tabs that need confirmation
     const dirtyPaths = getDirtyTabPaths(tabsToClose, settings.editor.confirmCloseDirtyTab);
-    
+
     if (dirtyPaths.length > 0) {
       const queue = pendingCloseQueueFromDirtyPaths(dirtyPaths);
       setPendingClosePaths(queue.pendingClosePaths);
       setUnsavedDialogPath(queue.unsavedDialogPath);
       return;
     }
-    
+
     // Close all non-dirty tabs
     setTabs((current) => closeOtherOpenTabs(current, path));
     activateTab(path);
@@ -2302,17 +2425,17 @@ function App() {
     const indexOfTab = tabs.findIndex((tab) => tab.path === path);
     if (indexOfTab === -1) return;
     const rightTabs = tabs.slice(indexOfTab + 1);
-    
+
     // Get dirty tabs that need confirmation
     const dirtyPaths = getDirtyTabPaths(rightTabs, settings.editor.confirmCloseDirtyTab);
-    
+
     if (dirtyPaths.length > 0) {
       const queue = pendingCloseQueueFromDirtyPaths(dirtyPaths);
       setPendingClosePaths(queue.pendingClosePaths);
       setUnsavedDialogPath(queue.unsavedDialogPath);
       return;
     }
-    
+
     // Close all clean tabs to the right
     setTabs((current) => closeTabsToRightOf(current, path));
     setTabContextMenu(null);
@@ -2334,7 +2457,9 @@ function App() {
     const movingTab = current.find((tab) => tab.path === input.path);
     if (!movingTab) return current;
     const remaining = current.filter((tab) => tab.path !== input.path);
-    const targetIndex = input.targetPath ? remaining.findIndex((tab) => tab.path === input.targetPath) : remaining.length;
+    const targetIndex = input.targetPath
+      ? remaining.findIndex((tab) => tab.path === input.targetPath)
+      : remaining.length;
     const insertIndex = targetIndex === -1 ? remaining.length : targetIndex;
     return [...remaining.slice(0, insertIndex), movingTab, ...remaining.slice(insertIndex)];
   }
@@ -2343,7 +2468,9 @@ function App() {
     setActiveWorkspacePreset("custom");
     setTabs((current) => {
       const nextTabs = reorderedTabsForDocumentMove(current, input);
-      setDocumentTabGroups((currentGroups) => normalizeDocumentTabGroups(moveDocumentTabInGroups(currentGroups, input), nextTabs));
+      setDocumentTabGroups((currentGroups) =>
+        normalizeDocumentTabGroups(moveDocumentTabInGroups(currentGroups, input), nextTabs),
+      );
       return nextTabs;
     });
     setWorkspaceLayout((current) =>
@@ -2358,7 +2485,12 @@ function App() {
   }
 
   function createDocumentGroup(path: string) {
-    setDocumentTabGroups((current) => normalizeDocumentTabGroups([...removeTabFromGroups(current, path), createGroupFromTab(path, current)], tabs));
+    setDocumentTabGroups((current) =>
+      normalizeDocumentTabGroups(
+        [...removeTabFromGroups(current, path), createGroupFromTab(path, current)],
+        tabs,
+      ),
+    );
     setTabContextMenu(null);
   }
 
@@ -2384,8 +2516,11 @@ function App() {
   function cycleDocumentGroupColor(groupId: string) {
     const group = documentTabGroups.find((candidate) => candidate.id === groupId);
     if (!group) return;
-    const colorIndex = DOCUMENT_TAB_GROUP_COLORS.indexOf(group.color as (typeof DOCUMENT_TAB_GROUP_COLORS)[number]);
-    const nextColor = DOCUMENT_TAB_GROUP_COLORS[(colorIndex + 1) % DOCUMENT_TAB_GROUP_COLORS.length];
+    const colorIndex = DOCUMENT_TAB_GROUP_COLORS.indexOf(
+      group.color as (typeof DOCUMENT_TAB_GROUP_COLORS)[number],
+    );
+    const nextColor =
+      DOCUMENT_TAB_GROUP_COLORS[(colorIndex + 1) % DOCUMENT_TAB_GROUP_COLORS.length];
     setDocumentTabGroups((current) => setDocumentTabGroupColor(current, groupId, nextColor));
     setDocumentGroupContextMenu(null);
   }
@@ -2628,7 +2763,9 @@ function App() {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (showSettings) return;
-      const binding = settings.keybindings.find((candidate) => shortcutMatches(event, candidate.shortcut));
+      const binding = settings.keybindings.find((candidate) =>
+        shortcutMatches(event, candidate.shortcut),
+      );
       if (!binding) return;
       event.preventDefault();
       void executeCommand(binding.commandId);
@@ -2657,7 +2794,14 @@ function App() {
       disposed = true;
       unlisten?.();
     };
-  }, [activeTabPath, activeTab?.path, index?.rootPath, settings.recentUniverse, settings.theme, tabs]);
+  }, [
+    activeTabPath,
+    activeTab?.path,
+    index?.rootPath,
+    settings.recentUniverse,
+    settings.theme,
+    tabs,
+  ]);
 
   const currentSession = index?.rootPath ? settings.sessions[index.rootPath] : undefined;
 
@@ -2686,10 +2830,7 @@ function App() {
         isSaving={isSavingBeforeClose}
       />
 
-      <Toast
-        message={activeToast}
-        isVisible={Boolean(activeToast)}
-      />
+      <Toast message={activeToast} isVisible={Boolean(activeToast)} />
     </>
   );
 
@@ -2705,11 +2846,7 @@ function App() {
                 <p>Universe-first Markdown workspace</p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={toggleBuiltinTheme}
-              title="Toggle theme"
-            >
+            <button type="button" onClick={toggleBuiltinTheme} title="Toggle theme">
               {isDarkTheme(settings.theme) ? <Sun size={15} /> : <Moon size={15} />}
             </button>
           </header>
@@ -2720,13 +2857,17 @@ function App() {
                 <p className="eyebrow">Home</p>
                 <h2>Choose a universe</h2>
                 <p>
-                  Open any local folder as a universe. Markdown stays readable, `.everend` keeps the portable metadata,
-                  and WorldNotion remembers where you were working.
+                  Open any local folder as a universe. Markdown stays readable, `.everend` keeps the
+                  portable metadata, and WorldNotion remembers where you were working.
                 </p>
               </div>
 
               {index ? (
-                <button type="button" className="active-universe-card" onClick={() => setView("workspace")}>
+                <button
+                  type="button"
+                  className="active-universe-card"
+                  onClick={() => setView("workspace")}
+                >
                   <UniverseIconFrame profile={index.universeProfile} size={48} />
                   <span>
                     <strong>{universeDisplayName(index)}</strong>
@@ -2756,7 +2897,9 @@ function App() {
 
             <div className="home-metrics">
               <div>
-                <strong>{settings.recentUniverses.filter((path) => !path.startsWith("browser:")).length}</strong>
+                <strong>
+                  {settings.recentUniverses.filter((path) => !path.startsWith("browser:")).length}
+                </strong>
                 <span>Recent</span>
               </div>
               <div>
@@ -2770,7 +2913,9 @@ function App() {
             </div>
 
             {loadState === "error" ? <div className="error-banner">{errorMessage}</div> : null}
-            {loadState === "loading" ? <div className="loading-banner">Loading universe...</div> : null}
+            {loadState === "loading" ? (
+              <div className="loading-banner">Loading universe...</div>
+            ) : null}
 
             {settings.recentUniverses.filter((path) => !path.startsWith("browser:")).length ? (
               <section className="recent-section">
@@ -2876,7 +3021,9 @@ function App() {
         }
       }}
       onDragMove={moveExplorerPath}
-      onPointerDragStart={(path, kind, startX, startY) => setPointerDragItem({ path, kind, startX, startY, active: false })}
+      onPointerDragStart={(path, kind, startX, startY) =>
+        setPointerDragItem({ path, kind, startX, startY, active: false })
+      }
       isPointerClickSuppressed={() => suppressTreeClickRef.current}
     />
   );
@@ -2897,7 +3044,8 @@ function App() {
     }
 
     const documentOutline = outlineForTab(documentTab);
-    const documentCurrentHeader = documentTab.path === activeTabPath ? currentHeaderForLine(documentTab, cursorLine) : null;
+    const documentCurrentHeader =
+      documentTab.path === activeTabPath ? currentHeaderForLine(documentTab, cursorLine) : null;
     const isJsonDocument = documentTab.path.toLowerCase().endsWith(".json");
     const sourceView = documentTab.sourceView ?? (isJsonDocument ? "json" : "raw");
 
@@ -2946,12 +3094,19 @@ function App() {
               </button>
             </div>
           ) : null}
-          <button type="button" onClick={() => saveTab(documentTab.path)} disabled={!canWrite} title="Save">
+          <button
+            type="button"
+            onClick={() => saveTab(documentTab.path)}
+            disabled={!canWrite}
+            title="Save"
+          >
             <Save size={15} />
           </button>
         </div>
 
-        {documentTab.mode === "write" && documentTab.path === activeTabPath && settings.editor.floatingToolbarEnabled ? (
+        {documentTab.mode === "write" &&
+        documentTab.path === activeTabPath &&
+        settings.editor.floatingToolbarEnabled ? (
           <div className="floating-format-toolbar-fixed">
             <FontSelector availableFonts={fonts} onSelectFont={applyFontFamily} />
             {FLOATING_FORMAT_COMMANDS.map((command) => (
@@ -2982,7 +3137,9 @@ function App() {
           </div>
         ) : null}
 
-        {floatingToolbarRect && documentTab.mode === "write" && documentTab.path === activeTabPath ? (
+        {floatingToolbarRect &&
+        documentTab.mode === "write" &&
+        documentTab.path === activeTabPath ? (
           <div
             className="floating-format-toolbar-selection"
             style={(() => {
@@ -3047,7 +3204,10 @@ function App() {
                 settings={settings.editor}
                 pluginSettings={settings.plugins}
                 documentName={documentTab.title}
-                projectName={index?.universeProfile?.name ?? (index?.rootPath ? pathName(index.rootPath) : undefined)}
+                projectName={
+                  index?.universeProfile?.name ??
+                  (index?.rootPath ? pathName(index.rootPath) : undefined)
+                }
                 readOnly={!canWrite}
                 resolveWikilink={resolveWikilink}
                 noteSuggestions={noteSuggestions}
@@ -3102,14 +3262,20 @@ function App() {
           <h2>Folder: {pathName(selectedExplorerTarget.path) || "Root"}</h2>
           <p>View or create a note to describe this folder's contents.</p>
           {(() => {
-            const { descriptionPath, hasDescription } = folderDescriptionInfo(index, selectedExplorerTarget.path);
+            const { descriptionPath, hasDescription } = folderDescriptionInfo(
+              index,
+              selectedExplorerTarget.path,
+            );
             return hasDescription ? (
               <button type="button" onClick={() => selectPath(descriptionPath)}>
                 <FileEdit size={15} />
                 Edit folder note
               </button>
             ) : (
-              <button type="button" onClick={() => createFolderDescription(selectedExplorerTarget.path)}>
+              <button
+                type="button"
+                onClick={() => createFolderDescription(selectedExplorerTarget.path)}
+              >
                 <Plus size={15} />
                 Create folder note
               </button>
@@ -3135,12 +3301,16 @@ function App() {
       template={inspectorTemplate}
       index={index}
       activeTab={activeTab}
-      onChangeFrontmatter={(frontmatterRaw) => updateActiveFrontmatter(frontmatterRaw, { persist: true })}
+      onChangeFrontmatter={(frontmatterRaw) =>
+        updateActiveFrontmatter(frontmatterRaw, { persist: true })
+      }
       onUpdateEntity={updateEntityMetadata}
       onAddFrontmatter={addFrontmatterToActiveTab}
       onUpdatePropertiesConfig={savePropertiesConfig}
       onApplyPropertiesTemplate={() =>
-        initializeUniverseProperties(applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE))
+        initializeUniverseProperties(
+          applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE),
+        )
       }
       onOpenPropertiesSettings={() => {
         openSettingsAt("utils", "blank");
@@ -3251,9 +3421,14 @@ function App() {
         </div>
         <div
           className="graph-floating-controls"
-          style={{ transform: `translate(${graphControlsPosition.x}px, ${graphControlsPosition.y}px)` }}
+          style={{
+            transform: `translate(${graphControlsPosition.x}px, ${graphControlsPosition.y}px)`,
+          }}
         >
-          <div className="graph-floating-controls-handle" onPointerDown={handleGraphControlsPointerDown}>
+          <div
+            className="graph-floating-controls-handle"
+            onPointerDown={handleGraphControlsPointerDown}
+          >
             <span>Graph Controls</span>
           </div>
           <GraphControls
@@ -3338,7 +3513,9 @@ function App() {
     return "Custom";
   }
 
-  function toggleDockPanel(kind: "explorer" | "inspector" | "links" | "backlinks" | "graph" | "outline") {
+  function toggleDockPanel(
+    kind: "explorer" | "inspector" | "links" | "backlinks" | "graph" | "outline",
+  ) {
     setActiveWorkspacePreset("custom");
     setWorkspaceLayout((current) => togglePanelInLayout(current, kind));
   }
@@ -3347,11 +3524,16 @@ function App() {
     if (!dockPanelContextMenu) return;
     const enabled = !layoutHasPanel(workspaceLayout, kind);
     setActiveWorkspacePreset("custom");
-    setWorkspaceLayout((current) => setPanelInGroup(current, kind, dockPanelContextMenu.groupId, enabled));
+    setWorkspaceLayout((current) =>
+      setPanelInGroup(current, kind, dockPanelContextMenu.groupId, enabled),
+    );
     setDockPanelContextMenu(null);
   }
 
-  function openSettingsAt(section: "overview" | "tags" | "utils" | "editor", propertiesMode: "template" | "blank" = "template") {
+  function openSettingsAt(
+    section: "overview" | "tags" | "utils" | "editor",
+    propertiesMode: "template" | "blank" = "template",
+  ) {
     setSettingsInitialSection(section);
     setSettingsInitialPropertiesMode(propertiesMode);
     setShowSettings(true);
@@ -3380,7 +3562,12 @@ function App() {
         </div>
 
         <div className="dock-top-left">
-          <button type="button" className="dock-icon-button" onClick={() => setView("home")} title="Home">
+          <button
+            type="button"
+            className="dock-icon-button"
+            onClick={() => setView("home")}
+            title="Home"
+          >
             <Home size={15} />
           </button>
 
@@ -3480,7 +3667,12 @@ function App() {
             </button>
           </div>
 
-          <button type="button" className="dock-icon-button" onClick={toggleBuiltinTheme} title="Toggle theme">
+          <button
+            type="button"
+            className="dock-icon-button"
+            onClick={toggleBuiltinTheme}
+            title="Toggle theme"
+          >
             {isDarkTheme(settings.theme) ? <Sun size={15} /> : <Moon size={15} />}
           </button>
         </div>
@@ -3501,14 +3693,20 @@ function App() {
         onGroupContextMenu={(groupId, x, y) => setDockPanelContextMenu({ groupId, x, y })}
         onMoveTab={handleDockMove}
         onDocumentGroupToggle={(group) => toggleDocumentGroup(group.id)}
-        onDocumentGroupContextMenu={(group, x, y) => setDocumentGroupContextMenu({ groupId: group.id, x, y })}
+        onDocumentGroupContextMenu={(group, x, y) =>
+          setDocumentGroupContextMenu({ groupId: group.id, x, y })
+        }
         onResizeSplit={handleDockResize}
         onOpenDocument={() => setShowCommandPalette(true)}
         renderEmptyDocuments={() => (
           <div className="writing-empty-widget">
             <FileText size={28} />
             <strong>Explore {universeDisplayName(index)}</strong>
-            <button type="button" onClick={() => setShowCommandPalette(true)} title="Open Command Palette">
+            <button
+              type="button"
+              onClick={() => setShowCommandPalette(true)}
+              title="Open Command Palette"
+            >
               <Search size={14} />
               Search
             </button>
@@ -3532,7 +3730,9 @@ function App() {
               key={kind as string}
               type="button"
               className="context-menu-item"
-              onClick={() => setDockPanelInContextGroup(kind as Exclude<DockPanelKind, "document" | "outline">)}
+              onClick={() =>
+                setDockPanelInContextGroup(kind as Exclude<DockPanelKind, "document" | "outline">)
+              }
             >
               <span className="dock-panel-check">{checked ? <Check size={12} /> : null}</span>
               <span>{label}</span>
@@ -3543,26 +3743,49 @@ function App() {
       {documentGroupContextMenu ? (
         <div
           className="context-menu document-group-context-menu"
-          style={{ left: `${documentGroupContextMenu.x}px`, top: `${documentGroupContextMenu.y}px` }}
+          style={{
+            left: `${documentGroupContextMenu.x}px`,
+            top: `${documentGroupContextMenu.y}px`,
+          }}
           onMouseDown={(event) => event.stopPropagation()}
         >
-          <button type="button" className="context-menu-item" onClick={() => void renameDocumentGroup(documentGroupContextMenu.groupId)}>
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => void renameDocumentGroup(documentGroupContextMenu.groupId)}
+          >
             <FileEdit size={16} />
             <span>Rename group</span>
           </button>
-          <button type="button" className="context-menu-item" onClick={() => cycleDocumentGroupColor(documentGroupContextMenu.groupId)}>
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => cycleDocumentGroupColor(documentGroupContextMenu.groupId)}
+          >
             <Circle size={16} />
             <span>Change color</span>
           </button>
-          <button type="button" className="context-menu-item" onClick={() => toggleDocumentGroup(documentGroupContextMenu.groupId)}>
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => toggleDocumentGroup(documentGroupContextMenu.groupId)}
+          >
             <ChevronRight size={16} />
             <span>Collapse / Expand</span>
           </button>
-          <button type="button" className="context-menu-item" onClick={() => ungroupDocumentGroup(documentGroupContextMenu.groupId)}>
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => ungroupDocumentGroup(documentGroupContextMenu.groupId)}
+          >
             <Files size={16} />
             <span>Ungroup tabs</span>
           </button>
-          <button type="button" className="context-menu-item danger" onClick={() => closeDocumentGroupTabs(documentGroupContextMenu.groupId)}>
+          <button
+            type="button"
+            className="context-menu-item danger"
+            onClick={() => closeDocumentGroupTabs(documentGroupContextMenu.groupId)}
+          >
             <X size={16} />
             <span>Close group tabs</span>
           </button>
@@ -3728,31 +3951,47 @@ function App() {
             <X size={16} />
             <span>Close tab</span>
           </button>
-          <button type="button" className="context-menu-item" onClick={() => {
-            closeOtherTabs(tabContextMenu.path);
-            setTabContextMenu(null);
-          }}>
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => {
+              closeOtherTabs(tabContextMenu.path);
+              setTabContextMenu(null);
+            }}
+          >
             <X size={16} />
             <span>Close others</span>
           </button>
-          <button type="button" className="context-menu-item" onClick={() => {
-            closeTabsToRight(tabContextMenu.path);
-            setTabContextMenu(null);
-          }}>
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => {
+              closeTabsToRight(tabContextMenu.path);
+              setTabContextMenu(null);
+            }}
+          >
             <X size={16} />
             <span>Close tabs to right</span>
           </button>
-          <button type="button" className="context-menu-item" onClick={() => {
-            void closeAllTabs();
-            setTabContextMenu(null);
-          }}>
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => {
+              void closeAllTabs();
+              setTabContextMenu(null);
+            }}
+          >
             <X size={16} />
             <span>Close all tabs</span>
           </button>
-          <button type="button" className="context-menu-item" onClick={() => {
-            closeSavedTabs();
-            setTabContextMenu(null);
-          }}>
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => {
+              closeSavedTabs();
+              setTabContextMenu(null);
+            }}
+          >
             <X size={16} />
             <span>Close saved tabs</span>
           </button>

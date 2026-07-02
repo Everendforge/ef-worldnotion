@@ -16,11 +16,11 @@ export function SearchPanel({ editorView, onClose }: SearchPanelProps) {
   const updateSearch = useCallback(
     (query: string) => {
       if (!editorView || !query) return;
-      
+
       // The search highlighting is handled by CodeMirror's findNext/findPrevious
       // This function is prepared for future enhancements
     },
-    [editorView]
+    [editorView],
   );
 
   const handleFindNext = useCallback(() => {
@@ -51,7 +51,7 @@ export function SearchPanel({ editorView, onClose }: SearchPanelProps) {
         onClose();
       }
     },
-    [handleFindNext, handleFindPrevious, onClose]
+    [handleFindNext, handleFindPrevious, onClose],
   );
 
   const handleSearchChange = useCallback(
@@ -59,7 +59,7 @@ export function SearchPanel({ editorView, onClose }: SearchPanelProps) {
       setSearchQueryLocal(value);
       updateSearch(value);
     },
-    [updateSearch]
+    [updateSearch],
   );
 
   useEffect(() => {
@@ -92,25 +92,13 @@ export function SearchPanel({ editorView, onClose }: SearchPanelProps) {
             onKeyDown={handleKeyDown}
           />
           <div className="search-panel-options">
-            <button
-              type="button"
-              className="search-option-btn"
-              title="Match case (Aa)"
-            >
+            <button type="button" className="search-option-btn" title="Match case (Aa)">
               Aa
             </button>
-            <button
-              type="button"
-              className="search-option-btn"
-              title="Match whole word (Ab)"
-            >
+            <button type="button" className="search-option-btn" title="Match whole word (Ab)">
               Ab
             </button>
-            <button
-              type="button"
-              className="search-option-btn"
-              title="Use regex (.*)"
-            >
+            <button type="button" className="search-option-btn" title="Use regex (.*)">
               .*
             </button>
           </div>

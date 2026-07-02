@@ -123,7 +123,7 @@ export function CommandPalette({
       setActiveMode("files");
       return;
     }
-    
+
     if (query.startsWith("@")) {
       setActiveMode("headers");
     } else if (query.startsWith("#")) {
@@ -183,15 +183,19 @@ export function CommandPalette({
               .map((item) => item.file);
           } else {
             // Fallback a recientes y favoritos
-            const recentItems = filteredFiles.filter((f) => recentFiles.includes(f.path)).slice(0, 5);
-            const favoriteItems = filteredFiles.filter((f) => favorites.includes(f.path)).slice(0, 5);
+            const recentItems = filteredFiles
+              .filter((f) => recentFiles.includes(f.path))
+              .slice(0, 5);
+            const favoriteItems = filteredFiles
+              .filter((f) => favorites.includes(f.path))
+              .slice(0, 5);
             items = [...recentItems, ...favoriteItems];
           }
         } else {
           // Con query, usar fuzzy search pero ajustar scores por frecuencia
           const fuse = new Fuse(filteredFiles, FUSE_OPTIONS_FILES);
           const searchResults = fuse.search(searchQuery);
-          
+
           if (fileAccessStats) {
             // Combinar Fuse score con frecuencia
             items = searchResults
@@ -300,7 +304,7 @@ export function CommandPalette({
       }
       onClose();
     },
-    [onSelectFile, onSelectCommand, onSelectHeader, onSelectTag, onClose]
+    [onSelectFile, onSelectCommand, onSelectHeader, onSelectTag, onClose],
   );
 
   const handleKeyDown = useCallback(
@@ -323,7 +327,7 @@ export function CommandPalette({
         onClose();
       }
     },
-    [results, selectedIndex, handleSelect, onClose]
+    [results, selectedIndex, handleSelect, onClose],
   );
 
   const handleBackdropClick = useCallback(
@@ -332,7 +336,7 @@ export function CommandPalette({
         onClose();
       }
     },
-    [onClose]
+    [onClose],
   );
 
   if (!isOpen) return null;
@@ -364,24 +368,22 @@ export function CommandPalette({
             onKeyDown={handleKeyDown}
           />
           {query && (
-            <button
-              className="clear-button"
-              onClick={() => setQuery("")}
-              aria-label="Clear search"
-            >
+            <button className="clear-button" onClick={() => setQuery("")} aria-label="Clear search">
               <X size={16} />
             </button>
           )}
-          {activeMode === "files" && taxonomyConfig && (entityTypes.length > 0 || statuses.length > 0) && (
-            <button
-              className="filter-toggle-button"
-              onClick={() => setShowFilters(!showFilters)}
-              aria-label="Toggle filters"
-              title="Filter by type or status"
-            >
-              <Filter size={16} />
-            </button>
-          )}
+          {activeMode === "files" &&
+            taxonomyConfig &&
+            (entityTypes.length > 0 || statuses.length > 0) && (
+              <button
+                className="filter-toggle-button"
+                onClick={() => setShowFilters(!showFilters)}
+                aria-label="Toggle filters"
+                title="Filter by type or status"
+              >
+                <Filter size={16} />
+              </button>
+            )}
         </div>
 
         {/* Taxonomy Filters */}
@@ -459,45 +461,48 @@ export function CommandPalette({
                       recentFiles.includes((result as FileResult).path) && (
                         <Clock className="recent-indicator" size={14} />
                       )}
-                    {result.type === "file" &&
-                      favorites.includes((result as FileResult).path) && (
-                        <Star className="favorite-indicator" size={14} />
-                      )}
+                    {result.type === "file" && favorites.includes((result as FileResult).path) && (
+                      <Star className="favorite-indicator" size={14} />
+                    )}
                   </div>
                   {result.subtitle && <div className="result-subtitle">{result.subtitle}</div>}
-                  
+
                   {/* Taxonomy badges for file results */}
                   {result.type === "file" && (
                     <div className="result-taxonomy">
                       {(result as FileResult).entityType && (
                         <span className="taxonomy-badge type-badge">
-                          {entityTypes.find((t) => t.id === (result as FileResult).entityType)?.label || (result as FileResult).entityType}
+                          {entityTypes.find((t) => t.id === (result as FileResult).entityType)
+                            ?.label || (result as FileResult).entityType}
                         </span>
                       )}
                       {(result as FileResult).status && (
                         <span className="taxonomy-badge status-badge">
-                          {statuses.find((s) => s.id === (result as FileResult).status)?.label || (result as FileResult).status}
+                          {statuses.find((s) => s.id === (result as FileResult).status)?.label ||
+                            (result as FileResult).status}
                         </span>
                       )}
                       {(result as FileResult).tags && (result as FileResult).tags!.length > 0 && (
                         <span className="taxonomy-badge tags-badge">
-                          {(result as FileResult).tags!.slice(0, 3).map((tag) => {
-                            const parts = tag.split("/");
-                            return parts[parts.length - 1];
-                          }).join(", ")}
-                          {(result as FileResult).tags!.length > 3 && ` +${(result as FileResult).tags!.length - 3}`}
+                          {(result as FileResult)
+                            .tags!.slice(0, 3)
+                            .map((tag) => {
+                              const parts = tag.split("/");
+                              return parts[parts.length - 1];
+                            })
+                            .join(", ")}
+                          {(result as FileResult).tags!.length > 3 &&
+                            ` +${(result as FileResult).tags!.length - 3}`}
                         </span>
                       )}
                     </div>
                   )}
-                  
+
                   {/* Hierarchical tag display */}
                   {result.type === "tag" && (result as TagResult).fullPath && (
-                    <div className="result-tag-path">
-                      {(result as TagResult).fullPath}
-                    </div>
+                    <div className="result-tag-path">{(result as TagResult).fullPath}</div>
                   )}
-                  
+
                   {result.type === "command" && result.shortcut && (
                     <div className="result-shortcut">{result.shortcut}</div>
                   )}
@@ -516,8 +521,7 @@ export function CommandPalette({
             {activeMode === "commands" && <span>⌘ Commands</span>}
           </div>
           <div className="palette-hints">
-            <kbd>↑</kbd> <kbd>↓</kbd> to navigate • <kbd>↵</kbd> to select • <kbd>esc</kbd> to
-            close
+            <kbd>↑</kbd> <kbd>↓</kbd> to navigate • <kbd>↵</kbd> to select • <kbd>esc</kbd> to close
           </div>
         </div>
       </div>

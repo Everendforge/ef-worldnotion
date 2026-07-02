@@ -27,6 +27,10 @@ export function markTabSaved(tab: OpenTab, modifiedMs?: number | null): OpenTab 
   };
 }
 
-export function markSavedTabInList(tabs: OpenTab[], path: string, modifiedMs?: number | null): OpenTab[] {
+export function markSavedTabInList(
+  tabs: OpenTab[],
+  path: string,
+  modifiedMs?: number | null,
+): OpenTab[] {
   return tabs.map((tab) => (tab.path === path ? markTabSaved(tab, modifiedMs) : tab));
 }

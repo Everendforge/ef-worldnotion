@@ -73,21 +73,21 @@ export function ContextMenu({
 
   useEffect(() => {
     if (!menuRef.current) return;
-    
+
     const rect = menuRef.current.getBoundingClientRect();
     let adjustedX = x;
     let adjustedY = y;
-    
+
     // Ajustar si se sale por derecha
     if (x + rect.width > window.innerWidth) {
       adjustedX = Math.max(10, window.innerWidth - rect.width - 10);
     }
-    
+
     // Ajustar si se sale por abajo
     if (y + rect.height > window.innerHeight) {
       adjustedY = Math.max(10, window.innerHeight - rect.height - 10);
     }
-    
+
     setAdjustedPos({ x: adjustedX, y: adjustedY });
   }, [x, y]);
 
@@ -119,7 +119,11 @@ export function ContextMenu({
   }
 
   return (
-    <div ref={menuRef} className="context-menu" style={{ left: `${adjustedPos.x}px`, top: `${adjustedPos.y}px` }}>
+    <div
+      ref={menuRef}
+      className="context-menu"
+      style={{ left: `${adjustedPos.x}px`, top: `${adjustedPos.y}px` }}
+    >
       {targetKind !== "empty" ? (
         <>
           <button type="button" onClick={() => run("open")} className="context-menu-item">
@@ -204,7 +208,11 @@ export function ContextMenu({
             <span>Move to Folder</span>
           </button>
           {targetKind === "folder" ? (
-            <button type="button" onClick={() => run("editFolderDescription")} className="context-menu-item">
+            <button
+              type="button"
+              onClick={() => run("editFolderDescription")}
+              className="context-menu-item"
+            >
               <FileText size={16} />
               <span>Edit Folder Description</span>
             </button>
@@ -217,7 +225,12 @@ export function ContextMenu({
             <Palette size={16} />
             <span>Change Icon</span>
           </button>
-          <button type="button" onClick={() => run("reveal")} className="context-menu-item" disabled={!canReveal}>
+          <button
+            type="button"
+            onClick={() => run("reveal")}
+            className="context-menu-item"
+            disabled={!canReveal}
+          >
             <ExternalLink size={16} />
             <span>{revealLabel}</span>
           </button>
@@ -229,7 +242,12 @@ export function ContextMenu({
       ) : (
         <>
           <div className="context-menu-separator" />
-          <button type="button" onClick={() => run("reveal")} className="context-menu-item" disabled={!canReveal}>
+          <button
+            type="button"
+            onClick={() => run("reveal")}
+            className="context-menu-item"
+            disabled={!canReveal}
+          >
             <ExternalLink size={16} />
             <span>{revealUniverseLabel}</span>
           </button>

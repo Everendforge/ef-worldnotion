@@ -20,10 +20,7 @@ function escapeHtml(value: string) {
 }
 
 export function renderMarkdownPreviewHtml(markdown: string) {
-  const result = remark()
-    .use(remarkGfm)
-    .use(remarkHtml, { sanitize: true })
-    .processSync(markdown);
+  const result = remark().use(remarkGfm).use(remarkHtml, { sanitize: true }).processSync(markdown);
 
   return String(result).replace(/\[\[([^\]]+)\]\]/g, (_match, rawTarget: string) => {
     const target = rawTarget.trim();

@@ -1,6 +1,17 @@
 import type { VaultFile } from "../domain";
-import type { DocumentTabGroup, OpenTab, SourceViewMode, WorkspaceLayoutV1, WorkspaceSession } from "../editorTypes";
-import { fileTitle, pathAfterChanges, pathIsAffectedByChanges, type PathChangeSet } from "./pathUtils";
+import type {
+  DocumentTabGroup,
+  OpenTab,
+  SourceViewMode,
+  WorkspaceLayoutV1,
+  WorkspaceSession,
+} from "../editorTypes";
+import {
+  fileTitle,
+  pathAfterChanges,
+  pathIsAffectedByChanges,
+  type PathChangeSet,
+} from "./pathUtils";
 
 function isJsonPath(path: string) {
   return path.toLowerCase().endsWith(".json");
@@ -41,7 +52,7 @@ export function serializeWorkspaceSession(
   return {
     rootPath,
     activePath,
-      tabs: tabs.map((tab) => ({
+    tabs: tabs.map((tab) => ({
       path: tab.path,
       title: tab.title,
       mode: tab.mode,

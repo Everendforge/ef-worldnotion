@@ -3,12 +3,19 @@ import type { Entity, VaultIndex } from "../domain";
 import { DEFAULT_GRAPH_SETTINGS, type GraphSettings } from "../editorTypes";
 import { buildGraphData } from "./graphData";
 
-function vaultIndex(files: Array<{ path: string; content: string }>, entities: Entity[] = []): VaultIndex {
+function vaultIndex(
+  files: Array<{ path: string; content: string }>,
+  entities: Entity[] = [],
+): VaultIndex {
   return {
     rootPath: "/Universe",
     files: files.map((file) => ({ relativePath: file.path, content: file.content, modifiedMs: 1 })),
     directories: [],
-    markdownFiles: files.map((file) => ({ relativePath: file.path, content: file.content, modifiedMs: 1 })),
+    markdownFiles: files.map((file) => ({
+      relativePath: file.path,
+      content: file.content,
+      modifiedMs: 1,
+    })),
     templates: [],
     universes: [],
     tree: [],
@@ -44,16 +51,30 @@ function settings(patch: Partial<GraphSettings> = {}): GraphSettings {
 
 describe("buildGraphData", () => {
   it("builds nodes from markdown files without frontmatter", () => {
-    const graph = buildGraphData(vaultIndex([{ path: "Notes/Alo.md", content: "Plain note" }]), settings());
+    const graph = buildGraphData(
+      vaultIndex([{ path: "Notes/Alo.md", content: "Plain note" }]),
+      settings(),
+    );
 
-    expect(graph.nodes).toMatchObject([{ id: "Notes/Alo.md", label: "Alo", type: "note", kind: "note" }]);
+    expect(graph.nodes).toMatchObject([
+      { id: "Notes/Alo.md", label: "Alo", type: "note", kind: "note" },
+    ]);
   });
 
   it("enriches note nodes with entity metadata", () => {
     const graph = buildGraphData(
-      vaultIndex([{ path: "Characters/Mara.md", content: "[[Alo]]" }], [
-        entity("Characters/Mara.md", { id: "mara-voss", name: "Mara Voss", type: "character", tags: ["crew"], aliases: ["Captain Mara"] }),
-      ]),
+      vaultIndex(
+        [{ path: "Characters/Mara.md", content: "[[Alo]]" }],
+        [
+          entity("Characters/Mara.md", {
+            id: "mara-voss",
+            name: "Mara Voss",
+            type: "character",
+            tags: ["crew"],
+            aliases: ["Captain Mara"],
+          }),
+        ],
+      ),
       settings(),
     );
 
@@ -99,9 +120,17 @@ describe("buildGraphData", () => {
     );
 
     expect(graph.nodes).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: "unresolved:missing note", kind: "unresolved", label: "Missing Note" })]),
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "unresolved:missing note",
+          kind: "unresolved",
+          label: "Missing Note",
+        }),
+      ]),
     );
-    expect(graph.links).toEqual([expect.objectContaining({ source: "A.md", target: "unresolved:missing note" })]);
+    expect(graph.links).toEqual([
+      expect.objectContaining({ source: "A.md", target: "unresolved:missing note" }),
+    ]);
   });
 
   it("filters orphans when disabled", () => {

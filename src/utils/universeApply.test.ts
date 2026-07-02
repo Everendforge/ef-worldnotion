@@ -107,7 +107,12 @@ describe("universe apply planner", () => {
 
   it("prefers explicit preferred paths over active, selected, and session paths", () => {
     const plan = planUniverseWorkspaceState({
-      nextIndex: index([file("Preferred.md"), file("Active.md"), file("Selected.md"), file("Session.md")]),
+      nextIndex: index([
+        file("Preferred.md"),
+        file("Active.md"),
+        file("Selected.md"),
+        file("Session.md"),
+      ]),
       readRootPath: "C:/Vault",
       currentRootPath: "Other",
       tabs: [],
@@ -140,7 +145,9 @@ describe("universe apply planner", () => {
         "C:/Vault": {
           rootPath: "C:/Vault",
           activePath: "Gone.md",
-          tabs: [{ path: "Gone.md", title: "Gone", mode: "write", modifiedMs: 1, isTemplate: false }],
+          tabs: [
+            { path: "Gone.md", title: "Gone", mode: "write", modifiedMs: 1, isTemplate: false },
+          ],
         },
       },
       persistTabs: true,

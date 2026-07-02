@@ -23,20 +23,20 @@ const SYSTEM_FONTS = [
   "Avenir, sans-serif",
   "Menlo, monospace",
   "Monaco, monospace",
-  
+
   // Windows
   "Segoe UI, sans-serif",
   "Calibri, sans-serif",
   "Cambria, serif",
   "Consolas, monospace",
   "Candara, sans-serif",
-  
+
   // Linux
   "Ubuntu, sans-serif",
   "Roboto, sans-serif",
   "Noto Sans, sans-serif",
   "Liberation Sans, sans-serif",
-  
+
   // Generic
   "Inter, sans-serif",
   "system-ui, sans-serif",
@@ -64,18 +64,18 @@ export function useFonts() {
     async function loadFonts() {
       try {
         const allFonts = new Set<string>();
-        
+
         // Add common and system fonts first
-        [...COMMON_FONTS, ...SYSTEM_FONTS].forEach(font => allFonts.add(font));
+        [...COMMON_FONTS, ...SYSTEM_FONTS].forEach((font) => allFonts.add(font));
 
         // Try to query local fonts using the Font Access API (Chrome/Edge only)
         const nav = navigator as NavigatorWithFonts;
-        
+
         if (nav.queryLocalFonts) {
           try {
             // Query local fonts
             const localFonts = await nav.queryLocalFonts();
-            
+
             // Group fonts by family and deduplicate
             const fontFamilies = new Set<string>();
             localFonts.forEach((font) => {
@@ -90,13 +90,15 @@ export function useFonts() {
               const cleanFamily = family.trim();
               if (cleanFamily) {
                 // Determine fallback based on common font characteristics
-                const isMonospace = cleanFamily.toLowerCase().includes("mono") || 
-                                   cleanFamily.toLowerCase().includes("code") ||
-                                   cleanFamily.toLowerCase().includes("console");
-                const isSerif = cleanFamily.toLowerCase().includes("serif") ||
-                               cleanFamily.toLowerCase().includes("times") ||
-                               cleanFamily.toLowerCase().includes("garamond");
-                
+                const isMonospace =
+                  cleanFamily.toLowerCase().includes("mono") ||
+                  cleanFamily.toLowerCase().includes("code") ||
+                  cleanFamily.toLowerCase().includes("console");
+                const isSerif =
+                  cleanFamily.toLowerCase().includes("serif") ||
+                  cleanFamily.toLowerCase().includes("times") ||
+                  cleanFamily.toLowerCase().includes("garamond");
+
                 const fallback = isMonospace ? "monospace" : isSerif ? "serif" : "sans-serif";
                 allFonts.add(`"${cleanFamily}", ${fallback}`);
               }

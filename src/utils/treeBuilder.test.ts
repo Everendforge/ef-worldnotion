@@ -61,7 +61,9 @@ describe("tree builder", () => {
     const tree = buildTree(files, ["World", ".everend"], true);
 
     expect(tree.map((node) => node.path)).toEqual([".everend", "World", "Demo.md"]);
-    expect(tree.find((node) => node.path === ".everend")?.children[0].path).toBe(".everend/universe.json");
+    expect(tree.find((node) => node.path === ".everend")?.children[0].path).toBe(
+      ".everend/universe.json",
+    );
   });
 
   it("detects hidden metadata paths", () => {

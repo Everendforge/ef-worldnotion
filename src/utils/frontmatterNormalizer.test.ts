@@ -66,7 +66,10 @@ describe("frontmatter normalizer", () => {
       rootPath: "/Vault/Demo",
       files: [
         file(".everend/templates/concept.md", "# Template"),
-        file("Ready.md", "---\nid: ready\ntype: concept\nname: Ready\nstatus: draft\n---\n\n# Ready"),
+        file(
+          "Ready.md",
+          "---\nid: ready\ntype: concept\nname: Ready\nstatus: draft\n---\n\n# Ready",
+        ),
       ],
       directories: [".everend", ".everend/templates"],
     });
@@ -84,6 +87,8 @@ describe("frontmatter normalizer", () => {
     expect(frontmatterNormalizationConflict(item!, file("Loose.md", "# Loose", 11))).toBe(
       "File changed since scan: Loose.md",
     );
-    expect(frontmatterNormalizationConflict(item!, undefined)).toBe("File no longer exists: Loose.md");
+    expect(frontmatterNormalizationConflict(item!, undefined)).toBe(
+      "File no longer exists: Loose.md",
+    );
   });
 });

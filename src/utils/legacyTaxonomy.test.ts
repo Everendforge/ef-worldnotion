@@ -58,7 +58,10 @@ describe("legacy taxonomy helpers", () => {
 
     expect(findings).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ field: "types.deity.label", message: 'Taxonomy type "deity" is missing label.' }),
+        expect.objectContaining({
+          field: "types.deity.label",
+          message: 'Taxonomy type "deity" is missing label.',
+        }),
         expect.objectContaining({
           field: "types.deity.properties.domain.type",
           message: 'Property "domain" uses unsupported type "unknown".',
@@ -68,7 +71,9 @@ describe("legacy taxonomy helpers", () => {
   });
 
   it("serializes taxonomy, creates default templates, and derives readable type labels", () => {
-    expect(taxonomyToYaml({ types: { deity: { label: "Deity" } } })).toContain('specVersion: "0.1"');
+    expect(taxonomyToYaml({ types: { deity: { label: "Deity" } } })).toContain(
+      'specVersion: "0.1"',
+    );
     expect(defaultTemplateForType("deity")).toContain("<!-- Default deity template. -->");
     expect(createTypeDefinition("great_house")).toEqual({
       label: "Great House",

@@ -123,19 +123,19 @@ export function IconPicker({ onSelect, onClose, x = 0, y = 0 }: IconPickerProps)
 
   useEffect(() => {
     if (!menuRef.current) return;
-    
+
     const rect = menuRef.current.getBoundingClientRect();
     let adjustedX = x;
     let adjustedY = y;
-    
+
     if (x + rect.width > window.innerWidth) {
       adjustedX = Math.max(10, window.innerWidth - rect.width - 10);
     }
-    
+
     if (y + rect.height > window.innerHeight) {
       adjustedY = Math.max(10, window.innerHeight - rect.height - 10);
     }
-    
+
     setAdjustedPos({ x: adjustedX, y: adjustedY });
   }, [x, y]);
 

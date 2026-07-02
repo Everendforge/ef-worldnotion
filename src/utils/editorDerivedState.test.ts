@@ -25,12 +25,16 @@ describe("editor derived state", () => {
     const activeTab = tab("write", "---\nid: ada\n---\n\n# Ada\n\n## Notes");
 
     expect(editorDisplayValue(activeTab)).toBe("# Ada\n\n## Notes");
-    expect(outlineForTab(activeTab).map((header) => [header.level, header.text, header.line])).toEqual([
-      [1, "Ada", 0],
-    ]);
-    expect(outlineForTab(activeTab)[0].children.map((header) => [header.level, header.text, header.line])).toEqual([
-      [2, "Notes", 2],
-    ]);
+    expect(
+      outlineForTab(activeTab).map((header) => [header.level, header.text, header.line]),
+    ).toEqual([[1, "Ada", 0]]);
+    expect(
+      outlineForTab(activeTab)[0].children.map((header) => [
+        header.level,
+        header.text,
+        header.line,
+      ]),
+    ).toEqual([[2, "Notes", 2]]);
   });
 
   it("uses full raw markdown as the displayed value in source mode", () => {

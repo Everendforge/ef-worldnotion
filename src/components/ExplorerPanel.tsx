@@ -18,7 +18,8 @@ import type { ExplorerSection, ExplorerFavorite } from "../editorTypes";
 import type { VisibleExplorerRow } from "../utils/explorerSelectors";
 import { getIconComponent } from "./IconPicker";
 
-export type ExplorerTreeAction = "collapseAll" | "expandSelected" | "expandDepth1" | "expandDepth2" | "expandDepth3";
+export type ExplorerTreeAction =
+  "collapseAll" | "expandSelected" | "expandDepth1" | "expandDepth2" | "expandDepth3";
 
 type ExplorerFocusCrumb = {
   label: string;
@@ -124,27 +125,56 @@ export function ExplorerPanel({
     <aside className="sidebar dock-panel-body">
       <label className="search-box">
         <Search size={15} />
-        <input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Search files" />
+        <input
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="Search files"
+        />
       </label>
 
       <nav className="explorer-sections">
-        <button type="button" className={activeSection === "allFiles" ? "active" : ""} onClick={() => onSectionChange("allFiles")} title="All Files">
+        <button
+          type="button"
+          className={activeSection === "allFiles" ? "active" : ""}
+          onClick={() => onSectionChange("allFiles")}
+          title="All Files"
+        >
           <Files size={16} />
         </button>
-        <button type="button" className={activeSection === "favorites" ? "active" : ""} onClick={() => onSectionChange("favorites")} title="Favorites">
+        <button
+          type="button"
+          className={activeSection === "favorites" ? "active" : ""}
+          onClick={() => onSectionChange("favorites")}
+          title="Favorites"
+        >
           <Star size={16} />
         </button>
-        <button type="button" className={activeSection === "ecosystem" ? "active" : ""} onClick={() => onSectionChange("ecosystem")} title="Ecosystem">
+        <button
+          type="button"
+          className={activeSection === "ecosystem" ? "active" : ""}
+          onClick={() => onSectionChange("ecosystem")}
+          title="Ecosystem"
+        >
           <Hash size={16} />
         </button>
       </nav>
 
       <nav className="explorer-tree-actions" aria-label="Explorer expansion actions">
-        <button type="button" onClick={() => onTreeAction("collapseAll")}>Collapse</button>
-        <button type="button" onClick={() => onTreeAction("expandSelected")}>Selected</button>
-        <button type="button" onClick={() => onTreeAction("expandDepth1")}>D1</button>
-        <button type="button" onClick={() => onTreeAction("expandDepth2")}>D2</button>
-        <button type="button" onClick={() => onTreeAction("expandDepth3")}>D3</button>
+        <button type="button" onClick={() => onTreeAction("collapseAll")}>
+          Collapse
+        </button>
+        <button type="button" onClick={() => onTreeAction("expandSelected")}>
+          Selected
+        </button>
+        <button type="button" onClick={() => onTreeAction("expandDepth1")}>
+          D1
+        </button>
+        <button type="button" onClick={() => onTreeAction("expandDepth2")}>
+          D2
+        </button>
+        <button type="button" onClick={() => onTreeAction("expandDepth3")}>
+          D3
+        </button>
       </nav>
 
       {focusedFolderPath && focusBreadcrumb.length ? (
@@ -213,7 +243,9 @@ export function ExplorerPanel({
                     <div key={tagPath} className="ecosystem-group">
                       <div className="ecosystem-group-header">
                         <Hash size={14} />
-                        <span className="ecosystem-group-name">{tagPath === "_untagged" ? "Sin etiquetas" : tagPath}</span>
+                        <span className="ecosystem-group-name">
+                          {tagPath === "_untagged" ? "Sin etiquetas" : tagPath}
+                        </span>
                         <span className="ecosystem-group-count">{entities.length}</span>
                       </div>
                       <div className="ecosystem-group-items">
@@ -226,7 +258,10 @@ export function ExplorerPanel({
                             onContextMenu={(event) => onContextMenu(event, entity.path, "file")}
                           >
                             {entityTagColors.get(entity.path) ? (
-                              <span className="ecosystem-item-color" style={{ backgroundColor: entityTagColors.get(entity.path) }} />
+                              <span
+                                className="ecosystem-item-color"
+                                style={{ backgroundColor: entityTagColors.get(entity.path) }}
+                              />
                             ) : null}
                             <FileText size={14} />
                             <span className="ecosystem-item-name">{entity.name}</span>
@@ -255,13 +290,16 @@ export function ExplorerPanel({
               onDrop={(event) => {
                 event.preventDefault();
                 const fromPath = event.dataTransfer.getData("text/plain");
-                const fromKind = event.dataTransfer.getData("application/worldnotion-kind") as "file" | "folder" | "";
+                const fromKind = event.dataTransfer.getData("application/worldnotion-kind") as
+                  "file" | "folder" | "";
                 if (fromPath) onDragMove(fromPath, "", fromKind || undefined);
               }}
             >
               {visibleRows.length ? (
                 <>
-                  {virtualWindow.before > 0 ? <div style={{ height: virtualWindow.before }} /> : null}
+                  {virtualWindow.before > 0 ? (
+                    <div style={{ height: virtualWindow.before }} />
+                  ) : null}
                   {virtualWindow.rows.map((row) => (
                     <ExplorerTreeRow
                       key={row.path}
@@ -298,17 +336,29 @@ export function ExplorerPanel({
 
       <section className={`templates-dock ${templatesExpanded ? "expanded" : ""}`}>
         <div className="templates-dock-header">
-          <button type="button" className="templates-dock-toggle" onClick={onToggleTemplatesExpanded}>
+          <button
+            type="button"
+            className="templates-dock-toggle"
+            onClick={onToggleTemplatesExpanded}
+          >
             {templatesExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             <span>Templates</span>
             <small>{index.templates.length}</small>
           </button>
-          <button type="button" className="templates-dock-action" onClick={onCreateTemplate} title="New template">
+          <button
+            type="button"
+            className="templates-dock-action"
+            onClick={onCreateTemplate}
+            title="New template"
+          >
             <Plus size={13} />
           </button>
         </div>
         {templatesExpanded ? (
-          <div className="template-list templates-dock-list" onContextMenu={(event) => onContextMenu(event, ".everend/templates", "folder")}>
+          <div
+            className="template-list templates-dock-list"
+            onContextMenu={(event) => onContextMenu(event, ".everend/templates", "folder")}
+          >
             {index.templates.length ? (
               index.templates.map((template) => (
                 <button
@@ -432,7 +482,14 @@ function ExplorerTreeRow({
           const rect = event.currentTarget.getBoundingClientRect();
           const y = event.clientY - rect.top;
           const threshold = rect.height * 0.3;
-          const nextDropPosition = y < threshold ? "before" : y > rect.height - threshold ? "after" : row.kind === "folder" ? "into" : "after";
+          const nextDropPosition =
+            y < threshold
+              ? "before"
+              : y > rect.height - threshold
+                ? "after"
+                : row.kind === "folder"
+                  ? "into"
+                  : "after";
           setDropPosition(nextDropPosition);
           setIsDragOver(true);
           event.dataTransfer.dropEffect = "move";
@@ -449,7 +506,8 @@ function ExplorerTreeRow({
           setIsDragOver(false);
           setDropPosition(null);
           const fromPath = event.dataTransfer.getData("text/plain");
-          const fromKind = event.dataTransfer.getData("application/worldnotion-kind") as "file" | "folder" | "";
+          const fromKind = event.dataTransfer.getData("application/worldnotion-kind") as
+            "file" | "folder" | "";
           if (!fromPath || fromPath === row.path || row.path.startsWith(`${fromPath}/`)) return;
           if (dropPosition === "into" && row.kind === "folder") {
             onDragMove(fromPath, row.path, fromKind || undefined);
@@ -460,16 +518,35 @@ function ExplorerTreeRow({
         }}
         title={row.path}
       >
-        <span className={`tree-chevron ${row.kind === "folder" && row.hasChildren ? "" : "tree-chevron-placeholder"}`} aria-hidden="true">
-          {row.kind === "folder" && row.hasChildren ? row.isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} /> : null}
+        <span
+          className={`tree-chevron ${row.kind === "folder" && row.hasChildren ? "" : "tree-chevron-placeholder"}`}
+          aria-hidden="true"
+        >
+          {row.kind === "folder" && row.hasChildren ? (
+            row.isExpanded ? (
+              <ChevronDown size={14} />
+            ) : (
+              <ChevronRight size={14} />
+            )
+          ) : null}
         </span>
-        {tagColor && row.kind === "file" ? <span className="tree-tag-indicator" style={{ backgroundColor: tagColor }} title="Tag color" /> : null}
+        {tagColor && row.kind === "file" ? (
+          <span
+            className="tree-tag-indicator"
+            style={{ backgroundColor: tagColor }}
+            title="Tag color"
+          />
+        ) : null}
         {IconComponent ? (
           // getIconComponent returns a module-level lucide component, not one created during render.
           // eslint-disable-next-line react-hooks/static-components
           <IconComponent size={14} />
         ) : row.kind === "folder" ? (
-          row.isExpanded ? <FolderOpen size={14} /> : <Folder size={14} />
+          row.isExpanded ? (
+            <FolderOpen size={14} />
+          ) : (
+            <Folder size={14} />
+          )
         ) : (
           <FileText size={14} />
         )}
@@ -498,7 +575,11 @@ function ExplorerTreeRow({
                 event.stopPropagation();
                 onOpenFolderDescription(row.path, row.descriptionPath);
               }}
-              title={row.hasDescription ? `Open ${row.name} folder note` : `Create ${row.name} folder note`}
+              title={
+                row.hasDescription
+                  ? `Open ${row.name} folder note`
+                  : `Create ${row.name} folder note`
+              }
             >
               {row.hasDescription ? <FileEdit size={12} /> : <Plus size={12} />}
             </button>

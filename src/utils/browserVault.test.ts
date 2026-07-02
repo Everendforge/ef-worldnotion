@@ -15,11 +15,21 @@ describe("browser vault path validation", () => {
 
   it("rejects absolute, traversal, empty, and backslash paths", () => {
     expect(() => browserPathParts("")).toThrow("Path is required.");
-    expect(() => browserPathParts("../outside.md")).toThrow("Browser vault paths cannot contain empty or traversal segments.");
-    expect(() => browserPathParts("World//Ada.md")).toThrow("Browser vault paths cannot contain empty or traversal segments.");
-    expect(() => browserPathParts("C:/Vault/Ada.md")).toThrow("Browser vault paths must be relative.");
-    expect(() => browserPathParts("/Vault/Ada.md")).toThrow("Browser vault paths must be relative.");
-    expect(() => browserPathParts("World\\Ada.md")).toThrow("Browser vault paths must use forward slashes.");
+    expect(() => browserPathParts("../outside.md")).toThrow(
+      "Browser vault paths cannot contain empty or traversal segments.",
+    );
+    expect(() => browserPathParts("World//Ada.md")).toThrow(
+      "Browser vault paths cannot contain empty or traversal segments.",
+    );
+    expect(() => browserPathParts("C:/Vault/Ada.md")).toThrow(
+      "Browser vault paths must be relative.",
+    );
+    expect(() => browserPathParts("/Vault/Ada.md")).toThrow(
+      "Browser vault paths must be relative.",
+    );
+    expect(() => browserPathParts("World\\Ada.md")).toThrow(
+      "Browser vault paths must use forward slashes.",
+    );
   });
 
   it("allows only the .everend hidden segment", () => {

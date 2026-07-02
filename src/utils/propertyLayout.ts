@@ -20,4 +20,3 @@ export function isStructureProperty(property: Pick<PropertyDefinition, "id">): b
 export function isMainSystemProperty(property: Pick<PropertyDefinition, "id">): boolean {
   return MAIN_SYSTEM_PROPERTY_IDS.has(property.id);
 }
-

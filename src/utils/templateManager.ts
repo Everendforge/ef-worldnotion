@@ -29,7 +29,7 @@ function getTemplateStorageKey(templateName: string): string {
  */
 export function savePropertyTemplate(template: PropertyTemplate): void {
   const storageKey = getTemplateStorageKey(template.name);
-  
+
   try {
     const templateData = {
       ...template,
@@ -49,11 +49,11 @@ export function savePropertyTemplate(template: PropertyTemplate): void {
  */
 export function loadPropertyTemplate(templateName: string): PropertyTemplate | null {
   const storageKey = getTemplateStorageKey(templateName);
-  
+
   try {
     const data = localStorage.getItem(storageKey);
     if (!data) return null;
-    
+
     return JSON.parse(data) as PropertyTemplate;
   } catch (error) {
     console.error(`Failed to load template "${templateName}":`, error);
@@ -67,7 +67,7 @@ export function loadPropertyTemplate(templateName: string): PropertyTemplate | n
 export function listPropertyTemplates(): PropertyTemplate[] {
   const templates: PropertyTemplate[] = [];
   const prefix = "worldnotion-template:";
-  
+
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -85,9 +85,9 @@ export function listPropertyTemplates(): PropertyTemplate[] {
   } catch (error) {
     console.error("Failed to list templates:", error);
   }
-  
-  return templates.sort((a, b) => 
-    new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+
+  return templates.sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
   );
 }
 
@@ -96,7 +96,7 @@ export function listPropertyTemplates(): PropertyTemplate[] {
  */
 export function deletePropertyTemplate(templateName: string): boolean {
   const storageKey = getTemplateStorageKey(templateName);
-  
+
   try {
     localStorage.removeItem(storageKey);
     return true;
@@ -120,10 +120,10 @@ export function createPropertyTemplate(
   name: string,
   definitions: PropertyDefinition[],
   description?: string,
-  tags?: string[]
+  tags?: string[],
 ): PropertyTemplate {
   const now = new Date().toISOString();
-  
+
   return {
     name,
     description,
@@ -140,17 +140,17 @@ export function createPropertyTemplate(
  */
 export function updatePropertyTemplate(
   templateName: string,
-  updates: Partial<Omit<PropertyTemplate, "createdAt">>
+  updates: Partial<Omit<PropertyTemplate, "createdAt">>,
 ): PropertyTemplate | null {
   const existing = loadPropertyTemplate(templateName);
   if (!existing) return null;
-  
+
   const updated: PropertyTemplate = {
     ...existing,
     ...updates,
     updatedAt: new Date().toISOString(),
   };
-  
+
   savePropertyTemplate(updated);
   return updated;
 }
@@ -160,22 +160,22 @@ export function updatePropertyTemplate(
  */
 export function duplicatePropertyTemplate(
   sourceName: string,
-  newName: string
+  newName: string,
 ): PropertyTemplate | null {
   const source = loadPropertyTemplate(sourceName);
   if (!source) return null;
-  
+
   if (templateExists(newName)) {
     throw new Error(`Template "${newName}" already exists`);
   }
-  
+
   const duplicate = createPropertyTemplate(
     newName,
     JSON.parse(JSON.stringify(source.definitions)), // Deep copy
     `${source.description || ""} (copy)`,
-    source.tags
+    source.tags,
   );
-  
+
   savePropertyTemplate(duplicate);
   return duplicate;
 }
@@ -186,7 +186,7 @@ export function duplicatePropertyTemplate(
 export function exportTemplateAsJSON(templateName: string): string | null {
   const template = loadPropertyTemplate(templateName);
   if (!template) return null;
-  
+
   return JSON.stringify(template, null, 2);
 }
 
@@ -196,12 +196,12 @@ export function exportTemplateAsJSON(templateName: string): string | null {
 export function importTemplateFromJSON(jsonString: string): PropertyTemplate | null {
   try {
     const template = JSON.parse(jsonString) as PropertyTemplate;
-    
+
     // Validate structure
     if (!template.name || !Array.isArray(template.definitions)) {
       throw new Error("Invalid template structure");
     }
-    
+
     // Check if name already exists
     if (templateExists(template.name)) {
       // Append suffix to make it unique
@@ -213,7 +213,7 @@ export function importTemplateFromJSON(jsonString: string): PropertyTemplate | n
       }
       template.name = newName;
     }
-    
+
     savePropertyTemplate(template);
     return template;
   } catch (error) {
@@ -228,12 +228,12 @@ export function importTemplateFromJSON(jsonString: string): PropertyTemplate | n
 export function searchPropertyTemplates(query: string): PropertyTemplate[] {
   const templates = listPropertyTemplates();
   const lowerQuery = query.toLowerCase();
-  
+
   return templates.filter((template) => {
     const nameMatch = template.name.toLowerCase().includes(lowerQuery);
     const descMatch = template.description?.toLowerCase().includes(lowerQuery) ?? false;
     const tagsMatch = template.tags?.some((tag) => tag.toLowerCase().includes(lowerQuery)) ?? false;
-    
+
     return nameMatch || descMatch || tagsMatch;
   });
 }
@@ -249,15 +249,15 @@ export function getTemplateStats(): {
 } {
   const templates = listPropertyTemplates();
   let totalDefinitions = 0;
-  
+
   templates.forEach((template) => {
     totalDefinitions += template.definitions.length;
   });
-  
+
   const sorted = [...templates].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
-  
+
   return {
     totalCount: templates.length,
     totalDefinitions,
@@ -273,14 +273,14 @@ export function clearAllTemplates(): boolean {
   try {
     const keysToRemove: string[] = [];
     const prefix = "worldnotion-template:";
-    
+
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && key.startsWith(prefix)) {
         keysToRemove.push(key);
       }
     }
-    
+
     keysToRemove.forEach((key) => localStorage.removeItem(key));
     return true;
   } catch (error) {

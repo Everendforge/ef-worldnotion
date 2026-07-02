@@ -32,7 +32,9 @@ const taxonomy: TaxonomyConfig = {
         id: "cast",
         label: "cast",
         fullPath: "cast",
-        children: [{ id: "cast-main", label: "main", fullPath: "cast/main", children: [], parentId: "cast" }],
+        children: [
+          { id: "cast-main", label: "main", fullPath: "cast/main", children: [], parentId: "cast" },
+        ],
       },
     ],
   },
@@ -54,11 +56,21 @@ const taxonomy: TaxonomyConfig = {
 describe("taxonomy validation", () => {
   it("returns no findings when taxonomy is absent or entity is valid", () => {
     expect(validateAgainstTaxonomy(entity(), undefined, "Ada.md")).toEqual([]);
-    expect(validateAgainstTaxonomy(entity({ customProperties: { faction: "Archive" } }), taxonomy, "Ada.md")).toEqual([]);
+    expect(
+      validateAgainstTaxonomy(
+        entity({ customProperties: { faction: "Archive" } }),
+        taxonomy,
+        "Ada.md",
+      ),
+    ).toEqual([]);
   });
 
   it("flags undefined tags when custom tags are disabled", () => {
-    const findings = validateAgainstTaxonomy(entity({ tags: ["cast/unknown"] }), taxonomy, "Ada.md");
+    const findings = validateAgainstTaxonomy(
+      entity({ tags: ["cast/unknown"] }),
+      taxonomy,
+      "Ada.md",
+    );
 
     expect(findings).toEqual([
       expect.objectContaining({ code: "undefined_tag", field: "tags", file: "Ada.md" }),

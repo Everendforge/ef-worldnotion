@@ -8,7 +8,12 @@ import type {
   PersistedOpenTab,
   WorkspaceLayoutV1,
 } from "../editorTypes";
-import { fileTitle, pathAfterChanges, pathIsAffectedByChanges, type PathChangeSet } from "./pathUtils";
+import {
+  fileTitle,
+  pathAfterChanges,
+  pathIsAffectedByChanges,
+  type PathChangeSet,
+} from "./pathUtils";
 
 export type DockDropPosition = "center" | "left" | "right" | "top" | "bottom";
 
@@ -70,7 +75,8 @@ function createDockGroup(id: string, tabs: DockTabRef[], activeTabId?: string): 
     type: "group",
     id,
     tabs,
-    activeTabId: activeTabId && tabs.some((tab) => tab.id === activeTabId) ? activeTabId : tabs[0]?.id,
+    activeTabId:
+      activeTabId && tabs.some((tab) => tab.id === activeTabId) ? activeTabId : tabs[0]?.id,
   };
 }
 
@@ -151,14 +157,21 @@ export function createWorkspaceLayoutPreset(
     };
   }
 
-  return createDefaultWorkspaceLayout(tabs, { activePath: options.activePath, showGraph: false, showInspector: true });
+  return createDefaultWorkspaceLayout(tabs, {
+    activePath: options.activePath,
+    showGraph: false,
+    showInspector: true,
+  });
 }
 
 export function layoutHasTab(layout: WorkspaceLayoutV1, tabId: string): boolean {
   return Boolean(findTab(layout.root, tabId));
 }
 
-export function layoutHasPanel(layout: WorkspaceLayoutV1, kind: Exclude<DockPanelKind, "document">): boolean {
+export function layoutHasPanel(
+  layout: WorkspaceLayoutV1,
+  kind: Exclude<DockPanelKind, "document">,
+): boolean {
   return layoutHasTab(layout, panelDockTabId(kind));
 }
 
@@ -184,7 +197,11 @@ export function activateDockTab(layout: WorkspaceLayoutV1, tabId: string): Works
   };
 }
 
-export function addDocumentToLayout(layout: WorkspaceLayoutV1, path: string, title = fileTitle(path)): WorkspaceLayoutV1 {
+export function addDocumentToLayout(
+  layout: WorkspaceLayoutV1,
+  path: string,
+  title = fileTitle(path),
+): WorkspaceLayoutV1 {
   const tabId = documentDockTabId(path);
   if (layoutHasTab(layout, tabId)) {
     return activateDockTab(layout, tabId);
@@ -194,7 +211,7 @@ export function addDocumentToLayout(layout: WorkspaceLayoutV1, path: string, tit
   const targetGroupId =
     activeGroup && groupCanHostDocument(activeGroup)
       ? activeGroup.id
-      : findFirstDocumentGroupId(layout.root) ?? layout.activeGroupId;
+      : (findFirstDocumentGroupId(layout.root) ?? layout.activeGroupId);
   const tab = createDocumentDockTab(path, title);
   return {
     ...layout,
@@ -207,7 +224,10 @@ export function addDocumentToLayout(layout: WorkspaceLayoutV1, path: string, tit
   };
 }
 
-export function addPanelToLayout(layout: WorkspaceLayoutV1, kind: Exclude<DockPanelKind, "document">): WorkspaceLayoutV1 {
+export function addPanelToLayout(
+  layout: WorkspaceLayoutV1,
+  kind: Exclude<DockPanelKind, "document">,
+): WorkspaceLayoutV1 {
   const tab = createPanelDockTab(kind);
   if (layoutHasTab(layout, tab.id)) {
     return activateDockTab(layout, tab.id);
@@ -286,11 +306,17 @@ export function moveDockTab(layout: WorkspaceLayoutV1, input: MoveDockTabInput):
   return normalizeWorkspaceLayout({
     ...layout,
     root: nextRoot,
-    activeGroupId: input.position === "center" ? targetGroupId : findGroupIdForTab(nextRoot, input.tabId) ?? targetGroupId,
+    activeGroupId:
+      input.position === "center"
+        ? targetGroupId
+        : (findGroupIdForTab(nextRoot, input.tabId) ?? targetGroupId),
   });
 }
 
-export function resizeDockSplit(layout: WorkspaceLayoutV1, input: ResizeDockSplitInput): WorkspaceLayoutV1 {
+export function resizeDockSplit(
+  layout: WorkspaceLayoutV1,
+  input: ResizeDockSplitInput,
+): WorkspaceLayoutV1 {
   const ratio = clampSplitRatio(input.ratio);
   let changed = false;
   const root = mapNode(layout.root, (node) => {
@@ -309,7 +335,9 @@ export function closeDockTab(layout: WorkspaceLayoutV1, tabId: string): Workspac
   return normalizeWorkspaceLayout({
     ...layout,
     root: removed.node,
-    activeGroupId: tabId.startsWith("document:") ? DOCUMENT_GROUP_ID : findFirstGroupId(removed.node) ?? DOCUMENT_GROUP_ID,
+    activeGroupId: tabId.startsWith("document:")
+      ? DOCUMENT_GROUP_ID
+      : (findFirstGroupId(removed.node) ?? DOCUMENT_GROUP_ID),
   });
 }
 
@@ -344,18 +372,27 @@ export function syncLayoutWithOpenTabs(
   const layoutPaths = new Set(documentPathsInLayout({ ...layout, root }));
   for (const tab of tabs) {
     if (!layoutPaths.has(tab.path)) {
-      root = updateGroup(root, findFirstDocumentGroupId(root) ?? findFirstGroupId(root) ?? DOCUMENT_GROUP_ID, (group) => ({
-        ...group,
-        tabs: [...group.tabs, createDocumentDockTab(tab.path, tab.title)],
-      }));
+      root = updateGroup(
+        root,
+        findFirstDocumentGroupId(root) ?? findFirstGroupId(root) ?? DOCUMENT_GROUP_ID,
+        (group) => ({
+          ...group,
+          tabs: [...group.tabs, createDocumentDockTab(tab.path, tab.title)],
+        }),
+      );
       changed = true;
     }
   }
 
   const activeDocumentId = activePath ? documentDockTabId(activePath) : undefined;
-  const activeGroupId = activeDocumentId ? findGroupIdForTab(root, activeDocumentId) : layout.activeGroupId;
+  const activeGroupId = activeDocumentId
+    ? findGroupIdForTab(root, activeDocumentId)
+    : layout.activeGroupId;
   if (activeDocumentId && activeGroupId) {
-    root = updateGroup(root, activeGroupId, (group) => ({ ...group, activeTabId: activeDocumentId }));
+    root = updateGroup(root, activeGroupId, (group) => ({
+      ...group,
+      activeTabId: activeDocumentId,
+    }));
     changed = true;
   }
 
@@ -368,12 +405,16 @@ export function syncLayoutWithOpenTabs(
   return changed || next !== layout ? next : layout;
 }
 
-export function updateLayoutForPathChange(layout: WorkspaceLayoutV1, change: PathChangeSet): WorkspaceLayoutV1 {
+export function updateLayoutForPathChange(
+  layout: WorkspaceLayoutV1,
+  change: PathChangeSet,
+): WorkspaceLayoutV1 {
   let changed = false;
   const root = mapGroups(layout.root, (group) => {
     let activeTabId = group.activeTabId;
     const tabs = group.tabs.map((tab) => {
-      if (tab.kind !== "document" || !tab.path || !pathIsAffectedByChanges(tab.path, change)) return tab;
+      if (tab.kind !== "document" || !tab.path || !pathIsAffectedByChanges(tab.path, change))
+        return tab;
       const path = pathAfterChanges(tab.path, change);
       const nextTab = createDocumentDockTab(path);
       if (group.activeTabId === tab.id) {
@@ -388,8 +429,12 @@ export function updateLayoutForPathChange(layout: WorkspaceLayoutV1, change: Pat
 }
 
 export function normalizeWorkspaceLayout(layout: WorkspaceLayoutV1): WorkspaceLayoutV1 {
-  const root = ensureDocumentAnchor(pruneNode(layout.root) ?? createDockGroup(DOCUMENT_GROUP_ID, []));
-  const activeGroupId = findGroup(root, layout.activeGroupId) ? layout.activeGroupId : findFirstGroupId(root) ?? DOCUMENT_GROUP_ID;
+  const root = ensureDocumentAnchor(
+    pruneNode(layout.root) ?? createDockGroup(DOCUMENT_GROUP_ID, []),
+  );
+  const activeGroupId = findGroup(root, layout.activeGroupId)
+    ? layout.activeGroupId
+    : (findFirstGroupId(root) ?? DOCUMENT_GROUP_ID);
   return { ...layout, root, activeGroupId };
 }
 
@@ -406,7 +451,10 @@ export function orderOpenTabsByLayout(tabs: OpenTab[], layout: WorkspaceLayoutV1
   return [...ordered, ...tabByPath.values()];
 }
 
-function reorderTabWithinGroup(layout: WorkspaceLayoutV1, input: MoveDockTabInput): WorkspaceLayoutV1 {
+function reorderTabWithinGroup(
+  layout: WorkspaceLayoutV1,
+  input: MoveDockTabInput,
+): WorkspaceLayoutV1 {
   return {
     ...layout,
     root: updateGroup(layout.root, input.targetGroupId, (group) => {
@@ -427,10 +475,17 @@ function reorderTabWithinGroup(layout: WorkspaceLayoutV1, input: MoveDockTabInpu
   };
 }
 
-function insertTabIntoGroup(node: DockNode, groupId: string, tab: DockTabRef, targetTabId?: string): DockNode {
+function insertTabIntoGroup(
+  node: DockNode,
+  groupId: string,
+  tab: DockTabRef,
+  targetTabId?: string,
+): DockNode {
   return updateGroup(node, groupId, (group) => {
     const existingTabs = group.tabs.filter((candidate) => candidate.id !== tab.id);
-    const targetIndex = targetTabId ? existingTabs.findIndex((candidate) => candidate.id === targetTabId) : existingTabs.length;
+    const targetIndex = targetTabId
+      ? existingTabs.findIndex((candidate) => candidate.id === targetTabId)
+      : existingTabs.length;
     const insertIndex = targetIndex === -1 ? existingTabs.length : targetIndex;
     return {
       ...group,
@@ -440,7 +495,12 @@ function insertTabIntoGroup(node: DockNode, groupId: string, tab: DockTabRef, ta
   });
 }
 
-function splitGroupWithTab(node: DockNode, groupId: string, tab: DockTabRef, position: DockDropPosition): DockNode {
+function splitGroupWithTab(
+  node: DockNode,
+  groupId: string,
+  tab: DockTabRef,
+  position: DockDropPosition,
+): DockNode {
   return mapNode(node, (candidate) => {
     if (candidate.type !== "group" || candidate.id !== groupId) return candidate;
     const newGroup = createDockGroup(nextGroupId(candidate.id, tab.id), [tab], tab.id);
@@ -451,7 +511,11 @@ function splitGroupWithTab(node: DockNode, groupId: string, tab: DockTabRef, pos
   });
 }
 
-function removeTab(node: DockNode, groupId: string, tabId: string): { node: DockNode; tab?: DockTabRef } {
+function removeTab(
+  node: DockNode,
+  groupId: string,
+  tabId: string,
+): { node: DockNode; tab?: DockTabRef } {
   let removedTab: DockTabRef | undefined;
   const nextNode = updateGroup(node, groupId, (group) => {
     const tab = group.tabs.find((candidate) => candidate.id === tabId);
@@ -471,7 +535,9 @@ function pruneNode(node: DockNode): DockNode | undefined {
   if (node.type === "group") {
     if (node.id === DOCUMENT_GROUP_ID) {
       const activeTabId =
-        node.activeTabId && node.tabs.some((tab) => tab.id === node.activeTabId) ? node.activeTabId : node.tabs[0]?.id;
+        node.activeTabId && node.tabs.some((tab) => tab.id === node.activeTabId)
+          ? node.activeTabId
+          : node.tabs[0]?.id;
       return { ...node, activeTabId };
     }
     return node.tabs.length ? node : undefined;
@@ -507,10 +573,20 @@ function createLayoutForDetachedTab(tab: DockTabRef): WorkspaceLayoutV1 {
 
 function ensureDocumentAnchor(node: DockNode): DockNode {
   if (findGroup(node, DOCUMENT_GROUP_ID)) return node;
-  return createDockSplit("dock-root-anchor", "horizontal", 0.72, createDockGroup(DOCUMENT_GROUP_ID, []), node);
+  return createDockSplit(
+    "dock-root-anchor",
+    "horizontal",
+    0.72,
+    createDockGroup(DOCUMENT_GROUP_ID, []),
+    node,
+  );
 }
 
-function updateGroup(node: DockNode, groupId: string, updater: (group: DockGroupNode) => DockGroupNode): DockNode {
+function updateGroup(
+  node: DockNode,
+  groupId: string,
+  updater: (group: DockGroupNode) => DockGroupNode,
+): DockNode {
   return mapNode(node, (candidate) => {
     if (candidate.type !== "group" || candidate.id !== groupId) return candidate;
     return updater(candidate);
@@ -564,7 +640,9 @@ function findFirstGroupId(node: DockNode): string | undefined {
 
 function findFirstDocumentGroupId(node: DockNode): string | undefined {
   if (node.type === "group") {
-    return node.tabs.some((tab) => tab.kind === "document") || node.id === DOCUMENT_GROUP_ID ? node.id : undefined;
+    return node.tabs.some((tab) => tab.kind === "document") || node.id === DOCUMENT_GROUP_ID
+      ? node.id
+      : undefined;
   }
   return findFirstDocumentGroupId(node.first) ?? findFirstDocumentGroupId(node.second);
 }
@@ -589,7 +667,12 @@ function nextSplitId(groupId: string, tabId: string): string {
 }
 
 function sanitizeId(value: string): string {
-  return value.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "tab";
+  return (
+    value
+      .replace(/[^a-z0-9]+/gi, "-")
+      .replace(/^-|-$/g, "")
+      .toLowerCase() || "tab"
+  );
 }
 
 function clampSplitRatio(ratio: number): number {

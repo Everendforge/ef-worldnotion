@@ -41,17 +41,17 @@ export function wikilinkAutocomplete(options: WikilinkAutocompleteOptions) {
 
     // Check if we're inside a wikilink (after [[)
     const wikilinkMatch = textBeforeCursor.match(/\[\[([^\]]*?)$/);
-    
+
     if (!wikilinkMatch) {
       return null;
     }
 
     const searchText = wikilinkMatch[1] || "";
     const from = context.pos - searchText.length;
-    
+
     // If no search text, show all entities (limited)
     let suggestions: Completion[];
-    
+
     if (searchText.trim() === "") {
       // Show recent or all entities (limited to 50)
       suggestions = options.entities.slice(0, 50).map((entity) => ({
@@ -69,12 +69,10 @@ export function wikilinkAutocomplete(options: WikilinkAutocompleteOptions) {
     } else {
       // Fuzzy search entities
       const results = fuse.search(searchText);
-      
+
       suggestions = results.slice(0, 20).map((result) => {
         const entity = result.item;
-        const isAliasMatch = result.matches?.some(
-          (match) => match.key === "aliases"
-        );
+        const isAliasMatch = result.matches?.some((match) => match.key === "aliases");
 
         return {
           label: entity.name,
@@ -85,10 +83,11 @@ export function wikilinkAutocomplete(options: WikilinkAutocompleteOptions) {
           info: entity.body ? entity.body.slice(0, 200) : undefined,
           apply: (view, _completion, from, to) => {
             // If alias matched, offer to use alias syntax
-            const insertText = isAliasMatch && result.matches?.[0]?.value
-              ? `${entity.name}|${result.matches[0].value}]]`
-              : `${entity.name}]]`;
-            
+            const insertText =
+              isAliasMatch && result.matches?.[0]?.value
+                ? `${entity.name}|${result.matches[0].value}]]`
+                : `${entity.name}]]`;
+
             view.dispatch({
               changes: { from, to, insert: insertText },
             });

@@ -15,7 +15,12 @@ export type ExplorerTarget = {
 };
 
 export function pathName(path: string): string {
-  return path.replace(/^browser:/, "").split(/[\\/]/).pop() ?? path;
+  return (
+    path
+      .replace(/^browser:/, "")
+      .split(/[\\/]/)
+      .pop() ?? path
+  );
 }
 
 export function fileTitle(path: string) {
@@ -34,7 +39,10 @@ export function selectedAbsolutePath(index: VaultIndex | undefined, path: string
   return file?.absolutePath ?? `${index.rootPath}/${path}`;
 }
 
-export function activeCreationFolder(selectedExplorerTarget: ExplorerTarget | undefined, selectedPath: string | undefined) {
+export function activeCreationFolder(
+  selectedExplorerTarget: ExplorerTarget | undefined,
+  selectedPath: string | undefined,
+) {
   if (selectedExplorerTarget?.kind === "folder") return selectedExplorerTarget.path;
   if (selectedExplorerTarget?.kind === "file") return dirname(selectedExplorerTarget.path);
   return selectedPath ? dirname(selectedPath) : "";
@@ -52,11 +60,15 @@ export function childPathAfterMove(path: string, fromPath: string, movedRootPath
 
 export function pathIsAffectedByChange(path: string | undefined, change: PathChange) {
   if (!path) return false;
-  return change.mode === "tree" ? path === change.fromPath || path.startsWith(`${change.fromPath}/`) : path === change.fromPath;
+  return change.mode === "tree"
+    ? path === change.fromPath || path.startsWith(`${change.fromPath}/`)
+    : path === change.fromPath;
 }
 
 export function pathAfterChange(path: string, change: PathChange) {
-  return change.mode === "tree" ? childPathAfterMove(path, change.fromPath, change.toPath) : change.toPath;
+  return change.mode === "tree"
+    ? childPathAfterMove(path, change.fromPath, change.toPath)
+    : change.toPath;
 }
 
 export function normalizePathChanges(changes?: PathChangeSet) {
@@ -65,7 +77,8 @@ export function normalizePathChanges(changes?: PathChangeSet) {
 
 export function pathAfterChanges(path: string, changes?: PathChangeSet) {
   return normalizePathChanges(changes).reduce(
-    (current, change) => (pathIsAffectedByChange(current, change) ? pathAfterChange(current, change) : current),
+    (current, change) =>
+      pathIsAffectedByChange(current, change) ? pathAfterChange(current, change) : current,
     path,
   );
 }

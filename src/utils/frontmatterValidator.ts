@@ -1,5 +1,9 @@
 import type { PropertiesConfig } from "../editorTypes";
-import { getConfiguredFrontmatterOrder, knownPropertyIds, NON_INSPECTOR_PROPERTY_IDS } from "./propertiesConfig";
+import {
+  getConfiguredFrontmatterOrder,
+  knownPropertyIds,
+  NON_INSPECTOR_PROPERTY_IDS,
+} from "./propertiesConfig";
 
 export interface ValidationIssue {
   type: "missing" | "extra" | "misorder";
@@ -15,7 +19,7 @@ export interface ValidationIssue {
  * - extra fields not in schema
  * - fields in wrong order (per Everend Spec v0.1)
  * - missing required base properties
- * 
+ *
  * @param frontmatterData Parsed YAML data
  * @param config Properties schema
  * @returns Array of validation issues
@@ -40,7 +44,9 @@ export function detectOrphanedFields(
   });
 
   const expectedOrder = getConfiguredFrontmatterOrder(config, entityType, frontmatterKeys);
-  const isOrderCorrect = frontmatterKeys.length === expectedOrder.length && frontmatterKeys.every((key, index) => key === expectedOrder[index]);
+  const isOrderCorrect =
+    frontmatterKeys.length === expectedOrder.length &&
+    frontmatterKeys.every((key, index) => key === expectedOrder[index]);
 
   if (!isOrderCorrect) {
     frontmatterKeys.forEach((key, actualPos) => {

@@ -62,29 +62,25 @@ describe("live entity selector", () => {
 
   it("projects unsaved frontmatter and body changes onto the indexed entity", () => {
     const indexed = entity();
-    const live = selectLiveEntity(
-      index([indexed]),
-      indexed.path,
-      [
-        tab(
-          indexed.path,
-          [
-            "---",
-            "id: ada-live",
-            "type: protagonist",
-            "name: Ada Live",
-            "status: canon",
-            "tags: [cast/main, featured]",
-            "aliases: [A, 42]",
-            "rank: senior",
-            "featured: true",
-            "---",
-            "",
-            "Unsaved body",
-          ].join("\n"),
-        ),
-      ],
-    );
+    const live = selectLiveEntity(index([indexed]), indexed.path, [
+      tab(
+        indexed.path,
+        [
+          "---",
+          "id: ada-live",
+          "type: protagonist",
+          "name: Ada Live",
+          "status: canon",
+          "tags: [cast/main, featured]",
+          "aliases: [A, 42]",
+          "rank: senior",
+          "featured: true",
+          "---",
+          "",
+          "Unsaved body",
+        ].join("\n"),
+      ),
+    ]);
 
     expect(live).toMatchObject({
       id: "ada-live",
@@ -102,7 +98,9 @@ describe("live entity selector", () => {
 
   it("falls back to indexed fields when live frontmatter omits base values", () => {
     const indexed = entity();
-    const live = selectLiveEntity(index([indexed]), indexed.path, [tab(indexed.path, "---\nrank: senior\n---\n\nBody")]);
+    const live = selectLiveEntity(index([indexed]), indexed.path, [
+      tab(indexed.path, "---\nrank: senior\n---\n\nBody"),
+    ]);
 
     expect(live).toMatchObject({
       id: indexed.id,
@@ -116,26 +114,22 @@ describe("live entity selector", () => {
   });
 
   it("builds a temporary live entity from an open tab that is not indexed yet", () => {
-    const live = selectLiveEntity(
-      index([]),
-      "Loose Note.md",
-      [
-        tab(
-          "Loose Note.md",
-          [
-            "---",
-            "type: item",
-            "name: Loose Artifact",
-            "status: canon",
-            "folder: Items",
-            "rarity: rare",
-            "---",
-            "",
-            "Mentions [[Other Note]].",
-          ].join("\n"),
-        ),
-      ],
-    );
+    const live = selectLiveEntity(index([]), "Loose Note.md", [
+      tab(
+        "Loose Note.md",
+        [
+          "---",
+          "type: item",
+          "name: Loose Artifact",
+          "status: canon",
+          "folder: Items",
+          "rarity: rare",
+          "---",
+          "",
+          "Mentions [[Other Note]].",
+        ].join("\n"),
+      ),
+    ]);
 
     expect(live).toMatchObject({
       id: "loose-note",
@@ -152,6 +146,8 @@ describe("live entity selector", () => {
   it("returns the indexed entity when live frontmatter cannot be parsed", () => {
     const indexed = entity();
 
-    expect(selectLiveEntity(index([indexed]), indexed.path, [tab(indexed.path, "---\nid: broken")])).toBe(indexed);
+    expect(
+      selectLiveEntity(index([indexed]), indexed.path, [tab(indexed.path, "---\nid: broken")]),
+    ).toBe(indexed);
   });
 });

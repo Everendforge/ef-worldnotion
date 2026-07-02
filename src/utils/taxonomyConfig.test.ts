@@ -13,7 +13,9 @@ describe("taxonomy config helpers", () => {
 
     expect(taxonomy.version).toBe("1.0");
     expect(taxonomy.entityTypes.defaultType).toBe("concept");
-    expect(taxonomy.entityTypes.definitions.map((definition) => definition.id)).toContain("character");
+    expect(taxonomy.entityTypes.definitions.map((definition) => definition.id)).toContain(
+      "character",
+    );
     expect(taxonomy.statuses.definitions.map((definition) => definition.id)).toContain("draft");
   });
 
@@ -37,7 +39,9 @@ describe("taxonomy config helpers", () => {
       "childrenIds",
     ]);
     expect(taxonomy.baseProperties?.visibleByDefault).toEqual(["type", "status", "aliases"]);
-    expect(taxonomy.customFields.definitions.some((definition) => definition.id === "folder")).toBe(false);
+    expect(taxonomy.customFields.definitions.some((definition) => definition.id === "folder")).toBe(
+      false,
+    );
   });
 
   it("unwraps legacy worldbuilding details into type-specific root properties", () => {
@@ -85,7 +89,14 @@ describe("taxonomy config helpers", () => {
             ? {
                 ...definition,
                 customFields: ["status", "aliases", "role", "affiliation", "lore-level"],
-                visibleProperties: ["type", "status", "aliases", "role", "affiliation", "lore-level"],
+                visibleProperties: [
+                  "type",
+                  "status",
+                  "aliases",
+                  "role",
+                  "affiliation",
+                  "lore-level",
+                ],
                 propertyOrder: ["type", "status", "aliases", "role", "affiliation", "lore-level"],
               }
             : definition,
@@ -95,7 +106,9 @@ describe("taxonomy config helpers", () => {
 
     const rootFieldIds = taxonomy.customFields.definitions.map((definition) => definition.id);
     const role = taxonomy.customFields.definitions.find((definition) => definition.id === "role");
-    const character = taxonomy.entityTypes.definitions.find((definition) => definition.id === "character");
+    const character = taxonomy.entityTypes.definitions.find(
+      (definition) => definition.id === "character",
+    );
 
     expect(rootFieldIds).not.toContain("worldbuilding-details");
     expect(rootFieldIds).toEqual(expect.arrayContaining(["role", "affiliation", "lore-level"]));
@@ -105,23 +118,61 @@ describe("taxonomy config helpers", () => {
     ]);
     expect(role?.visibleWhen).toBeUndefined();
     expect(character?.customFields).toEqual(["role", "affiliation", "lore-level"]);
-    expect(character?.visibleProperties).toEqual(["type", "status", "aliases", "role", "affiliation", "lore-level"]);
-    expect(character?.propertyOrder).toEqual(["type", "status", "aliases", "role", "affiliation", "lore-level"]);
+    expect(character?.visibleProperties).toEqual([
+      "type",
+      "status",
+      "aliases",
+      "role",
+      "affiliation",
+      "lore-level",
+    ]);
+    expect(character?.propertyOrder).toEqual([
+      "type",
+      "status",
+      "aliases",
+      "role",
+      "affiliation",
+      "lore-level",
+    ]);
   });
 
   it("generates hierarchy, entity types, statuses, and frequent custom fields from entities", () => {
     const entities: TaxonomyEntityInput[] = [
-      { type: "character", status: "draft", tags: ["cast/main"], customProperties: { faction: "Archive", alive: true } },
-      { type: "location", status: "canon", tags: ["place/city"], customProperties: { faction: "Archive", alive: false } },
-      { type: "character", status: "draft", tags: ["cast/support"], customProperties: { faction: "Guild", alive: true } },
+      {
+        type: "character",
+        status: "draft",
+        tags: ["cast/main"],
+        customProperties: { faction: "Archive", alive: true },
+      },
+      {
+        type: "location",
+        status: "canon",
+        tags: ["place/city"],
+        customProperties: { faction: "Archive", alive: false },
+      },
+      {
+        type: "character",
+        status: "draft",
+        tags: ["cast/support"],
+        customProperties: { faction: "Guild", alive: true },
+      },
     ];
 
     const taxonomy = generateTaxonomyFromEntities(entities);
 
     expect(taxonomy.tags.rootNodes.map((node) => node.fullPath)).toEqual(["cast", "place"]);
-    expect(taxonomy.tags.rootNodes[0].children.map((node) => node.fullPath)).toEqual(["cast/main", "cast/support"]);
-    expect(taxonomy.entityTypes.definitions.map((definition) => definition.id)).toEqual(["character", "location"]);
-    expect(taxonomy.statuses.definitions.map((definition) => definition.id)).toEqual(["draft", "canon"]);
+    expect(taxonomy.tags.rootNodes[0].children.map((node) => node.fullPath)).toEqual([
+      "cast/main",
+      "cast/support",
+    ]);
+    expect(taxonomy.entityTypes.definitions.map((definition) => definition.id)).toEqual([
+      "character",
+      "location",
+    ]);
+    expect(taxonomy.statuses.definitions.map((definition) => definition.id)).toEqual([
+      "draft",
+      "canon",
+    ]);
     expect(taxonomy.customFields.definitions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: "faction", type: "select" }),
@@ -154,6 +205,8 @@ describe("taxonomy config helpers", () => {
 
     expect(merged.map((node) => node.fullPath)).toEqual(["cast", "place"]);
     expect(merged.find((node) => node.fullPath === "cast")?.children[0].fullPath).toBe("cast/main");
-    expect(merged.find((node) => node.fullPath === "place")?.children[0].fullPath).toBe("place/city");
+    expect(merged.find((node) => node.fullPath === "place")?.children[0].fullPath).toBe(
+      "place/city",
+    );
   });
 });

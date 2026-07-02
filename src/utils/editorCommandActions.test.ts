@@ -16,10 +16,19 @@ describe("editor command actions", () => {
   });
 
   it("maps workspace and navigation commands", () => {
-    expect(editorCommandAction("horizontalRule")).toEqual({ type: "insert", markdown: "\n\n---\n\n" });
-    expect(editorCommandAction("quickSwitcher")).toEqual({ type: "openPanel", panel: "quickSwitcher" });
+    expect(editorCommandAction("horizontalRule")).toEqual({
+      type: "insert",
+      markdown: "\n\n---\n\n",
+    });
+    expect(editorCommandAction("quickSwitcher")).toEqual({
+      type: "openPanel",
+      panel: "quickSwitcher",
+    });
     expect(editorCommandAction("nextTab")).toEqual({ type: "activateAdjacentTab", direction: 1 });
-    expect(editorCommandAction("previousTab")).toEqual({ type: "activateAdjacentTab", direction: -1 });
+    expect(editorCommandAction("previousTab")).toEqual({
+      type: "activateAdjacentTab",
+      direction: -1,
+    });
   });
 
   it("maps search and workspace commands that used to be menu-only", () => {

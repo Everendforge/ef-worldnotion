@@ -14,7 +14,8 @@ export const LEGACY_SETTINGS_KEY = "worldnotion.settings.v3";
 
 export function loadSettings(): AppSettingsV4 {
   try {
-    const stored = localStorage.getItem(SETTINGS_KEY) ?? localStorage.getItem(LEGACY_SETTINGS_KEY) ?? "{}";
+    const stored =
+      localStorage.getItem(SETTINGS_KEY) ?? localStorage.getItem(LEGACY_SETTINGS_KEY) ?? "{}";
     const parsed = JSON.parse(stored) as Partial<AppSettingsV4>;
     const recentUniverses = Array.isArray(parsed.recentUniverses)
       ? parsed.recentUniverses.filter((item): item is string => typeof item === "string")
@@ -30,7 +31,9 @@ export function loadSettings(): AppSettingsV4 {
     const mergedKeybindings = (() => {
       if (!parsed.keybindings?.length) return DEFAULT_KEYBINDINGS;
 
-      const userBindings = new Map(parsed.keybindings.map((keybinding) => [keybinding.commandId, keybinding.shortcut]));
+      const userBindings = new Map(
+        parsed.keybindings.map((keybinding) => [keybinding.commandId, keybinding.shortcut]),
+      );
       return DEFAULT_KEYBINDINGS.map((defaultKeybinding) => ({
         commandId: defaultKeybinding.commandId,
         shortcut: userBindings.get(defaultKeybinding.commandId) ?? defaultKeybinding.shortcut,

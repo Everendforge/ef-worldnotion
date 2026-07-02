@@ -15,7 +15,13 @@
   color: var(--wn-text);
   background: var(--wn-bg);
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
   font-size: 14px;
   line-height: 1.45;
   font-synthesis: none;
@@ -419,7 +425,9 @@ button:disabled {
   pointer-events: none;
   transform: translateY(-112%) rotate(-68deg) scale(0.92);
   transform-origin: 0 0;
-  transition: transform 220ms cubic-bezier(0.2, 0.82, 0.2, 1), opacity 160ms ease;
+  transition:
+    transform 220ms cubic-bezier(0.2, 0.82, 0.2, 1),
+    opacity 160ms ease;
 }
 
 .forge-corner-menu.open .forge-orbit-panel {
@@ -570,7 +578,9 @@ button:disabled {
   border: 0;
   border-radius: 0;
   background: color-mix(in srgb, var(--wn-border) 82%, var(--wn-panel));
-  transition: background-color 120ms ease, box-shadow 120ms ease;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .dock-split-horizontal > .dock-splitter {
@@ -622,7 +632,9 @@ button:disabled {
   border: 1px solid color-mix(in srgb, var(--wn-border) 86%, transparent);
   background: var(--wn-panel);
   box-shadow: inset 0 0 0 1px transparent;
-  transition: box-shadow 140ms ease, border-color 140ms ease;
+  transition:
+    box-shadow 140ms ease,
+    border-color 140ms ease;
 }
 
 .dock-group[data-active-group="true"] {
@@ -690,7 +702,10 @@ button:disabled {
   font-size: calc(0.62rem * var(--dock-tab-scale, 1.25));
   touch-action: none;
   user-select: none;
-  transition: background-color 120ms ease, color 120ms ease, opacity 120ms ease;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
 }
 
 .dock-tab-document {
@@ -938,9 +953,24 @@ button:disabled {
   border-right: 0;
 }
 
-.dock-panel-body :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea),
-.graph-floating-controls :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea),
-.inspector-local-popover :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea) {
+.dock-panel-body
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ),
+.graph-floating-controls
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ),
+.inspector-local-popover
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ) {
   width: 100%;
   min-width: 0;
   min-height: 28px;
@@ -966,32 +996,92 @@ button:disabled {
   background-position:
     calc(100% - 13px) 50%,
     calc(100% - 8px) 50%;
-  background-size: 5px 5px, 5px 5px;
+  background-size:
+    5px 5px,
+    5px 5px;
   background-repeat: no-repeat;
 }
 
-.dock-panel-body :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):hover,
-.graph-floating-controls :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):hover,
-.inspector-local-popover :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):hover {
+.dock-panel-body
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ):hover,
+.graph-floating-controls
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ):hover,
+.inspector-local-popover
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ):hover {
   border-color: color-mix(in srgb, var(--wn-accent) 34%, var(--wn-border));
   background-color: color-mix(in srgb, var(--wn-panel) 78%, var(--wn-panel-2));
 }
 
-.dock-panel-body :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):focus,
-.graph-floating-controls :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):focus,
-.inspector-local-popover :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):focus {
+.dock-panel-body
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ):focus,
+.graph-floating-controls
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ):focus,
+.inspector-local-popover
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ):focus {
   border-color: color-mix(in srgb, var(--wn-accent) 58%, var(--wn-border));
   background-color: var(--wn-panel);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--wn-accent-soft) 72%, transparent);
   outline: none;
 }
 
-.dock-panel-body .metadata-property-body :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea),
-.dock-panel-body .metadata-field :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea),
+.dock-panel-body
+  .metadata-property-body
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ),
+.dock-panel-body
+  .metadata-field
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ),
 .dock-panel-body .metadata-unconfigured-actions select,
-.dock-panel-body .inspector-popover-field :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select),
-.dock-panel-body .inspector-property-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select),
-.dock-panel-body .property-form-grid :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea) {
+.dock-panel-body
+  .inspector-popover-field
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select
+  ),
+.dock-panel-body
+  .inspector-property-form
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select
+  ),
+.dock-panel-body
+  .property-form-grid
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ) {
   width: 100%;
   min-width: 0;
   min-height: 28px;
@@ -1020,26 +1110,84 @@ button:disabled {
   background-position:
     calc(100% - 13px) 50%,
     calc(100% - 8px) 50%;
-  background-size: 5px 5px, 5px 5px;
+  background-size:
+    5px 5px,
+    5px 5px;
   background-repeat: no-repeat;
 }
 
-.dock-panel-body .metadata-property-body :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):hover,
-.dock-panel-body .metadata-field :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):hover,
+.dock-panel-body
+  .metadata-property-body
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ):hover,
+.dock-panel-body
+  .metadata-field
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ):hover,
 .dock-panel-body .metadata-unconfigured-actions select:hover,
-.dock-panel-body .inspector-popover-field :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select):hover,
-.dock-panel-body .inspector-property-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select):hover,
-.dock-panel-body .property-form-grid :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):hover {
+.dock-panel-body
+  .inspector-popover-field
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select
+  ):hover,
+.dock-panel-body
+  .inspector-property-form
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select
+  ):hover,
+.dock-panel-body
+  .property-form-grid
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ):hover {
   border-color: color-mix(in srgb, var(--wn-accent) 34%, var(--wn-border));
   background-color: color-mix(in srgb, var(--wn-panel) 78%, var(--wn-panel-2));
 }
 
-.dock-panel-body .metadata-property-body :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):focus,
-.dock-panel-body .metadata-field :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):focus,
+.dock-panel-body
+  .metadata-property-body
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ):focus,
+.dock-panel-body
+  .metadata-field
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ):focus,
 .dock-panel-body .metadata-unconfigured-actions select:focus,
-.dock-panel-body .inspector-popover-field :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select):focus,
-.dock-panel-body .inspector-property-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select):focus,
-.dock-panel-body .property-form-grid :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):focus {
+.dock-panel-body
+  .inspector-popover-field
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select
+  ):focus,
+.dock-panel-body
+  .inspector-property-form
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select
+  ):focus,
+.dock-panel-body
+  .property-form-grid
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ):focus {
   border-color: color-mix(in srgb, var(--wn-accent) 58%, var(--wn-border));
   background-color: var(--wn-panel);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--wn-accent-soft) 72%, transparent);
@@ -1121,7 +1269,10 @@ button:disabled {
   pointer-events: auto;
   border: 1px solid transparent;
   background: color-mix(in srgb, var(--wn-panel) 22%, transparent);
-  transition: background-color 90ms ease, border-color 90ms ease, box-shadow 90ms ease;
+  transition:
+    background-color 90ms ease,
+    border-color 90ms ease,
+    box-shadow 90ms ease;
 }
 
 .dock-drop-zone:hover {
@@ -1133,7 +1284,9 @@ button:disabled {
 .dock-drop-zone.is-target {
   border-color: var(--wn-accent);
   background: color-mix(in srgb, var(--wn-accent-soft) 78%, transparent);
-  box-shadow: inset 0 0 0 1px var(--wn-accent), 0 0 0 1px color-mix(in srgb, var(--wn-accent) 18%, transparent);
+  box-shadow:
+    inset 0 0 0 1px var(--wn-accent),
+    0 0 0 1px color-mix(in srgb, var(--wn-accent) 18%, transparent);
 }
 
 .dock-drop-zone::after {
@@ -1150,7 +1303,9 @@ button:disabled {
   opacity: 0;
   pointer-events: none;
   transform: translate(-50%, -50%) scale(0.96);
-  transition: opacity 90ms ease, transform 90ms ease;
+  transition:
+    opacity 90ms ease,
+    transform 90ms ease;
   white-space: nowrap;
 }
 
@@ -2133,7 +2288,10 @@ button:hover:not(:disabled),
   opacity: 0.55;
   cursor: pointer;
   border-radius: 3px;
-  transition: opacity 0.2s, background-color 0.2s, color 0.2s;
+  transition:
+    opacity 0.2s,
+    background-color 0.2s,
+    color 0.2s;
 }
 
 .tree-inline-button.available {
@@ -2690,7 +2848,9 @@ button:hover:not(:disabled),
   background: var(--wn-editor-bg);
   position: relative;
   --wn-paper-shadow-border: color-mix(in srgb, var(--wn-border) 86%, transparent);
-  --wn-paper-shadow: 0 18px 46px color-mix(in srgb, #000 16%, transparent), 0 1px 0 color-mix(in srgb, #fff 64%, transparent) inset;
+  --wn-paper-shadow:
+    0 18px 46px color-mix(in srgb, #000 16%, transparent),
+    0 1px 0 color-mix(in srgb, #fff 64%, transparent) inset;
 }
 
 :root[data-theme="worldnotion-dark"] .editor-surface,
@@ -2701,7 +2861,9 @@ button:hover:not(:disabled),
 :root[data-theme="night-owl"] .editor-surface,
 :root[data-theme="material-palenight"] .editor-surface {
   --wn-paper-shadow-border: color-mix(in srgb, var(--wn-border) 74%, #000);
-  --wn-paper-shadow: 0 22px 58px color-mix(in srgb, #000 48%, transparent), 0 0 0 1px color-mix(in srgb, #fff 5%, transparent) inset;
+  --wn-paper-shadow:
+    0 22px 58px color-mix(in srgb, #000 48%, transparent),
+    0 0 0 1px color-mix(in srgb, #fff 5%, transparent) inset;
 }
 
 .editor-surface.mode-write {
@@ -2820,7 +2982,7 @@ button:hover:not(:disabled),
 
 .editor-surface.mode-write .cm-scroller::before,
 .editor-surface.mode-write .cm-scroller::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   bottom: 0;
@@ -2970,7 +3132,7 @@ button:hover:not(:disabled),
 /* Visual delimiter for write mode - only when no paper shadow */
 .editor-surface.mode-write:not(.paper-shadow) .cm-content::before,
 .editor-surface.mode-write:not(.paper-shadow) .cm-content::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   bottom: 0;
@@ -4553,7 +4715,9 @@ button:hover:not(:disabled),
   left: 50%;
   transform: translateX(-50%);
   z-index: 9999;
-  animation: toast-slide-in 0.3s ease-out, toast-fade-out 3s ease-out forwards;
+  animation:
+    toast-slide-in 0.3s ease-out,
+    toast-fade-out 3s ease-out forwards;
   animation-delay: 0s, 2.7s;
 }
 
@@ -4989,7 +5153,7 @@ button:hover:not(:disabled),
   border: 1px solid var(--wn-border) !important;
   border-radius: 8px !important;
   padding: 12px 16px !important;
-  box-shadow: 
+  box-shadow:
     0 4px 16px rgba(0, 0, 0, 0.15),
     0 2px 4px rgba(0, 0, 0, 0.08) !important;
   font-family: inherit !important;
@@ -5210,14 +5374,13 @@ button:hover:not(:disabled),
     max-width: calc(100vw - 24px) !important;
     min-width: auto !important;
   }
-  
+
   .cm-panel.cm-search input[type="text"],
   .cm-panel.cm-search .cm-textfield {
     min-width: 120px !important;
     max-width: 180px !important;
   }
 }
-
 
 /* ===========================
    Custom Search Panel
@@ -5374,7 +5537,6 @@ button:hover:not(:disabled),
   display: none !important;
 }
 
-
 /* ===========================
    Outline Guide (Notion Style)
    =========================== */
@@ -5468,7 +5630,7 @@ button:hover:not(:disabled),
     width: 140px;
     right: 0;
   }
-  
+
   .outline-item {
     font-size: 10px;
   }
@@ -5986,7 +6148,9 @@ select.property-field-control {
     calc(100% - 13px) 50%,
     calc(100% - 8px) 50%;
   background-repeat: no-repeat;
-  background-size: 5px 5px, 5px 5px;
+  background-size:
+    5px 5px,
+    5px 5px;
 }
 
 .property-field-control:hover {
@@ -6129,21 +6293,15 @@ select.property-field-control {
 }
 
 .metadata-property-depth-1 > .metadata-property-row {
-  background: linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--wn-accent) 12%, transparent),
-      transparent 44px
-    ),
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--wn-accent) 12%, transparent), transparent 44px),
     transparent;
 }
 
 .metadata-property-depth-2 > .metadata-property-row,
 .metadata-property-depth-3 > .metadata-property-row {
-  background: linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--wn-accent) 18%, transparent),
-      transparent 54px
-    ),
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--wn-accent) 18%, transparent), transparent 54px),
     transparent;
 }
 
@@ -6832,9 +6990,24 @@ select.property-field-control {
   font-size: 0.8rem;
 }
 
-.metadata-editor :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea),
-.inspector-local-popover :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea),
-.property-manager-modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea) {
+.metadata-editor
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ),
+.inspector-local-popover
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ),
+.property-manager-modal
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ) {
   width: 100%;
   min-width: 0;
   min-height: 28px;
@@ -6861,19 +7034,51 @@ select.property-field-control {
     calc(100% - 13px) 50%,
     calc(100% - 8px) 50%;
   background-repeat: no-repeat;
-  background-size: 5px 5px, 5px 5px;
+  background-size:
+    5px 5px,
+    5px 5px;
 }
 
-.metadata-editor :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):hover,
-.inspector-local-popover :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):hover,
-.property-manager-modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):hover {
+.metadata-editor
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ):hover,
+.inspector-local-popover
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ):hover,
+.property-manager-modal
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ):hover {
   border-color: color-mix(in srgb, var(--wn-accent) 42%, var(--wn-border));
   background-color: var(--wn-panel-hover);
 }
 
-.metadata-editor :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):focus,
-.inspector-local-popover :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):focus,
-.property-manager-modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):focus {
+.metadata-editor
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ):focus,
+.inspector-local-popover
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ):focus,
+.property-manager-modal
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea
+  ):focus {
   border-color: color-mix(in srgb, var(--wn-accent) 68%, var(--wn-border));
   background-color: var(--wn-panel);
   outline: none;
@@ -8468,7 +8673,7 @@ select.property-field-control {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-family: "SF Mono", Monaco, "Courier New", monospace;
   background: var(--wn-bg);
   padding: 0.25rem 0.5rem;
   border-radius: 3px;
@@ -9832,7 +10037,6 @@ select.property-field-control {
   font-size: 0.75rem;
   white-space: nowrap;
 }
-
 
 /* Advanced Property Editor Modal */
 .property-modal.very-wide {

@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { ArrowRight, ArrowLeft, Check, Sparkles } from "lucide-react";
-import { PROPERTY_TEMPLATES, applyPropertyTemplate, type PropertyTemplate } from "../utils/propertyTemplates";
+import {
+  PROPERTY_TEMPLATES,
+  applyPropertyTemplate,
+  type PropertyTemplate,
+} from "../utils/propertyTemplates";
 import type { TaxonomyConfig } from "../editorTypes";
 
 type OnboardingWizardProps = {
@@ -54,8 +58,12 @@ export function OnboardingWizard({ taxonomyConfig, onComplete, onSkip }: Onboard
 
         {/* Progress Indicator */}
         <div className="flex items-center justify-center gap-2 p-4 bg-gray-50 border-b border-gray-200">
-          <div className={`flex items-center gap-2 ${currentStep === "welcome" ? "text-purple-600 font-semibold" : "text-gray-400"}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep === "welcome" ? "bg-purple-600 text-white" : "bg-gray-300"}`}>
+          <div
+            className={`flex items-center gap-2 ${currentStep === "welcome" ? "text-purple-600 font-semibold" : "text-gray-400"}`}
+          >
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep === "welcome" ? "bg-purple-600 text-white" : "bg-gray-300"}`}
+            >
               1
             </div>
             <span className="hidden sm:inline">Welcome</span>
@@ -63,8 +71,12 @@ export function OnboardingWizard({ taxonomyConfig, onComplete, onSkip }: Onboard
 
           <div className="w-8 h-1 bg-gray-300"></div>
 
-          <div className={`flex items-center gap-2 ${currentStep === "template-selection" ? "text-purple-600 font-semibold" : "text-gray-400"}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep === "template-selection" || currentStep === "confirmation" ? "bg-purple-600 text-white" : "bg-gray-300"}`}>
+          <div
+            className={`flex items-center gap-2 ${currentStep === "template-selection" ? "text-purple-600 font-semibold" : "text-gray-400"}`}
+          >
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep === "template-selection" || currentStep === "confirmation" ? "bg-purple-600 text-white" : "bg-gray-300"}`}
+            >
               2
             </div>
             <span className="hidden sm:inline">Choose Template</span>
@@ -72,8 +84,12 @@ export function OnboardingWizard({ taxonomyConfig, onComplete, onSkip }: Onboard
 
           <div className="w-8 h-1 bg-gray-300"></div>
 
-          <div className={`flex items-center gap-2 ${currentStep === "confirmation" ? "text-purple-600 font-semibold" : "text-gray-400"}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep === "confirmation" ? "bg-purple-600 text-white" : "bg-gray-300"}`}>
+          <div
+            className={`flex items-center gap-2 ${currentStep === "confirmation" ? "text-purple-600 font-semibold" : "text-gray-400"}`}
+          >
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep === "confirmation" ? "bg-purple-600 text-white" : "bg-gray-300"}`}
+            >
               3
             </div>
             <span className="hidden sm:inline">Confirm</span>
@@ -150,8 +166,9 @@ function WelcomeStep() {
       <div>
         <h3 className="text-xl font-semibold mb-3">Let's set up your property system</h3>
         <p className="text-gray-600">
-          Properties define the metadata you can add to your entities (characters, locations, items, etc.).
-          A well-configured property system helps you organize and track your narrative universe effectively.
+          Properties define the metadata you can add to your entities (characters, locations, items,
+          etc.). A well-configured property system helps you organize and track your narrative
+          universe effectively.
         </p>
       </div>
 
@@ -160,15 +177,22 @@ function WelcomeStep() {
         <ul className="space-y-2 text-sm text-blue-800">
           <li className="flex gap-2">
             <span className="text-blue-600">•</span>
-            <span><strong>Base properties</strong>: Core fields like ID, name, type, status, and tags</span>
+            <span>
+              <strong>Base properties</strong>: Core fields like ID, name, type, status, and tags
+            </span>
           </li>
           <li className="flex gap-2">
             <span className="text-blue-600">•</span>
-            <span><strong>Custom properties</strong>: Additional fields you define (e.g., priority, author, category)</span>
+            <span>
+              <strong>Custom properties</strong>: Additional fields you define (e.g., priority,
+              author, category)
+            </span>
           </li>
           <li className="flex gap-2">
             <span className="text-blue-600">•</span>
-            <span><strong>Templates</strong>: Pre-configured sets of properties for common workflows</span>
+            <span>
+              <strong>Templates</strong>: Pre-configured sets of properties for common workflows
+            </span>
           </li>
         </ul>
       </div>
@@ -176,8 +200,8 @@ function WelcomeStep() {
       <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
         <h4 className="font-semibold text-purple-900 mb-2">What happens next?</h4>
         <p className="text-sm text-purple-800">
-          You'll choose a property template that matches your workflow. Don't worry—you can always customize
-          properties later in the settings panel.
+          You'll choose a property template that matches your workflow. Don't worry—you can always
+          customize properties later in the settings panel.
         </p>
       </div>
     </div>
@@ -197,7 +221,8 @@ function TemplateSelectionStep({
       <div>
         <h3 className="text-xl font-semibold mb-2">Choose a property template</h3>
         <p className="text-gray-600">
-          Select a template that matches your workflow. Each template includes different base properties and custom fields.
+          Select a template that matches your workflow. Each template includes different base
+          properties and custom fields.
         </p>
       </div>
 
@@ -227,7 +252,9 @@ function TemplateSelectionStep({
                 <div className="space-y-2">
                   <div className="text-sm">
                     <span className="font-medium text-gray-700">Visible properties:</span>{" "}
-                    <span className="text-gray-600">{template.visibleBaseProperties.join(", ")}</span>
+                    <span className="text-gray-600">
+                      {template.visibleBaseProperties.join(", ")}
+                    </span>
                   </div>
 
                   {template.customFields.length > 0 && (
@@ -254,9 +281,7 @@ function ConfirmationStep({ template }: { template: PropertyTemplate }) {
     <div className="space-y-6">
       <div>
         <h3 className="text-xl font-semibold mb-2">Review your selection</h3>
-        <p className="text-gray-600">
-          Here's what will be configured when you complete setup:
-        </p>
+        <p className="text-gray-600">Here's what will be configured when you complete setup:</p>
       </div>
 
       <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
@@ -285,10 +310,7 @@ function ConfirmationStep({ template }: { template: PropertyTemplate }) {
               <h5 className="font-medium text-purple-900 mb-2">Custom Fields</h5>
               <div className="space-y-2">
                 {template.customFields.map((field) => (
-                  <div
-                    key={field.id}
-                    className="bg-white border border-purple-200 rounded p-3"
-                  >
+                  <div key={field.id} className="bg-white border border-purple-200 rounded p-3">
                     <div className="flex items-center justify-between">
                       <span className="font-medium text-purple-900">{field.label}</span>
                       <span className="text-xs text-purple-600 uppercase bg-purple-100 px-2 py-1 rounded">

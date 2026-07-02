@@ -7,35 +7,31 @@ import { createSyntaxHiddenDecoration, isStructuralChange } from "./pluginUtils"
 // Allows font specifications without breaking markdown portability
 const FONT_PATTERN = /<!--font:\s*([^-]+?)\s*-->([\s\S]*?)<!--\/font-->/g;
 
-function addFontFamilyMatches(
-  text: string,
-  from: number,
-  decorations: Range<Decoration>[],
-) {
+function addFontFamilyMatches(text: string, from: number, decorations: Range<Decoration>[]) {
   let match: RegExpExecArray | null;
-  
+
   FONT_PATTERN.lastIndex = 0;
   while ((match = FONT_PATTERN.exec(text)) !== null) {
     const fullFrom = from + match.index;
     const fullTo = fullFrom + match[0].length;
     const fontFamily = match[1];
     const content = match[2];
-    
+
     // Find where the content starts and ends
     const openTagLen = `<!--font:${fontFamily}-->`.length;
     const contentFrom = fullFrom + openTagLen;
     const contentTo = contentFrom + content.length;
-    
+
     // Hide opening tag
     const openHidden = createSyntaxHiddenDecoration(fullFrom, contentFrom);
     if (openHidden) decorations.push(openHidden);
-    
+
     // Apply font family to content
     const fontDecoration = Decoration.mark({
       attributes: { style: `font-family: ${fontFamily}` },
     }).range(contentFrom, contentTo);
     decorations.push(fontDecoration);
-    
+
     // Hide closing tag
     const closeHidden = createSyntaxHiddenDecoration(contentTo, fullTo);
     if (closeHidden) decorations.push(closeHidden);
@@ -73,5 +69,5 @@ export const fontFamilyPlugin = ViewPlugin.fromClass(
   },
   {
     decorations: (instance) => instance.decorations,
-  }
+  },
 );

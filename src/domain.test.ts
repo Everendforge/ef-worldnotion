@@ -10,7 +10,8 @@ import {
 
 describe("markdown frontmatter helpers", () => {
   it("splits and rejoins Markdown without losing frontmatter", () => {
-    const markdown = "---\nid: mara\ntype: character\nname: Mara\nstatus: canon\n---\n\n# Mara\n\nBody";
+    const markdown =
+      "---\nid: mara\ntype: character\nname: Mara\nstatus: canon\n---\n\n# Mara\n\nBody";
 
     const parts = splitMarkdown(markdown);
 
@@ -20,9 +21,16 @@ describe("markdown frontmatter helpers", () => {
   });
 
   it("parses YAML frontmatter and normalizes line endings", () => {
-    const parsed = parseMarkdownFrontmatter("---\nid: ash-gate\r\ntype: location\nname: Ash Gate\nstatus: draft\n---\n\nText");
+    const parsed = parseMarkdownFrontmatter(
+      "---\nid: ash-gate\r\ntype: location\nname: Ash Gate\nstatus: draft\n---\n\nText",
+    );
 
-    expect(parsed.data).toMatchObject({ id: "ash-gate", type: "location", name: "Ash Gate", status: "draft" });
+    expect(parsed.data).toMatchObject({
+      id: "ash-gate",
+      type: "location",
+      name: "Ash Gate",
+      status: "draft",
+    });
     expect(parsed.content).toBe("\nText");
   });
 
@@ -45,7 +53,8 @@ describe("vault indexing", () => {
         },
         {
           relativePath: "Locations/Ash-Gate.md",
-          content: "---\nid: ash-gate\ntype: location\nname: Ash Gate\nstatus: canon\n---\n\nA city gate.",
+          content:
+            "---\nid: ash-gate\ntype: location\nname: Ash Gate\nstatus: canon\n---\n\nA city gate.",
         },
         {
           relativePath: "Draft.md",
@@ -59,8 +68,16 @@ describe("vault indexing", () => {
     expect(index.entities).toHaveLength(3);
     expect(index.typeCounts).toMatchObject({ character: 1, location: 1, concept: 1 });
     expect(index.entities.find((entity) => entity.id === "ash-gate")?.backlinks).toEqual(["mara"]);
-    expect(index.findings.some((finding) => finding.code === "broken_wikilink" && finding.file === "Characters/Mara.md")).toBe(true);
-    expect(index.findings.some((finding) => finding.code === "missing_required_field" && finding.field === "id")).toBe(true);
+    expect(
+      index.findings.some(
+        (finding) => finding.code === "broken_wikilink" && finding.file === "Characters/Mara.md",
+      ),
+    ).toBe(true);
+    expect(
+      index.findings.some(
+        (finding) => finding.code === "missing_required_field" && finding.field === "id",
+      ),
+    ).toBe(true);
   });
 
   it("does not use taxonomy.json as a properties fallback", () => {
