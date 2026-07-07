@@ -16,6 +16,7 @@ import {
   importTemplateFromJSON,
   exportTemplateAsJSON,
 } from "../utils/templateManager";
+import { useAppDialogs } from "./DialogProvider";
 
 type TemplateDialogMode = "list" | "save" | "load" | "import-export";
 
@@ -30,6 +31,7 @@ export function TemplateDialog({
   onLoadTemplate,
   onClose,
 }: TemplateDialogProps) {
+  const { alertDialog, confirmDialog } = useAppDialogs();
   const [mode, setMode] = useState<TemplateDialogMode>("list");
   const [templateName, setTemplateName] = useState("");
   const [templateDescription, setTemplateDescription] = useState("");
@@ -46,7 +48,7 @@ export function TemplateDialog({
 
   const handleSaveTemplate = () => {
     if (!templateName.trim()) {
-      alert("Template name is required");
+      void alertDialog("Template name is required");
       return;
     }
 
@@ -58,7 +60,7 @@ export function TemplateDialog({
     );
 
     savePropertyTemplate(template);
-    alert(`Template "${templateName}" saved successfully`);
+    void alertDialog(`Template "${templateName}" saved successfully`);
     setTemplateName("");
     setTemplateDescription("");
     setMode("list");
@@ -72,8 +74,13 @@ export function TemplateDialog({
     }
   };
 
-  const handleDeleteTemplate = (name: string) => {
-    if (confirm(`Delete template "${name}"?`)) {
+  const handleDeleteTemplate = async (name: string) => {
+    const confirmed = await confirmDialog(`Delete template "${name}"?`, {
+      title: "Delete template",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (confirmed) {
       deletePropertyTemplate(name);
       setSelectedTemplate(null);
     }
@@ -83,12 +90,14 @@ export function TemplateDialog({
     try {
       const template = importTemplateFromJSON(importJson);
       if (template) {
-        alert(`Template "${template.name}" imported successfully`);
+        void alertDialog(`Template "${template.name}" imported successfully`);
         setImportJson("");
         setMode("list");
       }
     } catch (error) {
-      alert(`Failed to import: ${error instanceof Error ? error.message : String(error)}`);
+      void alertDialog(
+        `Failed to import: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   };
 
@@ -98,10 +107,10 @@ export function TemplateDialog({
       // Copy to clipboard
       navigator.clipboard
         .writeText(json)
-        .then(() => alert(`Template exported to clipboard`))
+        .then(() => alertDialog("Template exported to clipboard"))
         .catch(() => {
           // Fallback: show in modal
-          alert("Copy this JSON:\n\n" + json.slice(0, 200) + "...");
+          void alertDialog("Copy this JSON:\n\n" + json.slice(0, 200) + "...");
         });
     }
   };

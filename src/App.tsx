@@ -32,6 +32,7 @@ import { OutlineGuide } from "./components/OutlineGuide";
 import { FontSelector } from "./components/FontSelector";
 import { InputDialog } from "./components/InputDialog";
 import { useToast } from "./components/ToastProvider";
+import { useAppDialogs } from "./components/DialogProvider";
 import { useDismissableMenu } from "./hooks/useDismissableMenu";
 import { useInputDialog } from "./hooks/useInputDialog";
 import { useMissingRecentPaths } from "./hooks/useMissingRecentPaths";
@@ -372,6 +373,7 @@ function App() {
   const { inputDialog, promptUser, closeInputDialog } = useInputDialog();
 
   const { showToast } = useToast();
+  const { confirmDialog } = useAppDialogs();
   const [pointerDragItem, setPointerDragItem] = useState<PointerDragItem>();
   const [graphControlsPosition, setGraphControlsPosition] = useState({ x: 14, y: 14 });
   const suppressTreeClickRef = useRef(false);
@@ -973,7 +975,10 @@ function App() {
       return;
     }
     const confirmed = settings.explorer.confirmDragMove
-      ? window.confirm(`Move ${pathName(fromPath)} to ${toFolderPath || "root"}?`)
+      ? await confirmDialog(`Move ${pathName(fromPath)} to ${toFolderPath || "root"}?`, {
+          title: "Move item",
+          confirmLabel: "Move",
+        })
       : true;
     if (!confirmed) return;
     const movedPath = await moveVaultPath(
@@ -1005,15 +1010,17 @@ function App() {
     if (!index) return;
     const affectedDirtyTabs = dirtyTabPathsAffectedByTree(tabs, path);
     if (affectedDirtyTabs.length) {
-      const confirmed = window.confirm(
+      const confirmed = await confirmDialog(
         `${affectedDirtyTabs.length} open tab(s) have unsaved changes. ${labels.trashAction} anyway?`,
+        { title: labels.trashAction, destructive: true },
       );
       if (!confirmed) return;
     }
-    const confirmed = window.confirm(
+    const confirmed = await confirmDialog(
       browserRoot
         ? `Delete ${pathName(path)} from this browser-opened universe?`
         : `${labels.trashAction} ${pathName(path)}?`,
+      { title: labels.trashAction, confirmLabel: labels.trashAction, destructive: true },
     );
     if (!confirmed) return;
     const vault = vaultHandleFor(index.rootPath, browserRoot);

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Plus, Edit2, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import type { StatusDefinition } from "../editorTypes";
+import { useAppDialogs } from "./DialogProvider";
 
 type StatusEditorProps = {
   statuses: StatusDefinition[];
@@ -142,6 +143,7 @@ function StatusItem({
 }
 
 export function StatusEditor({ statuses, onChange }: StatusEditorProps) {
+  const { alertDialog, confirmDialog } = useAppDialogs();
   const [showAddForm, setShowAddForm] = useState(false);
   const [newStatus, setNewStatus] = useState<StatusDefinition>({
     id: "",
@@ -153,12 +155,12 @@ export function StatusEditor({ statuses, onChange }: StatusEditorProps) {
 
   const handleAdd = () => {
     if (!newStatus.id.trim() || !newStatus.label.trim()) {
-      alert("ID and Label are required");
+      void alertDialog("ID and Label are required");
       return;
     }
 
     if (statuses.some((s) => s.id === newStatus.id)) {
-      alert("Status ID must be unique");
+      void alertDialog("Status ID must be unique");
       return;
     }
 
@@ -177,8 +179,12 @@ export function StatusEditor({ statuses, onChange }: StatusEditorProps) {
     onChange(statuses.map((s) => (s.id === updatedStatus.id ? updatedStatus : s)));
   };
 
-  const handleDelete = (statusId: string) => {
-    if (confirm(`Delete status "${statuses.find((s) => s.id === statusId)?.label}"?`)) {
+  const handleDelete = async (statusId: string) => {
+    const confirmed = await confirmDialog(
+      `Delete status "${statuses.find((s) => s.id === statusId)?.label}"?`,
+      { title: "Delete status", confirmLabel: "Delete", destructive: true },
+    );
+    if (confirmed) {
       onChange(statuses.filter((s) => s.id !== statusId));
     }
   };

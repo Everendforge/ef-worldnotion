@@ -10,6 +10,7 @@ import {
 } from "../editorTypes";
 import { createDefaultTaxonomyConfig } from "../domain";
 import { SettingsModal } from "./SettingsModal";
+import { DialogProvider } from "./DialogProvider";
 
 function appSettings(overrides: Partial<AppSettingsV4> = {}): AppSettingsV4 {
   return {
@@ -47,21 +48,23 @@ describe("SettingsModal", () => {
 
   it("keeps universe properties out of settings", () => {
     render(
-      <SettingsModal
-        settings={appSettings()}
-        universe={{
-          name: "Demo",
-          rootPath: "D:/Demo",
-          fileCount: 1,
-          entityCount: 1,
-          templateCount: 0,
-          hasEverendWorkspace: true,
-          propertiesConfig: createDefaultTaxonomyConfig(),
-        }}
-        onChange={vi.fn()}
-        onClose={vi.fn()}
-        initialSection="tags"
-      />,
+      <DialogProvider>
+        <SettingsModal
+          settings={appSettings()}
+          universe={{
+            name: "Demo",
+            rootPath: "D:/Demo",
+            fileCount: 1,
+            entityCount: 1,
+            templateCount: 0,
+            hasEverendWorkspace: true,
+            propertiesConfig: createDefaultTaxonomyConfig(),
+          }}
+          onChange={vi.fn()}
+          onClose={vi.fn()}
+          initialSection="tags"
+        />
+      </DialogProvider>,
     );
 
     expect(screen.queryByRole("button", { name: /add property/i })).toBeNull();

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Plus, Edit2, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import type { EntityTypeDefinition, CustomFieldDefinition } from "../editorTypes";
+import { useAppDialogs } from "./DialogProvider";
 
 type EntityTypeEditorProps = {
   types: EntityTypeDefinition[];
@@ -191,6 +192,7 @@ function TypeItem({
 }
 
 export function EntityTypeEditor({ types, customFields, onChange }: EntityTypeEditorProps) {
+  const { alertDialog, confirmDialog } = useAppDialogs();
   const [showAddForm, setShowAddForm] = useState(false);
   const [newType, setNewType] = useState<EntityTypeDefinition>({
     id: "",
@@ -202,12 +204,12 @@ export function EntityTypeEditor({ types, customFields, onChange }: EntityTypeEd
 
   const handleAdd = () => {
     if (!newType.id.trim() || !newType.label.trim()) {
-      alert("ID and Label are required");
+      void alertDialog("ID and Label are required");
       return;
     }
 
     if (types.some((t) => t.id === newType.id)) {
-      alert("Type ID must be unique");
+      void alertDialog("Type ID must be unique");
       return;
     }
 
@@ -226,8 +228,12 @@ export function EntityTypeEditor({ types, customFields, onChange }: EntityTypeEd
     onChange(types.map((t) => (t.id === updatedType.id ? updatedType : t)));
   };
 
-  const handleDelete = (typeId: string) => {
-    if (confirm(`Delete entity type "${types.find((t) => t.id === typeId)?.label}"?`)) {
+  const handleDelete = async (typeId: string) => {
+    const confirmed = await confirmDialog(
+      `Delete entity type "${types.find((t) => t.id === typeId)?.label}"?`,
+      { title: "Delete entity type", confirmLabel: "Delete", destructive: true },
+    );
+    if (confirmed) {
       onChange(types.filter((t) => t.id !== typeId));
     }
   };

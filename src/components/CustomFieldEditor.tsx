@@ -5,6 +5,7 @@ import { PropertyHierarchyEditor } from "./PropertyHierarchyEditor";
 import { PropertyConditionsEditor } from "./PropertyConditionsEditor";
 import { TemplateDialog } from "./TemplateDialog";
 import { validatePropertyStructure } from "../utils/propertyValidator";
+import { useAppDialogs } from "./DialogProvider";
 
 type CustomFieldEditorProps = {
   fields: PropertyDefinition[];
@@ -37,6 +38,7 @@ const FIELD_TYPE_LABELS: Record<CustomFieldType, string> = {
 };
 
 function FieldItem({ field, onUpdate, onDelete }: FieldItemProps) {
+  const { alertDialog } = useAppDialogs();
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<PropertyDefinition>(field);
   const [optionInput, setOptionInput] = useState("");
@@ -44,7 +46,7 @@ function FieldItem({ field, onUpdate, onDelete }: FieldItemProps) {
 
   const handleSave = () => {
     if (!draft.id.trim() || !draft.label?.trim()) {
-      alert("ID and Label are required");
+      void alertDialog("ID and Label are required");
       return;
     }
     onUpdate(draft);
@@ -317,6 +319,7 @@ function FieldItem({ field, onUpdate, onDelete }: FieldItemProps) {
 }
 
 export function CustomFieldEditor({ fields, onChange }: CustomFieldEditorProps) {
+  const { alertDialog, confirmDialog } = useAppDialogs();
   const [viewMode, setViewMode] = useState<EditorViewMode>("flat");
   const [showAddForm, setShowAddForm] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
@@ -333,12 +336,12 @@ export function CustomFieldEditor({ fields, onChange }: CustomFieldEditorProps) 
 
   const handleAdd = () => {
     if (!newField.id.trim() || !newField.label?.trim()) {
-      alert("ID and Label are required");
+      void alertDialog("ID and Label are required");
       return;
     }
 
     if (fields.some((f) => f.id === newField.id)) {
-      alert("Field ID must be unique");
+      void alertDialog("Field ID must be unique");
       return;
     }
 
@@ -357,11 +360,13 @@ export function CustomFieldEditor({ fields, onChange }: CustomFieldEditorProps) 
     onChange(fields.map((f) => (f.id === updatedField.id ? updatedField : f)));
   };
 
-  const handleDelete = (fieldId: string) => {
+  const handleDelete = async (fieldId: string) => {
     const field = fields.find((f) => f.id === fieldId);
-    if (
-      confirm(`Delete custom field "${field?.label}"? This will also delete any child properties.`)
-    ) {
+    const confirmed = await confirmDialog(
+      `Delete custom field "${field?.label}"? This will also delete any child properties.`,
+      { title: "Delete custom field", confirmLabel: "Delete", destructive: true },
+    );
+    if (confirmed) {
       onChange(fields.filter((f) => f.id !== fieldId));
     }
   };

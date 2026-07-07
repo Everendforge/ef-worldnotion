@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronRight, ChevronDown, Plus, Edit2, Trash2 } from "lucide-react";
 import type { TagHierarchyNode } from "../editorTypes";
+import { useAppDialogs } from "./DialogProvider";
 
 type TagHierarchyEditorProps = {
   nodes: TagHierarchyNode[];
@@ -124,6 +125,7 @@ function TagNodeItem({ node, depth, onUpdate, onDelete, onAddChild }: TagNodeIte
 }
 
 export function TagHierarchyEditor({ nodes, onChange }: TagHierarchyEditorProps) {
+  const { confirmDialog, promptDialog } = useAppDialogs();
   const [newTagLabel, setNewTagLabel] = useState("");
 
   const findNodeById = (nodes: TagHierarchyNode[], id: string): TagHierarchyNode | null => {
@@ -167,17 +169,22 @@ export function TagHierarchyEditor({ nodes, onChange }: TagHierarchyEditorProps)
     onChange(updateNodeInTree(nodes, updatedNode.id, () => updatedNode));
   };
 
-  const handleDeleteNode = (nodeId: string) => {
-    if (confirm("Delete this tag and all its children?")) {
+  const handleDeleteNode = async (nodeId: string) => {
+    const confirmed = await confirmDialog("Delete this tag and all its children?", {
+      title: "Delete tag",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (confirmed) {
       onChange(deleteNodeFromTree(nodes, nodeId));
     }
   };
 
-  const handleAddChild = (parentId: string) => {
+  const handleAddChild = async (parentId: string) => {
     const parent = findNodeById(nodes, parentId);
     if (!parent) return;
 
-    const childLabel = prompt("Enter new tag label:");
+    const childLabel = await promptDialog("Enter new tag label:", "tag label");
     if (!childLabel?.trim()) return;
 
     const newChild: TagHierarchyNode = {

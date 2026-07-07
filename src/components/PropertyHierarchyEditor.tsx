@@ -11,6 +11,7 @@ import { useState, useCallback } from "react";
 import { ChevronDown, ChevronRight, Plus, Trash2, Settings } from "lucide-react";
 import type { PropertyDefinition } from "../editorTypes";
 import { removePropertyFromTree } from "../utils/propertyTreeUtils";
+import { useAppDialogs } from "./DialogProvider";
 
 type PropertyHierarchyEditorProps = {
   properties: PropertyDefinition[];
@@ -34,6 +35,7 @@ export function PropertyHierarchyEditor({
   selectedPropertyId,
   onAddChild,
 }: PropertyHierarchyEditorProps) {
+  const { confirmDialog } = useAppDialogs();
   const [nodeState, setNodeState] = useState<TreeNodeState>({});
 
   const toggleExpanded = useCallback((propertyId: string) => {
@@ -54,13 +56,17 @@ export function PropertyHierarchyEditor({
   );
 
   const handleDeleteProperty = useCallback(
-    (propertyId: string) => {
-      if (confirm("Delete this property? This will also delete all child properties.")) {
+    async (propertyId: string) => {
+      const confirmed = await confirmDialog(
+        "Delete this property? This will also delete all child properties.",
+        { title: "Delete property", confirmLabel: "Delete", destructive: true },
+      );
+      if (confirmed) {
         const updated = removePropertyFromTree(properties, propertyId);
         onChange(updated);
       }
     },
-    [properties, onChange],
+    [properties, onChange, confirmDialog],
   );
 
   const handleAddChild = useCallback(
