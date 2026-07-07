@@ -24,6 +24,23 @@ npm run build
 npm run tauri dev
 ~~~
 
+Quality gates (all enforced in CI):
+
+~~~bash
+npm run typecheck
+npm run lint
+npm run format:check
+npm run test:run
+~~~
+
+## Releases
+
+Installers are produced by the `Release` GitHub Actions workflow: pushing a
+`v*` tag (for example `v0.2.0`) builds Windows and Linux bundles with the
+version from `src-tauri/tauri.conf.json` and attaches them to a draft GitHub
+Release. Review the draft and publish it manually. Local packaging works with
+`npm run tauri build`; see [CHANGELOG.md](CHANGELOG.md) for release notes.
+
 Architecture and quality expectations are documented in [docs/ENGINEERING-PRINCIPLES.md](docs/ENGINEERING-PRINCIPLES.md). Future WorldNotion and Everend Forge suite work should preserve those defaults unless a change explicitly documents why the tradeoff is acceptable.
 
 ## Everend Forge Suite Compatibility
