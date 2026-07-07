@@ -35,6 +35,7 @@ import { useToast } from "./components/ToastProvider";
 import { useDismissableMenu } from "./hooks/useDismissableMenu";
 import { useInputDialog } from "./hooks/useInputDialog";
 import { useMissingRecentPaths } from "./hooks/useMissingRecentPaths";
+import { useWorkspaceState } from "./hooks/useWorkspaceState";
 import { SaveStatusIndicator } from "./components/SaveStatusIndicator";
 import { UnsavedChangesDialog } from "./components/UnsavedChangesDialog";
 import { ExplorerPanel, type ExplorerTreeAction } from "./components/ExplorerPanel";
@@ -49,7 +50,6 @@ import {
   AppSettingsV4,
   EditorCommandId,
   FloatingFormatCommand,
-  DocumentTabGroup,
   DockPanelKind,
   DockTabRef,
   NoteSuggestion,
@@ -131,7 +131,6 @@ import {
   dirtyTabPaths as getDirtyTabPaths,
   nextAdjacentTabPath,
   pendingCloseQueueFromDirtyPaths,
-  serializeWorkspaceSession,
   updateOpenTabsForPathChange,
 } from "./utils/tabUtils";
 import {
@@ -196,17 +195,14 @@ import {
   activateDockTab,
   addDocumentToLayout,
   closeDockTab as closeDockLayoutTab,
-  createDefaultWorkspaceLayout,
   createWorkspaceLayoutPreset,
   documentDockTabId,
   isDockMoveAllowedAroundDocumentAnchor,
   layoutHasPanel,
   moveDockTab,
   orderOpenTabsByLayout,
-  panelDockTabId,
   resizeDockSplit,
   setPanelInGroup,
-  syncLayoutWithOpenTabs,
   togglePanelInLayout,
   updateLayoutForPathChange,
   type WorkspaceLayoutPreset,
@@ -289,10 +285,25 @@ function App() {
   const [query, setQuery] = useState("");
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
-  const [tabs, setTabs] = useState<OpenTab[]>([]);
-  const [documentTabGroups, setDocumentTabGroups] = useState<DocumentTabGroup[]>([]);
-  const [activeTabPath, setActiveTabPath] = useState<string>();
-  const [workspaceLayout, setWorkspaceLayout] = useState(() => createDefaultWorkspaceLayout());
+  const {
+    tabs,
+    setTabs,
+    tabsRef,
+    documentTabGroups,
+    setDocumentTabGroups,
+    activeTabPath,
+    setActiveTabPath,
+    workspaceLayout,
+    setWorkspaceLayout,
+    expandedPaths,
+    setExpandedPaths,
+  } = useWorkspaceState({
+    rootPath: index?.rootPath,
+    persistTabs: settings.editor.persistTabs,
+    selectedPath,
+    sessions: settings.sessions,
+    setSettings,
+  });
   const [activeWorkspacePreset, setActiveWorkspacePreset] =
     useState<ActiveWorkspacePreset>("default");
   const [showSettings, setShowSettings] = useState(false);
@@ -316,7 +327,6 @@ function App() {
   const [, setPendingClosePaths] = useState<string[]>([]);
   const editorViewRef = useRef<EditorView | null>(null);
   const editorShellRef = useRef<HTMLDivElement | null>(null);
-  const tabsRef = useRef<OpenTab[]>([]);
   const inspectorSaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const propertiesOnboardingPromptedRef = useRef<Set<string>>(new Set());
   const ignoreFolderNoteMetadataBootstrappedRef = useRef(false);
@@ -324,8 +334,6 @@ function App() {
   // Font detection hook
   const { fonts } = useFonts();
 
-  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
-  const legacyExpandedPathsLoadedRef = useRef<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -367,10 +375,6 @@ function App() {
   const [pointerDragItem, setPointerDragItem] = useState<PointerDragItem>();
   const [graphControlsPosition, setGraphControlsPosition] = useState({ x: 14, y: 14 });
   const suppressTreeClickRef = useRef(false);
-
-  useEffect(() => {
-    tabsRef.current = tabs;
-  }, [tabs]);
 
   useEffect(() => {
     return () => {
@@ -426,63 +430,6 @@ function App() {
   }, [appZoom]);
 
   useEffect(() => {
-    if (!index || !settings.editor.persistTabs) return;
-    const session = serializeWorkspaceSession(
-      index.rootPath,
-      activeTabPath,
-      tabs,
-      workspaceLayout,
-      documentTabGroups,
-      Array.from(expandedPaths),
-    );
-    setSettings((current) => ({
-      ...current,
-      sessions: { ...current.sessions, [index.rootPath]: session },
-    }));
-  }, [
-    activeTabPath,
-    documentTabGroups,
-    expandedPaths,
-    index?.rootPath,
-    settings.editor.persistTabs,
-    tabs,
-    workspaceLayout,
-  ]);
-
-  useEffect(() => {
-    if (!index || settings.editor.persistTabs) return;
-    const nextExpandedPaths = Array.from(expandedPaths);
-    setSettings((current) => {
-      const session = current.sessions[index.rootPath] ?? { rootPath: index.rootPath, tabs: [] };
-      const previousExpandedPaths = session.explorerExpandedPaths ?? [];
-      if (
-        previousExpandedPaths.length === nextExpandedPaths.length &&
-        previousExpandedPaths.every((path, pathIndex) => path === nextExpandedPaths[pathIndex])
-      ) {
-        return current;
-      }
-      return {
-        ...current,
-        sessions: {
-          ...current.sessions,
-          [index.rootPath]: {
-            ...session,
-            explorerExpandedPaths: nextExpandedPaths,
-          },
-        },
-      };
-    });
-  }, [expandedPaths, index?.rootPath, settings.editor.persistTabs]);
-
-  useEffect(() => {
-    setWorkspaceLayout((current) => syncLayoutWithOpenTabs(current, tabs, activeTabPath));
-  }, [activeTabPath, tabs]);
-
-  useEffect(() => {
-    setDocumentTabGroups((current) => normalizeDocumentTabGroups(current, tabs));
-  }, [tabs]);
-
-  useEffect(() => {
     const recent = settings.recentUniverse;
     if (!recent || recent.startsWith("browser:") || !isTauriRuntime()) return;
     const recentPath = recent;
@@ -507,11 +454,6 @@ function App() {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (!layoutHasPanel(workspaceLayout, "outline")) return;
-    setWorkspaceLayout((current) => closeDockLayoutTab(current, panelDockTabId("outline")));
-  }, [workspaceLayout]);
 
   useEffect(() => {
     if (!ignoreFolderNoteMetadataBootstrappedRef.current) {
@@ -631,39 +573,6 @@ function App() {
   const entityTagColors = useMemo(() => {
     return selectEntityTagColors(index);
   }, [index]);
-
-  useEffect(() => {
-    if (!index) return;
-    const restored = settings.sessions[index.rootPath]?.explorerExpandedPaths;
-    if (restored) {
-      setExpandedPaths(new Set(restored));
-      return;
-    }
-    if (legacyExpandedPathsLoadedRef.current.has(index.rootPath)) {
-      setExpandedPaths(new Set());
-      return;
-    }
-    legacyExpandedPathsLoadedRef.current.add(index.rootPath);
-    const stored = localStorage.getItem("worldnotion.expandedPaths");
-    try {
-      setExpandedPaths(stored ? new Set(JSON.parse(stored)) : new Set());
-    } catch {
-      setExpandedPaths(new Set());
-    }
-  }, [index?.rootPath]);
-
-  useEffect(() => {
-    const path = activeTabPath ?? (selectedPath?.endsWith(".md") ? selectedPath : undefined);
-    if (!path) return;
-    const ancestors = explorerAncestorsForPath(path);
-    if (!ancestors.length) return;
-    setExpandedPaths((current) => {
-      if (ancestors.every((ancestor) => current.has(ancestor))) return current;
-      const next = new Set(current);
-      ancestors.forEach((ancestor) => next.add(ancestor));
-      return next;
-    });
-  }, [activeTabPath, selectedPath]);
 
   useEffect(() => {
     if (!pointerDragItem) return;
