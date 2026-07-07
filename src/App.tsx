@@ -32,6 +32,9 @@ import { OutlineGuide } from "./components/OutlineGuide";
 import { FontSelector } from "./components/FontSelector";
 import { InputDialog } from "./components/InputDialog";
 import { useToast } from "./components/ToastProvider";
+import { useDismissableMenu } from "./hooks/useDismissableMenu";
+import { useInputDialog } from "./hooks/useInputDialog";
+import { useMissingRecentPaths } from "./hooks/useMissingRecentPaths";
 import { SaveStatusIndicator } from "./components/SaveStatusIndicator";
 import { UnsavedChangesDialog } from "./components/UnsavedChangesDialog";
 import { ExplorerPanel, type ExplorerTreeAction } from "./components/ExplorerPanel";
@@ -329,43 +332,36 @@ function App() {
     targetPath: string;
     targetKind: "file" | "folder" | "empty";
   } | null>(null);
-  const [recentContextMenu, setRecentContextMenu] = useState<{
+  const { menu: recentContextMenu, setMenu: setRecentContextMenu } = useDismissableMenu<{
     x: number;
     y: number;
     path: string;
-  } | null>(null);
-  const [tabContextMenu, setTabContextMenu] = useState<{
+  }>();
+  const { menu: tabContextMenu, setMenu: setTabContextMenu } = useDismissableMenu<{
     x: number;
     y: number;
     path: string;
-  } | null>(null);
-  const [dockPanelContextMenu, setDockPanelContextMenu] = useState<{
+  }>();
+  const { menu: dockPanelContextMenu, setMenu: setDockPanelContextMenu } = useDismissableMenu<{
     x: number;
     y: number;
     groupId: string;
-  } | null>(null);
-  const [documentGroupContextMenu, setDocumentGroupContextMenu] = useState<{
-    x: number;
-    y: number;
-    groupId: string;
-  } | null>(null);
+  }>();
+  const { menu: documentGroupContextMenu, setMenu: setDocumentGroupContextMenu } =
+    useDismissableMenu<{
+      x: number;
+      y: number;
+      groupId: string;
+    }>();
   const [iconPickerState, setIconPickerState] = useState<{
     x: number;
     y: number;
     targetPath: string;
   } | null>(null);
-  const [missingRecentPaths, setMissingRecentPaths] = useState<Set<string>>(new Set());
-  const [inputDialog, setInputDialog] = useState<{
-    isOpen: boolean;
-    title: string;
-    placeholder?: string;
-    defaultValue?: string;
-    onConfirm?: (value: string) => Promise<void>;
-    onCancel?: () => void;
-  }>({
-    isOpen: false,
-    title: "",
-  });
+  const { missingRecentPaths, setMissingRecentPaths } = useMissingRecentPaths(
+    settings.recentUniverses,
+  );
+  const { inputDialog, promptUser, closeInputDialog } = useInputDialog();
 
   const { showToast } = useToast();
   const [pointerDragItem, setPointerDragItem] = useState<PointerDragItem>();
@@ -511,105 +507,6 @@ function App() {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    const recentPaths = settings.recentUniverses.filter((path) => !path.startsWith("browser:"));
-    if (!recentPaths.length || !isTauriRuntime()) {
-      setMissingRecentPaths(new Set());
-      return;
-    }
-
-    let cancelled = false;
-    Promise.all(
-      recentPaths.map(async (path) => {
-        const exists = await invoke<boolean>("path_exists", { path }).catch(() => false);
-        return [path, exists] as const;
-      }),
-    ).then((results) => {
-      if (cancelled) return;
-      setMissingRecentPaths(new Set(results.filter(([, exists]) => !exists).map(([path]) => path)));
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [settings.recentUniverses.join("|")]);
-
-  useEffect(() => {
-    if (!recentContextMenu) return;
-
-    function closeRecentMenu() {
-      setRecentContextMenu(null);
-    }
-
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") closeRecentMenu();
-    }
-
-    document.addEventListener("mousedown", closeRecentMenu);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeRecentMenu);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [recentContextMenu]);
-
-  useEffect(() => {
-    if (!tabContextMenu) return;
-
-    function closeTabMenu() {
-      setTabContextMenu(null);
-    }
-
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") closeTabMenu();
-    }
-
-    document.addEventListener("mousedown", closeTabMenu);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeTabMenu);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [tabContextMenu]);
-
-  useEffect(() => {
-    if (!dockPanelContextMenu) return;
-
-    function closeDockPanelMenu() {
-      setDockPanelContextMenu(null);
-    }
-
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") closeDockPanelMenu();
-    }
-
-    document.addEventListener("mousedown", closeDockPanelMenu);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeDockPanelMenu);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [dockPanelContextMenu]);
-
-  useEffect(() => {
-    if (!documentGroupContextMenu) return;
-
-    function closeDocumentGroupMenu() {
-      setDocumentGroupContextMenu(null);
-    }
-
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") closeDocumentGroupMenu();
-    }
-
-    document.addEventListener("mousedown", closeDocumentGroupMenu);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeDocumentGroupMenu);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [documentGroupContextMenu]);
 
   useEffect(() => {
     if (!layoutHasPanel(workspaceLayout, "outline")) return;
@@ -1632,29 +1529,6 @@ function App() {
     openOrCreateTab(path, index);
   }
 
-  async function promptUser(
-    title: string,
-    placeholder: string = "Enter value",
-    defaultValue: string = "",
-  ): Promise<string | null> {
-    return new Promise((resolve) => {
-      setInputDialog({
-        isOpen: true,
-        title,
-        placeholder,
-        defaultValue,
-        onConfirm: async (value: string) => {
-          setInputDialog({ isOpen: false, title: "" });
-          resolve(value);
-        },
-        onCancel: () => {
-          setInputDialog({ isOpen: false, title: "" });
-          resolve(null);
-        },
-      });
-    });
-  }
-
   function selectPathAfterRefresh(path: string, nextIndex = index) {
     if (!nextIndex) return;
     const file = nextIndex.files.find((f) => f.relativePath === path);
@@ -2635,12 +2509,7 @@ function App() {
         placeholder={inputDialog.placeholder}
         defaultValue={inputDialog.defaultValue}
         onConfirm={inputDialog.onConfirm || (async () => {})}
-        onCancel={
-          inputDialog.onCancel ??
-          (() => {
-            setInputDialog({ isOpen: false, title: "" });
-          })
-        }
+        onCancel={inputDialog.onCancel ?? closeInputDialog}
       />
 
       <UnsavedChangesDialog
