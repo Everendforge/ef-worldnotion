@@ -12,5 +12,8 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: [setupFile],
+    // Los tests de componentes con user-event superan los 5s por defecto
+    // cuando la máquina está bajo carga (p. ej. workers paralelos en CI).
+    testTimeout: 20000,
   },
 });
