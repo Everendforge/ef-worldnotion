@@ -65,6 +65,17 @@ const PLUGIN_DEFINITIONS: PluginDefinition[] = [
     riskLevel: "low",
   },
   {
+    id: "image-rendering",
+    name: "Image Rendering",
+    description: "Renders standard Markdown images inline in Write mode (live preview).",
+    category: "visual",
+    status: "available",
+    scope: "worldnotion",
+    defaultEnabled: true,
+    configurable: true,
+    riskLevel: "low",
+  },
+  {
     id: "document-header",
     name: "Document Header",
     description: "Shows a lightweight document title header inside Write mode.",

@@ -69,6 +69,7 @@ export type PluginId =
   | "code-folding"
   | "markdown-syntax-hiding"
   | "font-family-rendering"
+  | "image-rendering"
   | "document-header"
   | "unity-adapter"
   | "godot-adapter"
@@ -569,6 +570,7 @@ export const DEFAULT_PLUGIN_SETTINGS: PluginSettings = {
     "code-folding": true,
     "markdown-syntax-hiding": true,
     "font-family-rendering": true,
+    "image-rendering": true,
     "document-header": true,
     "unity-adapter": false,
     "godot-adapter": false,

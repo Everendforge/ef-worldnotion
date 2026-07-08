@@ -15,6 +15,7 @@ import { markdownSyntaxPlugin } from "./markdownSyntaxPlugin";
 import { wikilinkPlugin } from "./wikilinkPlugin";
 import { footnotePlugin } from "./footnotePlugin";
 import { fontFamilyPlugin } from "./fontFamilyPlugin";
+import { imagePlugin, type ImageResolver } from "./imagePlugin";
 import { createDocumentHeaderPlugin } from "./documentHeaderPlugin";
 import {
   EditorMode,
@@ -39,6 +40,7 @@ export interface CodeMirrorEditorProps {
   documentName?: string;
   projectName?: string;
   resolveWikilink?: (label: string) => ResolvedWikilink;
+  resolveImage?: ImageResolver;
   noteSuggestions?: NoteSuggestion[];
   onOpenWikilink?: (targetPath: string, label: string) => void;
   onMissingWikilink?: (label: string) => void;
@@ -111,6 +113,7 @@ export function CodeMirrorEditor({
   documentName,
   projectName,
   resolveWikilink,
+  resolveImage,
   noteSuggestions = [],
   onOpenWikilink,
   onMissingWikilink,
@@ -661,6 +664,9 @@ export function CodeMirrorEditor({
             : []),
           ...(mode === "write" && isPluginEnabled(pluginSettings, "font-family-rendering")
             ? [fontFamilyPlugin]
+            : []),
+          ...(mode === "write" && resolveImage && isPluginEnabled(pluginSettings, "image-rendering")
+            ? [imagePlugin({ resolve: resolveImage })]
             : []),
           ...(settings.lineWrap ? [EditorView.lineWrapping] : []),
           CodeMirrorState.tabSize.of(settings.tabSize),

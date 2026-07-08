@@ -94,7 +94,7 @@ import {
   trashVaultPath,
   vaultHandleFor,
 } from "./utils/vaultFileOps";
-import { setBrowserVaultRoot } from "./utils/vaultImages";
+import { resolveNoteImageUrl, setBrowserVaultRoot } from "./utils/vaultImages";
 import {
   buildCommandResults,
   buildFileResults,
@@ -2815,6 +2815,9 @@ function App() {
                 }
                 readOnly={!canWrite}
                 resolveWikilink={resolveWikilink}
+                resolveImage={(rawPath) =>
+                  index ? resolveNoteImageUrl(index, documentTab.path, rawPath) : Promise.resolve(null)
+                }
                 noteSuggestions={noteSuggestions}
                 onOpenWikilink={(targetPath) => openOrCreateTab(targetPath)}
                 onMissingWikilink={(label) => showToast(`Missing wikilink: ${label}`, "warning")}
