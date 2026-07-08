@@ -394,7 +394,7 @@ fn reveal_in_system(path: &Path) -> Result<(), String> {
             .arg(path)
             .status()
             .map_err(|error| error.to_string())?;
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(target_os = "windows")]
