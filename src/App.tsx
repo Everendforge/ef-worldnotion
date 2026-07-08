@@ -82,8 +82,10 @@ import {
   ensureBrowserWritePermission,
   getBrowserFile,
   readBrowserUniverse,
+  writeBrowserBinaryFile,
   writeBrowserFile,
 } from "./utils/browserVault";
+import { uniqueAttachmentPath } from "./utils/attachments";
 import {
   createVaultEntity,
   createVaultFolder,
@@ -272,6 +274,35 @@ const FLOATING_HEADING_COMMANDS: FloatingFormatCommand[] = [
   { id: "heading5", label: "H5" },
   { id: "heading6", label: "H6" },
 ];
+
+async function fileToBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+// Opens a native file picker for images. Resolves null on cancel (detected via
+// the window regaining focus without a selection).
+function pickImageFile(): Promise<File | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    let settled = false;
+    const done = (file: File | null) => {
+      if (settled) return;
+      settled = true;
+      resolve(file);
+    };
+    input.onchange = () => done(input.files?.[0] ?? null);
+    window.addEventListener("focus", () => window.setTimeout(() => done(null), 400), { once: true });
+    input.click();
+  });
+}
 
 function App() {
   const [settings, setSettings] = useState<AppSettingsV4>(() => loadSettings());
@@ -1413,6 +1444,43 @@ function App() {
   }
 
   const resolveWikilink = (label: string) => resolveWikilinkInIndex(index, label);
+
+  // Persists a pasted/dropped/picked image into the attachments folder and
+  // returns its vault-relative path (or null on failure).
+  async function persistImageFile(file: File): Promise<string | null> {
+    if (!index) return null;
+    try {
+      const target = uniqueAttachmentPath(
+        index.files.map((entry) => entry.relativePath),
+        file.name,
+      );
+      if (browserRoot) {
+        await writeBrowserBinaryFile(browserRoot, target, file);
+      } else {
+        const base64Content = await fileToBase64(file);
+        const result = await invoke<WriteResult>("save_binary_file", {
+          vaultPath: index.rootPath,
+          relativePath: target,
+          base64Content,
+        });
+        if (!result.ok) throw new Error(result.message ?? "Could not save image.");
+      }
+      await refreshUniverse();
+      showToast(`Inserted image: ${target}`, "success");
+      return target;
+    } catch (error) {
+      console.error("[persistImageFile] Error:", error);
+      showToast(error instanceof Error ? error.message : "Could not insert image.", "error");
+      return null;
+    }
+  }
+
+  async function requestImageInsertion(): Promise<{ path: string; alt?: string } | null> {
+    const file = await pickImageFile();
+    if (!file) return null;
+    const path = await persistImageFile(file);
+    return path ? { path, alt: file.name.replace(/\.[^.]+$/, "") } : null;
+  }
 
   async function createTemplate() {
     if (!index) return;
@@ -2818,6 +2886,8 @@ function App() {
                 resolveImage={(rawPath) =>
                   index ? resolveNoteImageUrl(index, documentTab.path, rawPath) : Promise.resolve(null)
                 }
+                onInsertImageFile={persistImageFile}
+                onRequestImage={requestImageInsertion}
                 noteSuggestions={noteSuggestions}
                 onOpenWikilink={(targetPath) => openOrCreateTab(targetPath)}
                 onMissingWikilink={(label) => showToast(`Missing wikilink: ${label}`, "warning")}

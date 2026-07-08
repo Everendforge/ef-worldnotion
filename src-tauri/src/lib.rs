@@ -710,6 +710,36 @@ fn read_file_base64(vault_path: String, relative_path: String) -> Result<String,
 }
 
 #[tauri::command]
+fn save_binary_file(
+    vault_path: String,
+    relative_path: String,
+    base64_content: String,
+) -> Result<WriteResult, String> {
+    let (_root, path) = resolve_vault_path(&vault_path, &relative_path)?;
+    use base64::Engine as _;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(base64_content.as_bytes())
+        .map_err(|error| format!("Invalid base64 content: {error}"))?;
+    if bytes.len() as u64 > MAX_BINARY_READ_BYTES {
+        return Err("File is too large (limit 10 MB).".to_string());
+    }
+    if path.is_dir() {
+        return Err("Cannot write file content to a directory.".to_string());
+    }
+    let parent = path
+        .parent()
+        .ok_or_else(|| "Path has no parent directory.".to_string())?;
+    fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    fs::write(&path, &bytes).map_err(|error| error.to_string())?;
+    Ok(WriteResult {
+        ok: true,
+        path: path.to_string_lossy().to_string(),
+        modified_ms: modified_ms(&path),
+        message: None,
+    })
+}
+
+#[tauri::command]
 fn create_universe(vault_path: String, name: String) -> Result<WriteResult, String> {
     let root = PathBuf::from(vault_path);
     let segment = sanitize_segment(&name)?;
@@ -1084,6 +1114,7 @@ pub fn run() {
             path_exists,
             read_file,
             read_file_base64,
+            save_binary_file,
             create_universe,
             create_folder,
             create_entity,

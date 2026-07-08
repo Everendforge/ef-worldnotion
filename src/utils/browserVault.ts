@@ -5,7 +5,7 @@ import { pathName } from "./pathUtils";
 export type BrowserFileHandle = {
   getFile: () => Promise<File>;
   createWritable: () => Promise<{
-    write: (content: string) => Promise<void>;
+    write: (content: string | Blob | BufferSource) => Promise<void>;
     close: () => Promise<void>;
   }>;
   queryPermission?: (descriptor?: { mode?: "read" | "readwrite" }) => Promise<PermissionState>;
@@ -205,6 +205,20 @@ export async function writeBrowserFile(
   const fileHandle = await getBrowserFile(root, relativePath, true);
   const writable = await fileHandle.createWritable();
   await writable.write(content);
+  await writable.close();
+  const file = await fileHandle.getFile();
+  return file.lastModified;
+}
+
+export async function writeBrowserBinaryFile(
+  root: BrowserDirectoryHandle,
+  relativePath: string,
+  data: Blob,
+) {
+  await ensureBrowserWritePermission(root);
+  const fileHandle = await getBrowserFile(root, relativePath, true);
+  const writable = await fileHandle.createWritable();
+  await writable.write(data);
   await writable.close();
   const file = await fileHandle.getFile();
   return file.lastModified;

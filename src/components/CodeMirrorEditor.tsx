@@ -28,6 +28,12 @@ import {
 } from "../editorTypes";
 import { isDarkTheme, selectionColorForTheme } from "../themes";
 import { isPluginEnabled } from "../utils/pluginRegistry";
+import { imageMarkdown } from "../utils/attachments";
+
+function imageFilesFromTransfer(data: DataTransfer | null): File[] {
+  if (!data) return [];
+  return Array.from(data.files).filter((file) => file.type.startsWith("image/"));
+}
 
 export interface CodeMirrorEditorProps {
   value: string;
@@ -41,6 +47,10 @@ export interface CodeMirrorEditorProps {
   projectName?: string;
   resolveWikilink?: (label: string) => ResolvedWikilink;
   resolveImage?: ImageResolver;
+  /** Persists a pasted/dropped image and returns its vault-relative path. */
+  onInsertImageFile?: (file: File) => Promise<string | null>;
+  /** Opens a picker to choose an image; returns its vault-relative path + alt. */
+  onRequestImage?: () => Promise<{ path: string; alt?: string } | null>;
   noteSuggestions?: NoteSuggestion[];
   onOpenWikilink?: (targetPath: string, label: string) => void;
   onMissingWikilink?: (label: string) => void;
@@ -99,6 +109,7 @@ const SLASH_COMMANDS: SlashCommandDefinition[] = [
   { id: "divider", label: "Divider", keywords: ["rule", "hr"], group: "insert" },
   { id: "wikilink", label: "Wikilink", keywords: ["page", "note"], group: "insert" },
   { id: "link", label: "Link", keywords: ["url"], group: "insert" },
+  { id: "image", label: "Image", keywords: ["img", "picture", "photo"], group: "insert" },
   { id: "footnote", label: "Footnote", keywords: ["reference", "note"], group: "insert" },
 ];
 
@@ -114,6 +125,8 @@ export function CodeMirrorEditor({
   projectName,
   resolveWikilink,
   resolveImage,
+  onInsertImageFile,
+  onRequestImage,
   noteSuggestions = [],
   onOpenWikilink,
   onMissingWikilink,
@@ -172,6 +185,21 @@ export function CodeMirrorEditor({
       .slice(0, 8);
   }, [noteSuggestions, wikilinkMenu]);
 
+  async function insertImageFiles(files: File[], view: EditorView) {
+    if (!onInsertImageFile) return;
+    for (const file of files) {
+      const path = await onInsertImageFile(file);
+      if (!path) continue;
+      const alt = file.name.replace(/\.[^.]+$/, "").replace(/[[\]]/g, "");
+      const snippet = `${imageMarkdown(path, alt)}\n`;
+      const pos = view.state.selection.main.head;
+      view.dispatch({
+        changes: { from: pos, insert: snippet },
+        selection: { anchor: pos + snippet.length },
+      });
+    }
+  }
+
   async function applySlashCommand(commandId: string) {
     if (!editorView || !slashMenu) return;
     const line = editorView.state.doc.lineAt(slashMenu.from);
@@ -183,6 +211,20 @@ export function CodeMirrorEditor({
       .replace(/^>\s+/, "");
     const linkUrl = commandId === "link" ? await onRequestUrl?.() : undefined;
     if (commandId === "link" && !linkUrl?.trim()) {
+      editorView.focus();
+      setSlashMenu(undefined);
+      return;
+    }
+
+    if (commandId === "image") {
+      const picked = onRequestImage ? await onRequestImage() : null;
+      if (picked) {
+        const insert = imageMarkdown(picked.path, picked.alt);
+        editorView.dispatch({
+          changes: { from: line.from, to: line.to, insert },
+          selection: { anchor: line.from + insert.length },
+        });
+      }
       editorView.focus();
       setSlashMenu(undefined);
       return;
@@ -840,6 +882,22 @@ export function CodeMirrorEditor({
             },
             mousedown(event, view) {
               return openUrlAtEvent(event, view);
+            },
+            paste(event, view) {
+              const files = imageFilesFromTransfer(event.clipboardData);
+              if (!files.length || !onInsertImageFile) return false;
+              event.preventDefault();
+              void insertImageFiles(files, view);
+              return true;
+            },
+            drop(event, view) {
+              const files = imageFilesFromTransfer(event.dataTransfer);
+              if (!files.length || !onInsertImageFile) return false;
+              event.preventDefault();
+              const dropPos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+              if (dropPos != null) view.dispatch({ selection: { anchor: dropPos } });
+              void insertImageFiles(files, view);
+              return true;
             },
           }),
           EditorView.updateListener.of((update) => {
