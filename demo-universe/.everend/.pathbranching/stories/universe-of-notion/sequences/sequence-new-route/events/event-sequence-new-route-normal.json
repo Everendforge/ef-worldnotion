@@ -1,0 +1,16 @@
+{
+  "storageVersion": "0.2",
+  "storyId": "universe-of-notion",
+  "sequenceId": "sequence:new-route",
+  "event": {
+    "id": "event:sequence:new-route:normal",
+    "name": "New Event",
+    "type": "normal",
+    "text": {
+      "format": "plain",
+      "content": ""
+    },
+    "canonRefs": [],
+    "transitions": []
+  }
+}

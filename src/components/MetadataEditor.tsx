@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AlertCircle, ArrowRightLeft, Plus, Settings2, Trash2, Wand2, X } from "lucide-react";
+import { AlertCircle, ArrowRightLeft, Plus, Trash2, Wand2 } from "lucide-react";
 import type { Entity, VaultIndex } from "../domain";
 import type {
   PropertiesConfig,
@@ -11,12 +11,14 @@ import {
   adaptFrontmatterProperty,
   buildInspectorPropertySections,
   changePropertyType,
+  duplicateInspectorProperty,
   inferPropertyDefinition,
   knownPropertyIds,
   listAllProperties,
   listInspectableProperties,
   listUnconfiguredProperties,
   listVisibleProperties,
+  moveInspectorProperty,
   NON_INSPECTOR_PROPERTY_IDS,
   parseFrontmatterRaw,
   removeFrontmatterProperty,
@@ -31,13 +33,15 @@ import {
   upsertInspectorProperty,
   type VisiblePropertyDefinition,
 } from "../utils/propertiesConfig";
+import { getPropertyPath } from "../utils/propertyTreeUtils";
 import { coercePropertyValue } from "../utils/propertyValueCoercion";
 import { detectOrphanedFields, inferValueType } from "../utils/frontmatterValidator";
-import { PropertyManagerModal } from "./PropertyManagerModal";
 import { useToast } from "./ToastProvider";
+import { useAppDialogs } from "./DialogProvider";
 import { PropertyRow, type PropertyRowHandlers } from "./properties/PropertyRow";
 import { AddPropertyRow } from "./properties/AddPropertyRow";
 import { PropertyContextMenu } from "./properties/PropertyContextMenu";
+import { PropertyEditorPopover } from "./properties/PropertyEditorPopover";
 import { LegacyMetadataFields } from "./properties/LegacyMetadataFields";
 
 type MetadataEditorProps = {
@@ -54,11 +58,6 @@ type MetadataEditorProps = {
 };
 
 type EditableOption = { value: string; label: string; color?: string };
-type ConditionDraftState = {
-  propertyId: string;
-  parentId: string;
-  values: string[];
-};
 
 const ENTITY_FRONTMATTER_FIELD_IDS = new Set([
   "id",
@@ -92,19 +91,18 @@ export function MetadataEditor({
   onOpenEntity,
 }: MetadataEditorProps) {
   const { showToast } = useToast();
+  const { confirmDialog } = useAppDialogs();
   const [adaptTargets, setAdaptTargets] = useState<Record<string, string>>({});
   const [draggedPropertyId, setDraggedPropertyId] = useState<string | null>(null);
-  const [optionDraft, setOptionDraft] = useState<{
-    propertyId: string;
-    options: EditableOption[];
-  } | null>(null);
   const [propertyContextMenu, setPropertyContextMenu] = useState<{
     x: number;
     y: number;
     propertyId?: string;
   } | null>(null);
-  const [propertyManagerSelection, setPropertyManagerSelection] = useState<string | undefined>();
-  const [conditionDraft, setConditionDraft] = useState<ConditionDraftState | null>(null);
+  const [propertyEditor, setPropertyEditor] = useState<{
+    propertyId: string;
+    anchorEl: HTMLElement;
+  } | null>(null);
   const [showHiddenProperties, setShowHiddenProperties] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
@@ -210,11 +208,19 @@ export function MetadataEditor({
     [inspectorProperties],
   );
 
-  const openPropertyManager = (propertyId?: string) => {
-    setPropertyManagerSelection(
-      propertyId ?? inspectorProperties?.[0]?.id ?? allInspectableProperties[0]?.id,
-    );
+  const openPropertyEditor = (propertyId: string, anchorEl: HTMLElement) => {
+    setPropertyEditor({ propertyId, anchorEl });
     setPropertyContextMenu(null);
+  };
+
+  const parentIdOf = (propertyId: string): string => {
+    if (!propertiesConfig) return "";
+    const roots = [
+      ...(propertiesConfig.baseProperties?.definitions ?? []),
+      ...(propertiesConfig.customFields.definitions ?? []),
+    ];
+    const path = getPropertyPath(roots, propertyId);
+    return path.length > 1 ? path[path.length - 2] : "";
   };
 
   const savePropertyDefinition = (property: CustomFieldDefinition, parentId?: string) => {
@@ -223,37 +229,52 @@ export function MetadataEditor({
     saveConfig(nextConfig);
   };
 
-  const deletePropertyFromUniverse = (propertyId: string) => {
+  const updatePropertyDefinition = (propertyId: string, patch: Partial<CustomFieldDefinition>) => {
     if (!propertiesConfig) return;
-    const confirmed = window.confirm(
+    const property = allInspectableProperties.find((candidate) => candidate.id === propertyId);
+    if (!property || !("type" in property)) return;
+    const next = { ...property, ...patch } as CustomFieldDefinition;
+    saveConfig(
+      upsertInspectorProperty(
+        propertiesConfig,
+        next,
+        entity.type,
+        parentIdOf(propertyId) || undefined,
+      ),
+    );
+  };
+
+  const setPropertyDependency = (propertyId: string, parentId: string, values: string[]) => {
+    const visibleWhen = parentId && values.length ? { [parentId]: values } : undefined;
+    updatePropertyDefinition(propertyId, { visibleWhen });
+  };
+
+  const movePropertyParent = (propertyId: string, parentId: string | null) => {
+    if (!propertiesConfig) return;
+    saveConfig(moveInspectorProperty(propertiesConfig, entity.type, propertyId, parentId));
+  };
+
+  const duplicateProperty = (propertyId: string) => {
+    if (!propertiesConfig) return;
+    saveConfig(duplicateInspectorProperty(propertiesConfig, entity.type, propertyId));
+  };
+
+  const deletePropertyFromUniverse = async (propertyId: string) => {
+    if (!propertiesConfig) return;
+    const confirmed = await confirmDialog(
       "Delete this property from universe properties? Existing note values will stay until removed from frontmatter.",
+      { title: "Delete property", confirmLabel: "Delete", destructive: true },
     );
     if (!confirmed) return;
     saveConfig(removeInspectorProperty(propertiesConfig, propertyId));
     setPropertyContextMenu(null);
+    setPropertyEditor(null);
   };
 
   const removePropertyFromNote = (propertyId: string) => {
     if (!onUpdateRawYaml) return;
     onUpdateRawYaml(removeFrontmatterProperty(rawYaml, propertyId, propertiesConfig, entity.type));
     setPropertyContextMenu(null);
-  };
-
-  const saveUnlockCondition = () => {
-    if (!conditionDraft || !propertiesConfig) return;
-    const property = allInspectableProperties.find(
-      (candidate) => candidate.id === conditionDraft.propertyId,
-    );
-    if (!property || !("type" in property)) return;
-    const nextProperty = {
-      ...property,
-      visibleWhen: {
-        ...(property.visibleWhen ?? {}),
-        [conditionDraft.parentId]: conditionDraft.values,
-      },
-    } as CustomFieldDefinition;
-    saveConfig(upsertInspectorProperty(propertiesConfig, nextProperty, entity.type));
-    setConditionDraft(null);
   };
 
   const getPropertyOptions = (property: BasePropertyDefinition | CustomFieldDefinition) => {
@@ -429,22 +450,6 @@ export function MetadataEditor({
       ),
     );
     setDraggedPropertyId(null);
-  };
-
-  const closeOptionsPopup = () => {
-    if (optionDraft && inspectorProperties) {
-      const property = inspectorProperties.find(
-        (candidate) => candidate.id === optionDraft.propertyId,
-      );
-      if (property) {
-        updatePropertyOptions(property, optionDraft.options);
-      }
-    }
-    setOptionDraft(null);
-  };
-
-  const openOptionsPopup = (property: BasePropertyDefinition | CustomFieldDefinition) => {
-    setOptionDraft({ propertyId: property.id, options: getEditableOptions(property) });
   };
 
   const handleAutoReorder = () => {
@@ -633,158 +638,64 @@ export function MetadataEditor({
     onDragEnd: () => setDraggedPropertyId(null),
     onDrop: reorderProperty,
     onToggleGroup: toggleGroupCollapsed,
-    onOpenPropertyManager: openPropertyManager,
+    onOpenPropertyEditor: openPropertyEditor,
     vaultIndexProps: { vaultIndex, onOpenEntity },
   };
 
   const renderPropertySections = (): React.ReactNode[] => {
-    return propertySections
-      .filter((section) => section.nodes.length > 0)
-      .map((section) => {
-        const isCollapsed = collapsedSections.has(section.id);
-        return (
-          <section
-            key={section.id}
-            className={`metadata-property-section metadata-property-section-${section.kind}`}
-          >
-            <button
-              type="button"
-              className="metadata-property-section-title"
-              onClick={() =>
-                setCollapsedSections((current) => {
-                  const next = new Set(current);
-                  if (next.has(section.id)) next.delete(section.id);
-                  else next.add(section.id);
-                  return next;
-                })
-              }
-              aria-expanded={!isCollapsed}
-            >
-              <span>{section.title}</span>
-              <small>
-                {isCollapsed ? "+" : "-"} {section.nodes.length}
-              </small>
-            </button>
-            {!isCollapsed
-              ? section.nodes.map((node) => (
-                  <PropertyRow
-                    key={node.property.id}
-                    node={node}
-                    entityType={entity.type}
-                    draggedPropertyId={draggedPropertyId}
-                    collapsedGroups={collapsedGroups}
-                    handlers={rowHandlers}
-                  />
-                ))
-              : null}
-          </section>
-        );
-      });
-  };
-
-  const renderOptionsPopup = () => {
-    if (!optionDraft) return null;
-    const property = allInspectableProperties.find(
-      (candidate) => candidate.id === optionDraft.propertyId,
-    );
-    if (!property) return null;
-    const updateOption = (index: number, updates: Partial<EditableOption>) => {
-      setOptionDraft((current) =>
-        current
-          ? {
-              ...current,
-              options: current.options.map((option, optionIndex) =>
-                optionIndex === index ? { ...option, ...updates } : option,
-              ),
-            }
-          : current,
-      );
-    };
-    const addOption = () => {
-      setOptionDraft((current) => {
-        if (!current) return current;
-        const value = `option-${current.options.length + 1}`;
-        return {
-          ...current,
-          options: [...current.options, { value, label: `Option ${current.options.length + 1}` }],
-        };
-      });
-    };
-    const deleteOption = (index: number) => {
-      setOptionDraft((current) =>
-        current
-          ? {
-              ...current,
-              options: current.options.filter((_, optionIndex) => optionIndex !== index),
-            }
-          : current,
-      );
-    };
-
     return (
-      <div
-        className="inspector-local-popover"
-        role="dialog"
-        aria-label={`Edit ${property.label || property.id} options`}
-      >
-        <div className="inspector-local-popover-header">
-          <strong>{property.label || property.id}</strong>
-          <button type="button" onClick={closeOptionsPopup} title="Close">
-            <X size={14} />
-          </button>
-        </div>
-        <div className="inspector-option-list">
-          {optionDraft.options.map((option, index) => (
-            <div key={`${option.value}-${index}`} className="inspector-option-row">
-              <input
-                value={option.label}
-                onChange={(event) => updateOption(index, { label: event.target.value })}
-                placeholder="Label"
-              />
-              <input
-                value={option.value}
-                onChange={(event) => updateOption(index, { value: event.target.value })}
-                placeholder="value"
-              />
-              <input
-                type="color"
-                value={option.color ?? "#64748b"}
-                onChange={(event) => updateOption(index, { color: event.target.value })}
-                title="Color"
-              />
-              <button
-                type="button"
-                className="danger"
-                onClick={() => deleteOption(index)}
-                title="Delete option"
-              >
-                <Trash2 size={13} />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const child = inferPropertyDefinition(
-                    `${property.id}-${option.value}`,
-                    option.label,
-                  );
-                  child.visibleWhen = { [property.id]: [option.value] };
-                  updatePropertyOptions(property, optionDraft.options);
-                  setOptionDraft(null);
-                  savePropertyDefinition(child, property.id);
-                  openPropertyManager(child.id);
-                }}
-                title="Create child property for this option"
-              >
-                <Plus size={13} />
-              </button>
-            </div>
-          ))}
-        </div>
-        <button type="button" className="inspector-popover-action" onClick={addOption}>
-          <Plus size={13} />
-          Add option
-        </button>
-      </div>
+      propertySections
+        .filter((section) => section.nodes.length > 0)
+        // Structure connectors (parentId/childrenIds) are noise for everyday
+        // editing; only surface them alongside the other hidden properties.
+        .filter((section) => section.kind !== "structure" || showHiddenProperties)
+        .map((section) => {
+          const isCollapsed = collapsedSections.has(section.id);
+          // The main list needs no header — the inspector toolbar already reads
+          // "Properties". Group rows carry their own name, so a section title
+          // would just repeat it.
+          const showHeader = section.kind !== "main";
+          const nodesVisible = !showHeader || !isCollapsed;
+          return (
+            <section
+              key={section.id}
+              className={`metadata-property-section metadata-property-section-${section.kind}`}
+            >
+              {showHeader ? (
+                <button
+                  type="button"
+                  className="metadata-property-section-title"
+                  onClick={() =>
+                    setCollapsedSections((current) => {
+                      const next = new Set(current);
+                      if (next.has(section.id)) next.delete(section.id);
+                      else next.add(section.id);
+                      return next;
+                    })
+                  }
+                  aria-expanded={!isCollapsed}
+                >
+                  <span>{section.title}</span>
+                  <small>
+                    {isCollapsed ? "+" : "-"} {section.nodes.length}
+                  </small>
+                </button>
+              ) : null}
+              {nodesVisible
+                ? section.nodes.map((node) => (
+                    <PropertyRow
+                      key={node.property.id}
+                      node={node}
+                      entityType={entity.type}
+                      draggedPropertyId={draggedPropertyId}
+                      collapsedGroups={collapsedGroups}
+                      handlers={rowHandlers}
+                    />
+                  ))
+                : null}
+            </section>
+          );
+        })
     );
   };
 
@@ -798,27 +709,10 @@ export function MetadataEditor({
         visiblePropertyIds={visiblePropertyIds}
         showHiddenProperties={showHiddenProperties}
         isProtected={isProtectedProperty}
-        canEditOptions={(property) => propertyCanEditOptions(property)}
-        onOpenPropertyManager={openPropertyManager}
-        onEditOptions={(property) => openOptionsPopup(property)}
-        onAddCondition={(propertyId) => {
-          setPropertyContextMenu(null);
-          setConditionDraft({
-            propertyId,
-            parentId:
-              allInspectableProperties.find(
-                (candidate) =>
-                  candidate.id !== propertyId &&
-                  (candidate.type === "select" || candidate.type === "multiselect"),
-              )?.id ?? "",
-            values: [],
-          });
-        }}
+        onEditProperty={openPropertyEditor}
         onHide={hideProperty}
         onRemoveFromNote={removePropertyFromNote}
         onDeleteFromUniverse={deletePropertyFromUniverse}
-        onRename={renameProperty}
-        onChangeType={changeType}
         onToggleVisibility={togglePropertyVisibility}
         onToggleShowHidden={() => setShowHiddenProperties((current) => !current)}
         onClose={() => setPropertyContextMenu(null)}
@@ -826,84 +720,31 @@ export function MetadataEditor({
     );
   };
 
-  const renderConditionPopover = () => {
-    if (!conditionDraft) return null;
-    const parentCandidates = allInspectableProperties.filter(
-      (property) =>
-        property.id !== conditionDraft.propertyId &&
-        (property.type === "select" || property.type === "multiselect"),
+  const renderPropertyEditor = () => {
+    if (!propertyEditor || !propertiesConfig) return null;
+    const property = allInspectableProperties.find(
+      (candidate) => candidate.id === propertyEditor.propertyId,
     );
-    const parent = parentCandidates.find((candidate) => candidate.id === conditionDraft.parentId);
-    const parentOptions = parent ? getEditableOptions(parent) : [];
+    if (!property) return null;
     return (
-      <div className="inspector-local-popover" role="dialog" aria-label="Unlock condition">
-        <div className="inspector-local-popover-header">
-          <strong>Unlock condition</strong>
-          <button type="button" onClick={() => setConditionDraft(null)} title="Close">
-            <X size={14} />
-          </button>
-        </div>
-        <label className="inspector-popover-field">
-          <span>Parent property</span>
-          <select
-            value={conditionDraft.parentId}
-            onChange={(event) =>
-              setConditionDraft((current) =>
-                current ? { ...current, parentId: event.target.value, values: [] } : current,
-              )
-            }
-          >
-            <option value="">Select parent...</option>
-            {parentCandidates.map((candidate) => (
-              <option key={candidate.id} value={candidate.id}>
-                {candidate.label || candidate.id}
-              </option>
-            ))}
-          </select>
-        </label>
-        {parent ? (
-          <div className="inspector-condition-options">
-            {parentOptions.map((option) => (
-              <label key={option.value}>
-                <input
-                  type="checkbox"
-                  checked={conditionDraft.values.includes(option.value)}
-                  onChange={(event) =>
-                    setConditionDraft((current) => {
-                      if (!current) return current;
-                      const values = event.target.checked
-                        ? [...current.values, option.value]
-                        : current.values.filter((value) => value !== option.value);
-                      return { ...current, values };
-                    })
-                  }
-                />
-                <span>{option.label}</span>
-              </label>
-            ))}
-          </div>
-        ) : null}
-        <button
-          type="button"
-          className="inspector-popover-action"
-          onClick={saveUnlockCondition}
-          disabled={!conditionDraft.parentId || conditionDraft.values.length === 0}
-        >
-          Save condition
-        </button>
-      </div>
-    );
-  };
-
-  const renderPropertyManager = () => {
-    if (!propertyManagerSelection || !propertiesConfig) return null;
-    return (
-      <PropertyManagerModal
-        propertiesConfig={propertiesConfig}
-        entityType={entity.type}
-        initialPropertyId={propertyManagerSelection}
-        onChange={saveConfig}
-        onClose={() => setPropertyManagerSelection(undefined)}
+      <PropertyEditorPopover
+        open
+        anchorEl={propertyEditor.anchorEl}
+        property={property}
+        allProperties={allInspectableProperties}
+        editableOptions={getEditableOptions(property)}
+        canEditOptions={propertyCanEditOptions(property)}
+        isProtected={isProtectedProperty(property.id)}
+        parentId={parentIdOf(property.id)}
+        onClose={() => setPropertyEditor(null)}
+        onRename={(label) => renameProperty(property.id, label)}
+        onChangeType={(type) => changeType(property.id, type)}
+        onUpdate={(patch) => updatePropertyDefinition(property.id, patch)}
+        onUpdateOptions={(options) => updatePropertyOptions(property, options)}
+        onSetDependency={(parentId, values) => setPropertyDependency(property.id, parentId, values)}
+        onMoveParent={(parentId) => movePropertyParent(property.id, parentId)}
+        onDuplicate={() => duplicateProperty(property.id)}
+        onDelete={() => deletePropertyFromUniverse(property.id)}
       />
     );
   };
@@ -916,14 +757,7 @@ export function MetadataEditor({
         onClick={(event) => {
           if (
             !(event.target as HTMLElement).closest(
-              ".inspector-local-popover, .metadata-field-options",
-            )
-          ) {
-            closeOptionsPopup();
-          }
-          if (
-            !(event.target as HTMLElement).closest(
-              ".inspector-property-context-menu, .property-manager-modal",
+              ".inspector-property-context-menu, .property-editor-popover",
             )
           ) {
             setPropertyContextMenu(null);
@@ -931,21 +765,11 @@ export function MetadataEditor({
         }}
         onContextMenu={(event) => openPropertyContextMenu(event)}
       >
-        {renderOptionsPopup()}
-        {renderConditionPopover()}
-        {renderPropertyManager()}
+        {renderPropertyEditor()}
         {renderPropertyContextMenu()}
         <div className="metadata-fields">
           <div className="metadata-inspector-toolbar">
             <span>Properties</span>
-            <button
-              type="button"
-              onClick={() => openPropertyManager()}
-              title="Customize properties"
-            >
-              <Settings2 size={14} />
-              Customize
-            </button>
           </div>
           {renderPropertySections()}
 
@@ -1112,7 +936,6 @@ export function MetadataEditor({
                       onClick={() => {
                         const nextProperty = inferPropertyDefinition(property.key, property.value);
                         savePropertyDefinition(nextProperty);
-                        openPropertyManager(nextProperty.id);
                       }}
                       title="Add to universe properties"
                     >
@@ -1126,7 +949,6 @@ export function MetadataEditor({
                         if (!parentId) return;
                         const nextProperty = inferPropertyDefinition(property.key, property.value);
                         savePropertyDefinition(nextProperty, parentId);
-                        openPropertyManager(nextProperty.id);
                       }}
                       title="Attach as child property"
                       disabled={!inspectorProperties.length}

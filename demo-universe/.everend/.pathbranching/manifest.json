@@ -1,13 +1,13 @@
 {
-  "version": "0.1",
+  "version": "0.2",
   "activeStoryId": "universe-of-notion",
   "stories": [
     {
       "id": "universe-of-notion",
       "name": "Branching Story",
-      "path": ".everend/.pathbranching/stories/universe-of-notion.pathbranching.json",
-      "createdAt": "2026-06-27T19:22:06.522Z",
-      "updatedAt": "2026-06-27T19:25:15.316Z"
+      "path": ".everend/.pathbranching/stories/universe-of-notion/story.json",
+      "createdAt": "2026-07-07T00:14:50.695Z",
+      "updatedAt": "2026-07-07T00:15:44.717Z"
     }
   ]
 }

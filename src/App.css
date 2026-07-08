@@ -6097,10 +6097,9 @@ button:hover:not(:disabled),
   border: 0;
   background: transparent;
   color: var(--wn-muted);
-  font-size: 0.72rem;
-  font-weight: 750;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  font-size: 0.74rem;
+  font-weight: 650;
+  letter-spacing: 0;
   text-align: left;
   cursor: pointer;
 }
@@ -10318,6 +10317,176 @@ select.property-field-control {
   border-radius: 8px;
   background: var(--wn-panel);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+/* Contextual property editor (replaces the old two-column manager modal) */
+.property-editor-popover {
+  z-index: 26000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 276px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid var(--wn-border);
+  border-radius: 9px;
+  background: var(--wn-panel);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
+}
+
+.property-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.property-editor-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--wn-border);
+  border-radius: 6px;
+  background: var(--wn-bg);
+  color: var(--wn-text);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.property-editor-name:focus {
+  border-color: var(--wn-accent);
+  outline: none;
+}
+
+.property-editor-header > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--wn-muted);
+  cursor: pointer;
+}
+
+.property-editor-header > button:hover {
+  background: var(--wn-panel-2);
+  color: var(--wn-text);
+}
+
+.property-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.72rem;
+  color: var(--wn-muted);
+}
+
+.property-editor-field select,
+.property-editor-field textarea {
+  padding: 5px 7px;
+  border: 1px solid var(--wn-border);
+  border-radius: 6px;
+  background: var(--wn-bg);
+  color: var(--wn-text);
+  font: inherit;
+  font-size: 0.82rem;
+  resize: vertical;
+}
+
+.property-editor-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--wn-text);
+}
+
+.property-editor-section-label {
+  font-size: 0.72rem;
+  color: var(--wn-muted);
+}
+
+.property-editor-options,
+.property-editor-dependency {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--wn-border) 60%, transparent);
+}
+
+.property-editor-option-row {
+  display: grid;
+  grid-template-columns: 1fr 0.7fr 28px 26px;
+  gap: 4px;
+  align-items: center;
+}
+
+.property-editor-option-row input[type="text"],
+.property-editor-option-row input:not([type]) {
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--wn-border);
+  border-radius: 5px;
+  background: var(--wn-bg);
+  color: var(--wn-text);
+  font-size: 0.78rem;
+}
+
+.property-editor-dependency-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 0.78rem;
+  color: var(--wn-text);
+}
+
+.property-editor-dependency-values label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.property-editor-action,
+.property-editor-footer button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border: 1px solid var(--wn-border);
+  border-radius: 6px;
+  background: var(--wn-panel-2);
+  color: var(--wn-text);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.property-editor-action:hover,
+.property-editor-footer button:hover:not(:disabled) {
+  background: var(--wn-border);
+}
+
+.property-editor-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--wn-border) 60%, transparent);
+}
+
+.property-editor-footer button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.property-editor-popover button.danger {
+  color: #d46a6a;
+  border-color: color-mix(in srgb, #b23b3b 40%, var(--wn-border));
+}
+
+.property-editor-popover button.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, #b23b3b 16%, transparent);
 }
 
 .picker-popover-input {

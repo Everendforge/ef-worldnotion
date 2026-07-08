@@ -16,7 +16,7 @@ export type PropertyRowHandlers = {
   onDragEnd: () => void;
   onDrop: (propertyId: string) => void;
   onToggleGroup: (propertyId: string) => void;
-  onOpenPropertyManager: (propertyId: string) => void;
+  onOpenPropertyEditor: (propertyId: string, anchorEl: HTMLElement) => void;
   vaultIndexProps?: Pick<PropertyFieldRendererProps, "vaultIndex" | "onOpenEntity">;
 };
 
@@ -65,7 +65,7 @@ export function PropertyRow({
           type="button"
           className="property-row-more"
           title="Edit property"
-          onClick={() => handlers.onOpenPropertyManager(property.id)}
+          onClick={(event) => handlers.onOpenPropertyEditor(property.id, event.currentTarget)}
         >
           <MoreHorizontal size={13} />
         </button>
@@ -135,8 +135,8 @@ export function PropertyRow({
         <button
           type="button"
           className="property-row-more"
-          onClick={(event) => handlers.onContextMenu(event, property)}
-          title="Property options"
+          onClick={(event) => handlers.onOpenPropertyEditor(property.id, event.currentTarget)}
+          title="Edit property"
         >
           <MoreHorizontal size={13} />
         </button>

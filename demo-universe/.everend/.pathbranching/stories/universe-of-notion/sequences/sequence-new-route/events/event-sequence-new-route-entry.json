@@ -1,0 +1,24 @@
+{
+  "storageVersion": "0.2",
+  "storyId": "universe-of-notion",
+  "sequenceId": "sequence:new-route",
+  "event": {
+    "id": "event:sequence:new-route:entry",
+    "name": "Opening Event",
+    "type": "normal",
+    "text": {
+      "format": "plain",
+      "content": ""
+    },
+    "canonRefs": [],
+    "transitions": [
+      {
+        "id": "transition:event:sequence:new-route:entry:event:sequence:new-route:normal:1",
+        "from": "event:sequence:new-route:entry",
+        "to": "event:sequence:new-route:normal",
+        "label": "transition",
+        "source": "graph"
+      }
+    ]
+  }
+}

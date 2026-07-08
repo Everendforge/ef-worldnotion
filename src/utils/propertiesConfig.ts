@@ -336,40 +336,22 @@ function collectNodeTreeIds(
   return ids;
 }
 
-function hasInspectorChildren(property: PropertyDefinition): boolean {
-  return Boolean(property.children?.some((child) => !NON_INSPECTOR_PROPERTY_IDS.has(child.id)));
-}
-
-function splitRootSections(
-  nodes: InspectorPropertyTreeNode[],
-  hiddenTitle = "HIDDEN",
-): InspectorPropertySection[] {
+/**
+ * Splits root nodes into the inspector sections. Custom groups with children
+ * stay in the MAIN section rendered as collapsible group rows (see PropertyRow)
+ * rather than getting their own header section — that duplicated the group name
+ * as both a section title and a row. Structure connectors (parentId/childrenIds)
+ * get their own section but the inspector only renders it on "show hidden".
+ * Titles are stored in normal case; any emphasis is a CSS concern.
+ */
+function splitRootSections(nodes: InspectorPropertyTreeNode[]): InspectorPropertySection[] {
   const structureNodes = nodes.filter((node) => isStructureProperty(node.property));
-  const mainNodes = nodes.filter(
-    (node) =>
-      !isStructureProperty(node.property) &&
-      (node.property.source === "base" || !hasInspectorChildren(node.property)),
-  );
-  const rootSections = nodes
-    .filter(
-      (node) =>
-        !isStructureProperty(node.property) &&
-        node.property.source === "custom" &&
-        hasInspectorChildren(node.property),
-    )
-    .map((node) => ({
-      id: `root:${node.property.id}`,
-      kind: "root" as const,
-      title: (node.property.label ?? node.property.id).toUpperCase(),
-      rootId: node.property.id,
-      nodes: [node],
-    }));
+  const mainNodes = nodes.filter((node) => !isStructureProperty(node.property));
 
   return [
-    { id: "main", kind: "main", title: "MAIN", nodes: mainNodes },
-    { id: "structure", kind: "structure", title: "STRUCTURE", nodes: structureNodes },
-    ...rootSections,
-    { id: "hidden", kind: "hidden", title: hiddenTitle, nodes: [] },
+    { id: "main", kind: "main", title: "Properties", nodes: mainNodes },
+    { id: "structure", kind: "structure", title: "Structure", nodes: structureNodes },
+    { id: "hidden", kind: "hidden", title: "Hidden", nodes: [] },
   ];
 }
 
@@ -468,75 +450,6 @@ export function buildInspectorPropertySections(
   return sections.filter(
     (section) => section.kind !== "hidden" || options.includeHidden || section.nodes.length > 0,
   );
-}
-
-export function buildPropertySchemaSections(
-  config: PropertiesConfig | undefined,
-  entityType: string | undefined,
-  options: { includeHidden?: boolean } = { includeHidden: true },
-): PropertySchemaSection[] {
-  if (!config?.baseProperties) {
-    return [
-      { id: "main", kind: "main", title: "MAIN", nodes: [] },
-      { id: "hidden", kind: "hidden", title: "HIDDEN", nodes: [] },
-    ];
-  }
-
-  const typeDefinition = getTypeDefinition(config, entityType);
-  const allProperties = listAllProperties(config);
-  const hiddenIds = new Set(typeDefinition?.hiddenProperties ?? []);
-  const visibleRoots = listVisibleProperties(config, entityType);
-  const visibleIds = collectDefinitionTreeIds(visibleRoots);
-  const roots = [
-    ...config.baseProperties.definitions
-      .filter((property) => !NON_INSPECTOR_PROPERTY_IDS.has(property.id))
-      .map((property) => ({ ...property, source: "base" as const })),
-    ...config.customFields.definitions
-      .filter(
-        (property) =>
-          !config.baseProperties?.definitions.some(
-            (baseProperty) => baseProperty.id === property.id,
-          ),
-      )
-      .filter((property) => !NON_INSPECTOR_PROPERTY_IDS.has(property.id))
-      .map((property) => ({ ...property, source: "custom" as const })),
-  ];
-  const order = getConfiguredFrontmatterOrder(
-    config,
-    entityType,
-    roots.map((property) => property.id),
-  );
-  const orderedRoots = [...roots].sort((first, second) => {
-    const firstIndex = order.indexOf(first.id);
-    const secondIndex = order.indexOf(second.id);
-    if (firstIndex === -1 && secondIndex === -1) {
-      return (first.label ?? first.id).localeCompare(second.label ?? second.id);
-    }
-    if (firstIndex === -1) return 1;
-    if (secondIndex === -1) return -1;
-    return firstIndex - secondIndex;
-  });
-  const rootNodes = orderedRoots.map((property) =>
-    toTreeNode(
-      property,
-      allProperties,
-      visibleIds,
-      hiddenIds,
-      { type: entityType },
-      0,
-      undefined,
-      [],
-    ),
-  );
-  const visibleRootNodes = rootNodes.filter((node) => node.visibleInType);
-  const hiddenRootNodes = rootNodes.filter((node) => !node.visibleInType);
-  const sections = splitRootSections(visibleRootNodes, "HIDDEN") as PropertySchemaSection[];
-  const hiddenSection = sections.find((section) => section.kind === "hidden");
-  if (hiddenSection) {
-    hiddenSection.nodes = options.includeHidden === false ? [] : hiddenRootNodes;
-  }
-
-  return sections.filter((section) => section.kind !== "hidden" || section.nodes.length > 0);
 }
 
 function filterTreeNode(
@@ -974,6 +887,67 @@ export function moveInspectorProperty(
   }
 
   return ensureTypePropertyMembership(nextConfig, entityType, [parentId || propertyId, propertyId]);
+}
+
+function toCustomFieldDefinition(property: PropertyDefinition): CustomFieldDefinition {
+  const {
+    hidden: _hidden,
+    immutable: _immutable,
+    readOnly: _readOnly,
+    ...rest
+  } = property as PropertyDefinition & {
+    hidden?: boolean;
+    immutable?: boolean;
+    readOnly?: boolean;
+  };
+  return { ...rest, label: rest.label ?? rest.id } as CustomFieldDefinition;
+}
+
+function duplicatePropertyBranch(
+  property: PropertyDefinition,
+  existingIds: Set<string>,
+  idMap = new Map<string, string>(),
+  root = true,
+): CustomFieldDefinition {
+  const label = root ? `${property.label ?? property.id} copy` : (property.label ?? property.id);
+  const id = uniquePropertyId(label, existingIds);
+  existingIds.add(id);
+  idMap.set(property.id, id);
+  const visibleWhen = property.visibleWhen
+    ? Object.fromEntries(
+        Object.entries(property.visibleWhen).map(([parentId, values]) => [
+          idMap.get(parentId) ?? parentId,
+          values,
+        ]),
+      )
+    : undefined;
+  return {
+    ...toCustomFieldDefinition(property),
+    id,
+    label,
+    visibleWhen,
+    children: property.children?.map((child) =>
+      duplicatePropertyBranch(child, existingIds, idMap, false),
+    ),
+  };
+}
+
+/**
+ * Duplicates a property (and its subtree) as a sibling copy labelled "… copy"
+ * and registers it for the entity type. Returns the config unchanged if the id
+ * is unknown. Moved here from PropertyManagerModal so the contextual editor can
+ * reuse it.
+ */
+export function duplicateInspectorProperty(
+  config: PropertiesConfig,
+  entityType: string | undefined,
+  propertyId: string,
+): PropertiesConfig {
+  const source = listAllProperties(config).find((property) => property.id === propertyId);
+  if (!source) return config;
+  const existingIds = new Set(listAllProperties(config).map((property) => property.id));
+  const copy = duplicatePropertyBranch(source, existingIds);
+  return upsertInspectorProperty(config, copy, entityType);
 }
 
 function getPropertyPathFromDefinitions(

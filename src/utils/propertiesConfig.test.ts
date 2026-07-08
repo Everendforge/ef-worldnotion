@@ -6,7 +6,6 @@ import {
   adaptFrontmatterProperty,
   addPropertyToConfig,
   buildInspectorPropertySections,
-  buildPropertySchemaSections,
   changePropertyType,
   getConfiguredFrontmatterOrder,
   inferPropertyDefinition,
@@ -280,7 +279,7 @@ describe("propertiesConfig", () => {
     ]);
   });
 
-  it("builds inspector sections as MAIN plus root-property trays", () => {
+  it("keeps custom groups inside the main section without a duplicate header", () => {
     const config = applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE);
     const withMagic = upsertInspectorProperty(
       config,
@@ -318,12 +317,11 @@ describe("propertiesConfig", () => {
       magic: "elemental",
     });
     const mainSection = sections.find((section) => section.id === "main");
-    const magicSection = sections.find((section) => section.id === "root:magic");
-    const magic = magicSection?.nodes.find((node) => node.property.id === "magic");
+    const magic = mainSection?.nodes.find((node) => node.property.id === "magic");
 
-    expect(mainSection?.title).toBe("MAIN");
+    expect(mainSection?.title).toBe("Properties");
     expect(mainSection?.nodes.map((node) => node.property.id)).toContain("lore-level");
-    expect(magicSection).toMatchObject({ kind: "root", title: "MAGIC", rootId: "magic" });
+    expect(mainSection?.nodes.map((node) => node.property.id)).toContain("magic");
     expect(magic?.children[0]).toMatchObject({
       property: expect.objectContaining({ id: "school" }),
       parentId: "magic",
@@ -344,59 +342,28 @@ describe("propertiesConfig", () => {
   it("separates Everend structural connectors from main creative properties", () => {
     const config = applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE);
     const inspectorSections = buildInspectorPropertySections(config, "item", { type: "item" });
-    const schemaSections = buildPropertySchemaSections(config, "item");
 
-    expect(
+    const mainIds =
       inspectorSections
         .find((section) => section.id === "main")
-        ?.nodes.map((node) => node.property.id),
-    ).toEqual(["type", "status", "aliases", "lore-level"]);
+        ?.nodes.map((node) => node.property.id) ?? [];
+    // Creative properties (including custom groups) live in main; structural
+    // connectors are split out into their own section.
+    expect(mainIds).toContain("type");
+    expect(mainIds).toContain("status");
+    expect(mainIds).toContain("aliases");
+    expect(mainIds).toContain("lore-level");
+    expect(mainIds).not.toContain("parentId");
+    expect(mainIds).not.toContain("childrenIds");
     expect(inspectorSections.find((section) => section.id === "structure")).toMatchObject({
       kind: "structure",
-      title: "STRUCTURE",
+      title: "Structure",
     });
     expect(
       inspectorSections
         .find((section) => section.id === "structure")
         ?.nodes.map((node) => node.property.id),
     ).toEqual(["parentId", "childrenIds"]);
-    expect(
-      schemaSections
-        .find((section) => section.id === "structure")
-        ?.nodes.map((node) => node.property.id),
-    ).toEqual(["parentId", "childrenIds"]);
-  });
-
-  it("builds customize schema sections from properties config instead of note values", () => {
-    const config = applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE);
-    const withMagic = upsertInspectorProperty(
-      config,
-      { id: "magic", label: "Magic", type: "group" },
-      "character",
-    );
-    const withChild = upsertInspectorProperty(
-      withMagic,
-      { id: "power-level", label: "Power Level", type: "number" },
-      "character",
-      "magic",
-    );
-    const hiddenForCharacter = setInspectorPropertyVisibility(
-      withChild,
-      "character",
-      "identity",
-      false,
-    );
-
-    const sections = buildPropertySchemaSections(hiddenForCharacter, "character");
-    const mainSection = sections.find((section) => section.id === "main");
-    const magicSection = sections.find((section) => section.id === "root:magic");
-    const hiddenSection = sections.find((section) => section.id === "hidden");
-
-    expect(mainSection?.nodes.map((node) => node.property.id)).toContain("lore-level");
-    expect(magicSection?.nodes[0].children.map((child) => child.property.id)).toEqual([
-      "power-level",
-    ]);
-    expect(hiddenSection?.nodes.map((node) => node.property.id)).toContain("identity");
   });
 
   it("hides inactive conditional trays unless hidden conditional display is requested", () => {
@@ -544,14 +511,18 @@ describe("propertiesConfig", () => {
 
     const hiddenIdentity = buildInspectorPropertySections(hidden, "character", {
       type: "character",
-    }).find((section) => section.id === "root:identity")?.nodes[0];
+    })
+      .flatMap((section) => section.nodes)
+      .find((node) => node.property.id === "identity");
 
     expect(hiddenIdentity?.children.map((child) => child.property.id)).not.toContain("role");
 
     const shown = setInspectorPropertyVisibility(hidden, "character", "role", true);
     const shownIdentity = buildInspectorPropertySections(shown, "character", {
       type: "character",
-    }).find((section) => section.id === "root:identity")?.nodes[0];
+    })
+      .flatMap((section) => section.nodes)
+      .find((node) => node.property.id === "identity");
 
     expect(shownIdentity?.children.map((child) => child.property.id)).toContain("role");
   });

@@ -1,0 +1,14 @@
+{
+  "storageVersion": "0.2",
+  "storyId": "universe-of-notion",
+  "sequence": {
+    "id": "sequence:new-route",
+    "name": "New Sequence",
+    "entryEventId": "event:sequence:new-route:entry",
+    "eventIds": [
+      "event:sequence:new-route:entry",
+      "event:sequence:new-route:normal"
+    ],
+    "branchIds": []
+  }
+}

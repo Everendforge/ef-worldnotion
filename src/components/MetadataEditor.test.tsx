@@ -1,16 +1,24 @@
 import { fireEvent, render as rtlRender, screen, within } from "@testing-library/react";
-import { useState, type ReactElement } from "react";
+import { type ReactElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Entity } from "../domain";
 import { createDefaultTaxonomyConfig } from "../domain";
 import { applyPropertyTemplate, WORLDBUILDING_TEMPLATE } from "../utils/propertyTemplates";
-import type { PropertiesConfig } from "../editorTypes";
 import { MetadataEditor } from "./MetadataEditor";
 import { ToastProvider } from "./ToastProvider";
+import { DialogProvider } from "./DialogProvider";
 
-// MetadataEditor uses useToast(), so every render needs the provider.
+// MetadataEditor uses useToast() and useAppDialogs(), so every render needs both.
+function Providers({ children }: { children: ReactNode }) {
+  return (
+    <ToastProvider>
+      <DialogProvider>{children}</DialogProvider>
+    </ToastProvider>
+  );
+}
+
 function render(ui: ReactElement) {
-  return rtlRender(ui, { wrapper: ToastProvider });
+  return rtlRender(ui, { wrapper: Providers });
 }
 
 function entity(overrides: Partial<Entity> = {}): Entity {
@@ -37,37 +45,7 @@ function entity(overrides: Partial<Entity> = {}): Entity {
   };
 }
 
-describe("MetadataEditor property manager", () => {
-  it("opens the inspector property manager and creates an auto-id property", () => {
-    const config = applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE);
-    const onUpdatePropertiesConfig = vi.fn();
-
-    render(
-      <MetadataEditor
-        entity={entity()}
-        propertiesConfig={config}
-        rawYaml={"---\ntype: character\nstatus: draft\n---"}
-        onUpdate={vi.fn()}
-        onUpdatePropertiesConfig={onUpdatePropertiesConfig}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: /customize/i }));
-    const dialog = screen.getByRole("dialog", { name: /customize properties/i });
-
-    fireEvent.change(within(dialog).getByLabelText("New property name"), {
-      target: { value: "Lore Level" },
-    });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Add" }));
-
-    const savedConfig =
-      onUpdatePropertiesConfig.mock.calls[onUpdatePropertiesConfig.mock.calls.length - 1]?.[0];
-
-    expect(
-      savedConfig.customFields.definitions.map((property: { id: string }) => property.id),
-    ).toContain("lore-level");
-  }, 10000);
-
+describe("MetadataEditor inspector", () => {
   it("shows visible and hidden properties in the inspector context menu", () => {
     const config = applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE);
 
@@ -102,41 +80,6 @@ describe("MetadataEditor property manager", () => {
     );
 
     expect(screen.getByText("Role")).toBeTruthy();
-  });
-
-  it("customize modal creates child properties inside the selected tree branch", () => {
-    function Harness() {
-      const [config, setConfig] = useState<PropertiesConfig>(() =>
-        applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE),
-      );
-      return (
-        <MetadataEditor
-          entity={entity()}
-          propertiesConfig={config}
-          rawYaml={"---\ntype: character\nstatus: draft\n---"}
-          onUpdate={vi.fn()}
-          onUpdatePropertiesConfig={(nextConfig) => setConfig(nextConfig)}
-        />
-      );
-    }
-
-    render(<Harness />);
-
-    fireEvent.click(screen.getByRole("button", { name: /customize/i }));
-    const dialog = screen.getByRole("dialog", { name: /customize properties/i });
-
-    fireEvent.change(within(dialog).getByLabelText("New property name"), {
-      target: { value: "Magic" },
-    });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Add" }));
-
-    fireEvent.change(within(dialog).getByLabelText("New child property name"), {
-      target: { value: "Power Level" },
-    });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Add child" }));
-
-    expect(within(dialog).getAllByText("Power Level").length).toBeGreaterThan(0);
-    expect(within(dialog).getAllByRole("button", { name: /MAGIC/i }).length).toBeGreaterThan(0);
   });
 
   it("adds an existing schema property to the note via the add-property picker", () => {
