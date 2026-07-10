@@ -80,6 +80,7 @@ import { applyPropertyTemplate, WORLDBUILDING_TEMPLATE } from "./utils/propertyT
 import { normalizeCoreBaseProperties } from "./utils/taxonomyConfig";
 import { recordFileAccessInSettings } from "./utils/fileAccessStats";
 import { loadSettings, saveSettings } from "./settings";
+import type { SuiteChrome } from "./suiteChrome";
 import {
   type BrowserDirectoryHandle,
   ensureBrowserWritePermission,
@@ -332,7 +333,7 @@ function pickImageFile(): Promise<File | null> {
   });
 }
 
-function App() {
+function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   const [settings, setSettings] = useState<AppSettingsV4>(() => loadSettings());
   const [view, setView] = useState<AppView>("home");
   const [index, setIndex] = useState<VaultIndex>();
@@ -3345,34 +3346,38 @@ function App() {
       style={{ "--dock-tab-scale": settings.editor.dockTabScale } as CSSProperties}
     >
       <div className="dock-top-bar" aria-label="Workspace controls">
-        <div ref={forgeMenuRef} className={`forge-corner-menu ${forgeMenuOpen ? "open" : ""}`}>
-          <div className="forge-orbit-panel" aria-label="Everend menu">
+        {suiteChrome ? (
+          suiteChrome.renderAppSwitcher()
+        ) : (
+          <div ref={forgeMenuRef} className={`forge-corner-menu ${forgeMenuOpen ? "open" : ""}`}>
+            <div className="forge-orbit-panel" aria-label="Everend menu">
+              <button
+                type="button"
+                onClick={() =>
+                  void openUrl(EVEREND_FORGE_GITHUB_URL).then(() => setForgeMenuOpen(false))
+                }
+              >
+                Github
+              </button>
+              <button
+                type="button"
+                onClick={() => void openUrl(BUY_SUITE_URL).then(() => setForgeMenuOpen(false))}
+              >
+                Buy Suite
+              </button>
+            </div>
             <button
               type="button"
-              onClick={() =>
-                void openUrl(EVEREND_FORGE_GITHUB_URL).then(() => setForgeMenuOpen(false))
-              }
+              className="forge-corner-button"
+              onClick={() => setForgeMenuOpen((open) => !open)}
+              aria-expanded={forgeMenuOpen}
+              aria-label="Open Everend menu"
+              title="Everend menu"
             >
-              Github
-            </button>
-            <button
-              type="button"
-              onClick={() => void openUrl(BUY_SUITE_URL).then(() => setForgeMenuOpen(false))}
-            >
-              Buy Suite
+              <ForgeCornerLogo />
             </button>
           </div>
-          <button
-            type="button"
-            className="forge-corner-button"
-            onClick={() => setForgeMenuOpen((open) => !open)}
-            aria-expanded={forgeMenuOpen}
-            aria-label="Open Everend menu"
-            title="Everend menu"
-          >
-            <ForgeCornerLogo />
-          </button>
-        </div>
+        )}
 
         <div className="dock-top-left">
           <button
