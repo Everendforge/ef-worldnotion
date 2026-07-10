@@ -1,6 +1,21 @@
-# Everend WorldNotion
+<p align="center">
+  <img src="src/assets/worldnotion-icon.png" width="120" alt="Everend WorldNotion icon" />
+</p>
 
-Everend WorldNotion is the desktop worldbuilding vault app for Everend Forge. It opens local Markdown vaults, keeps canon portable, and implements Everend Spec compatibility.
+<h1 align="center">Everend WorldNotion</h1>
+<p align="center">
+  The desktop worldbuilding vault app for <a href="https://github.com/Everendforge/everend-forge">Everend Forge</a>.<br />
+  Local Markdown vaults, portable canon, Everend Spec compatible.
+</p>
+
+<p align="center">
+  <a href="https://github.com/Everendforge/ef-worldnotion/actions/workflows/ci.yml"><img src="https://github.com/Everendforge/ef-worldnotion/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg" alt="License">
+  <img src="https://img.shields.io/badge/built%20with-Tauri%20%2B%20React%20%2B%20TypeScript-1e2a4a.svg" alt="Built with Tauri, React, TypeScript">
+  <a href="https://github.com/Everendforge/everend-forge"><img src="https://img.shields.io/badge/Everend%20Forge-open%20core%20suite-0a0e1a.svg" alt="Part of Everend Forge"></a>
+</p>
+
+---
 
 This repository contains the Tauri + React + TypeScript app scaffold and the public MVP documentation.
 
