@@ -32,6 +32,7 @@ import type { UniverseProfile } from "../domain";
 import { createDefaultTaxonomyConfig } from "../domain";
 import { applyPropertyTemplate, WORLDBUILDING_TEMPLATE } from "../utils/propertyTemplates";
 import type { FrontmatterNormalizationItem } from "../utils/frontmatterNormalizer";
+import type { PropertyNormalizationItem } from "../utils/propertyNormalizer";
 import { THEMES, themeById } from "../themes";
 import { PropertiesManager } from "./TaxonomyManager";
 import {
@@ -63,6 +64,11 @@ type SettingsModalProps = {
     FrontmatterNormalizationItem[] | Promise<FrontmatterNormalizationItem[]>;
   onApplyFrontmatterNormalization?: (
     items: FrontmatterNormalizationItem[],
+  ) => Promise<{ applied: number; skipped: number; errors: string[] }>;
+  onScanPropertyNormalization?: () =>
+    PropertyNormalizationItem[] | Promise<PropertyNormalizationItem[]>;
+  onApplyPropertyNormalization?: (
+    items: PropertyNormalizationItem[],
   ) => Promise<{ applied: number; skipped: number; errors: string[] }>;
   onClose: () => void;
   onRevealUniverse?: () => void;
@@ -177,6 +183,8 @@ export function SettingsModal({
   onInitializePropertiesWorkspace,
   onScanFrontmatterNormalization,
   onApplyFrontmatterNormalization,
+  onScanPropertyNormalization,
+  onApplyPropertyNormalization,
   onClose,
   onRevealUniverse,
   onOpenUniverseNote,
@@ -204,6 +212,13 @@ export function SettingsModal({
   );
   const [normalizationBusy, setNormalizationBusy] = useState(false);
   const [normalizationErrors, setNormalizationErrors] = useState<string[]>([]);
+  const [propertyNormItems, setPropertyNormItems] = useState<PropertyNormalizationItem[]>([]);
+  const [propertyNormScanned, setPropertyNormScanned] = useState(false);
+  const [selectedPropertyNormPaths, setSelectedPropertyNormPaths] = useState<Set<string>>(
+    new Set(),
+  );
+  const [propertyNormBusy, setPropertyNormBusy] = useState(false);
+  const [propertyNormErrors, setPropertyNormErrors] = useState<string[]>([]);
   const [pluginQuery, setPluginQuery] = useState("");
 
   useEffect(() => {
@@ -300,6 +315,50 @@ export function SettingsModal({
     } finally {
       setNormalizationBusy(false);
     }
+  }
+
+  async function scanPropertyNormItems() {
+    if (!onScanPropertyNormalization) return;
+    setPropertyNormBusy(true);
+    setPropertyNormErrors([]);
+    try {
+      const items = await onScanPropertyNormalization();
+      setPropertyNormItems(items);
+      setSelectedPropertyNormPaths(new Set(items.map((item) => item.path)));
+      setPropertyNormScanned(true);
+    } catch (error) {
+      setPropertyNormErrors([error instanceof Error ? error.message : String(error)]);
+    } finally {
+      setPropertyNormBusy(false);
+    }
+  }
+
+  async function applyPropertyNormItems(items: PropertyNormalizationItem[]) {
+    if (!onApplyPropertyNormalization || items.length === 0) return;
+    setPropertyNormBusy(true);
+    setPropertyNormErrors([]);
+    try {
+      const result = await onApplyPropertyNormalization(items);
+      setPropertyNormErrors(result.errors);
+      const appliedPaths = new Set(items.map((item) => item.path));
+      setPropertyNormItems((current) => current.filter((item) => !appliedPaths.has(item.path)));
+      setSelectedPropertyNormPaths(new Set());
+    } catch (error) {
+      setPropertyNormErrors([error instanceof Error ? error.message : String(error)]);
+    } finally {
+      setPropertyNormBusy(false);
+    }
+  }
+
+  function propertyNormSummary(item: PropertyNormalizationItem) {
+    const parts: string[] = [];
+    if (item.addedFields.length) {
+      parts.push(
+        `adds ${item.addedFields.length} field${item.addedFields.length === 1 ? "" : "s"}: ${item.addedFields.join(", ")}`,
+      );
+    }
+    if (item.reordered) parts.push("reorders keys");
+    return parts.join(" · ");
   }
 
   return (
@@ -970,16 +1029,17 @@ export function SettingsModal({
                 <div className="settings-page-title">
                   <h3>Frontmatter utilities</h3>
                   <p>
-                    Add WorldNotion frontmatter to Markdown files that do not have valid metadata
-                    yet.
+                    Universe-wide tools to keep every note's YAML frontmatter valid, complete, and
+                    consistently ordered. Changes are previewed first and applied only to the files
+                    you choose.
                   </p>
                 </div>
                 <div className="universe-onboarding-card">
                   <div>
-                    <h3>Normalize notes</h3>
+                    <h3>Add missing frontmatter</h3>
                     <p>
-                      Scans this universe, detects normal notes and folder notes, previews the
-                      changes, then writes only the files you choose.
+                      Scans this universe for Markdown files without valid frontmatter, detects
+                      normal notes and folder notes, and previews the metadata it will add.
                     </p>
                   </div>
                   <button
@@ -1068,6 +1128,113 @@ export function SettingsModal({
                 {normalizationErrors.length > 0 ? (
                   <div className="settings-error-list">
                     {normalizationErrors.map((error, index) => (
+                      <p key={`${error}-${index}`}>{error}</p>
+                    ))}
+                  </div>
+                ) : null}
+
+                <div className="universe-onboarding-card">
+                  <div>
+                    <h3>Normalize properties</h3>
+                    <p>
+                      Checks every note against the universe schema: fills missing core and required
+                      fields with defaults and reorders frontmatter keys to the schema order. The
+                      note body is never touched.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={scanPropertyNormItems}
+                    disabled={propertyNormBusy || !universe.propertiesConfig}
+                    title={
+                      universe.propertiesConfig
+                        ? undefined
+                        : "This universe has no properties schema yet"
+                    }
+                  >
+                    {propertyNormBusy ? "Scanning..." : "Scan properties"}
+                  </button>
+                </div>
+
+                {propertyNormItems.length > 0 ? (
+                  <>
+                    <div className="normalization-actions">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedPropertyNormPaths(
+                            new Set(propertyNormItems.map((item) => item.path)),
+                          )
+                        }
+                        disabled={propertyNormBusy}
+                      >
+                        Select all
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPropertyNormPaths(new Set())}
+                        disabled={propertyNormBusy}
+                      >
+                        Clear
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          applyPropertyNormItems(
+                            propertyNormItems.filter((item) =>
+                              selectedPropertyNormPaths.has(item.path),
+                            ),
+                          )
+                        }
+                        disabled={propertyNormBusy || selectedPropertyNormPaths.size === 0}
+                      >
+                        Apply selected
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyPropertyNormItems(propertyNormItems)}
+                        disabled={propertyNormBusy}
+                      >
+                        Apply all
+                      </button>
+                    </div>
+                    <div className="normalization-preview">
+                      {propertyNormItems.map((item) => (
+                        <label key={item.path} className="normalization-row">
+                          <input
+                            type="checkbox"
+                            checked={selectedPropertyNormPaths.has(item.path)}
+                            onChange={(event) =>
+                              setSelectedPropertyNormPaths((current) => {
+                                const next = new Set(current);
+                                if (event.target.checked) next.add(item.path);
+                                else next.delete(item.path);
+                                return next;
+                              })
+                            }
+                          />
+                          <span className="normalization-row-main">
+                            <strong>{item.path}</strong>
+                            <small>{propertyNormSummary(item)}</small>
+                          </span>
+                          <span className="normalization-meta">
+                            <code>{item.type}</code>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </>
+                ) : propertyNormScanned && !propertyNormBusy ? (
+                  <p className="muted">Every note already matches the universe schema. ✓</p>
+                ) : (
+                  <p className="muted">
+                    Run a scan to preview notes whose properties drift from the schema.
+                  </p>
+                )}
+
+                {propertyNormErrors.length > 0 ? (
+                  <div className="settings-error-list">
+                    {propertyNormErrors.map((error, index) => (
                       <p key={`${error}-${index}`}>{error}</p>
                     ))}
                   </div>

@@ -219,8 +219,8 @@ import {
 import {
   frontmatterNormalizationConflict,
   planFrontmatterNormalization,
-  type FrontmatterNormalizationItem,
 } from "./utils/frontmatterNormalizer";
+import { planPropertyNormalization } from "./utils/propertyNormalizer";
 import {
   activateDockTab,
   addDocumentToLayout,
@@ -335,6 +335,8 @@ function pickImageFile(): Promise<File | null> {
 
 function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   const [settings, setSettings] = useState<AppSettingsV4>(() => loadSettings());
+  const activeTheme = (suiteChrome?.suiteSettings?.style ?? settings.theme) as ThemeId;
+  const activeThemeIsDark = isDarkTheme(activeTheme);
   const [view, setView] = useState<AppView>("home");
   const [index, setIndex] = useState<VaultIndex>();
   const [browserRoot, setBrowserRoot] = useState<BrowserDirectoryHandle>();
@@ -1308,7 +1310,19 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     });
   }
 
-  async function applyFrontmatterNormalization(items: FrontmatterNormalizationItem[]) {
+  function scanPropertyNormalization() {
+    if (!index?.propertiesConfig) return [];
+    return planPropertyNormalization({
+      files: index.files,
+      propertiesConfig: index.propertiesConfig,
+    });
+  }
+
+  // Shared writer for both Settings normalization tools (missing frontmatter +
+  // property normalization); items only need path/content/mtime to be written safely.
+  async function applyFrontmatterNormalization(
+    items: Array<{ path: string; nextContent: string; modifiedMs?: number | null }>,
+  ) {
     if (!index || items.length === 0) {
       return { applied: 0, skipped: 0, errors: [] };
     }
@@ -2645,7 +2659,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
               </div>
             </div>
             <button type="button" onClick={toggleBuiltinTheme} title="Toggle theme">
-              {isDarkTheme(settings.theme) ? <Sun size={15} /> : <Moon size={15} />}
+              {activeThemeIsDark ? <Sun size={15} /> : <Moon size={15} />}
             </button>
           </header>
 
@@ -3504,7 +3518,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
             onClick={toggleBuiltinTheme}
             title="Toggle theme"
           >
-            {isDarkTheme(settings.theme) ? <Sun size={15} /> : <Moon size={15} />}
+            {activeThemeIsDark ? <Sun size={15} /> : <Moon size={15} />}
           </button>
         </div>
       </div>
@@ -3643,6 +3657,8 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
             onInitializePropertiesWorkspace={initializeUniverseProperties}
             onScanFrontmatterNormalization={scanFrontmatterNormalization}
             onApplyFrontmatterNormalization={applyFrontmatterNormalization}
+            onScanPropertyNormalization={scanPropertyNormalization}
+            onApplyPropertyNormalization={applyFrontmatterNormalization}
             onClose={() => setShowSettings(false)}
             onRevealUniverse={() => {
               void revealExplorerPath();

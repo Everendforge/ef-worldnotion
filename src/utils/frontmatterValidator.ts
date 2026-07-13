@@ -1,7 +1,9 @@
-import type { PropertiesConfig } from "../editorTypes";
+import type { PropertiesConfig, PropertyDefinition } from "../editorTypes";
 import {
+  conditionIsActive,
   getConfiguredFrontmatterOrder,
   knownPropertyIds,
+  listVisibleProperties,
   NON_INSPECTOR_PROPERTY_IDS,
 } from "./propertiesConfig";
 
@@ -12,6 +14,59 @@ export interface ValidationIssue {
   expectedPosition?: number;
   actualPosition?: number;
   expectedType?: string;
+}
+
+/** Core Everend base fields every note's frontmatter is expected to carry. */
+const CORE_FRONTMATTER_FIELDS = ["id", "type", "name", "status", "tags", "aliases"];
+
+const CORE_FIELD_TYPES: Record<string, string> = {
+  id: "text",
+  type: "select",
+  name: "text",
+  status: "select",
+  tags: "multiselect",
+  aliases: "multiselect",
+};
+
+/**
+ * Lists schema fields that should exist in the frontmatter but do not:
+ * the Everend core fields plus visible-for-type leaves that are required or
+ * carry a default value. Conditional fields are only reported when their
+ * visibleWhen condition holds for the note's current values.
+ */
+export function listMissingPropertyFields(
+  frontmatterData: Record<string, unknown>,
+  config?: PropertiesConfig,
+  entityType?: string,
+): ValidationIssue[] {
+  const missing: ValidationIssue[] = [];
+  CORE_FRONTMATTER_FIELDS.forEach((fieldName) => {
+    if (fieldName in frontmatterData) return;
+    missing.push({
+      type: "missing",
+      fieldName,
+      expectedType: CORE_FIELD_TYPES[fieldName] ?? "text",
+    });
+  });
+
+  if (!config?.baseProperties) return missing;
+
+  const values: Record<string, unknown> = { type: entityType, ...frontmatterData };
+  const visit = (property: PropertyDefinition) => {
+    if (!conditionIsActive(property, values)) return;
+    if (
+      property.type !== "group" &&
+      !(property.id in frontmatterData) &&
+      !CORE_FRONTMATTER_FIELDS.includes(property.id) &&
+      !NON_INSPECTOR_PROPERTY_IDS.has(property.id) &&
+      (property.required || property.defaultValue !== undefined)
+    ) {
+      missing.push({ type: "missing", fieldName: property.id, expectedType: property.type });
+    }
+    property.children?.forEach(visit);
+  };
+  listVisibleProperties(config, entityType).forEach(visit);
+  return missing;
 }
 
 /**
@@ -61,6 +116,8 @@ export function detectOrphanedFields(
       }
     });
   }
+
+  issues.push(...listMissingPropertyFields(frontmatterData, config, entityType));
 
   return issues;
 }

@@ -299,7 +299,10 @@ function conditionLabelForProperty(
     .join(", ");
 }
 
-function conditionIsActive(property: PropertyDefinition, values: Record<string, unknown>): boolean {
+export function conditionIsActive(
+  property: PropertyDefinition,
+  values: Record<string, unknown>,
+): boolean {
   if (!property.visibleWhen) return true;
   return Object.entries(property.visibleWhen).every(([parentId, allowedValues]) => {
     const currentValue = values[parentId];
@@ -1260,6 +1263,21 @@ export function valuesToOptions(values: unknown[]) {
 
 export function propertyUsesOptions(type: CustomFieldType) {
   return type === "select" || type === "multiselect";
+}
+
+/** Neutral initial YAML value for a property type. */
+export function emptyPropertyValue(type?: CustomFieldType | string): unknown {
+  switch (type) {
+    case "boolean":
+      return false;
+    case "multiselect":
+    case "entity-ref-list":
+      return [];
+    case "number":
+      return null;
+    default:
+      return "";
+  }
 }
 
 function renameInDefinitionTree(

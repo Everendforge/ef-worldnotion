@@ -4,6 +4,11 @@ import type { Entity, EntityTemplate, VaultIndex } from "../domain";
 import type { OpenTab, PropertiesConfig } from "../editorTypes";
 import { rawToEditorParts } from "../utils/contentTemplates";
 import { LazyPanelFallback } from "./LazyPanelFallback";
+import { InspectorOnboarding } from "./properties/InspectorOnboarding";
+
+function noteFileName(path: string) {
+  return path.split("/").pop()?.replace(/\.md$/i, "") || "untitled";
+}
 
 const MetadataEditor = lazy(() =>
   import("./MetadataEditor").then((module) => ({ default: module.MetadataEditor })),
@@ -67,12 +72,20 @@ export function InspectorPanel({
       return (
         <aside className="inspector">
           <section>
-            <div className="no-frontmatter-notice">
-              <p className="muted">This note has no frontmatter.</p>
-              <button className="btn btn-primary" onClick={onAddFrontmatter}>
-                Add WorldNotion frontmatter
-              </button>
-            </div>
+            {index.propertiesConfig ? (
+              <InspectorOnboarding
+                fileName={noteFileName(activeTab.path)}
+                propertiesConfig={index.propertiesConfig}
+                onInitialize={onChangeFrontmatter}
+              />
+            ) : (
+              <div className="no-frontmatter-notice">
+                <p className="muted">This note has no frontmatter.</p>
+                <button className="btn btn-primary" onClick={onAddFrontmatter}>
+                  Add WorldNotion frontmatter
+                </button>
+              </div>
+            )}
           </section>
         </aside>
       );
@@ -134,12 +147,20 @@ export function InspectorPanel({
         {activeTab?.path === entity.path && onChangeFrontmatter && onUpdateEntity ? (
           <>
             {!hasFrontmatter && onAddFrontmatter ? (
-              <div className="no-frontmatter-notice">
-                <p className="muted">This note has no frontmatter.</p>
-                <button className="btn btn-primary" onClick={onAddFrontmatter}>
-                  Add WorldNotion frontmatter
-                </button>
-              </div>
+              propertiesConfig ? (
+                <InspectorOnboarding
+                  fileName={noteFileName(entity.path)}
+                  propertiesConfig={propertiesConfig}
+                  onInitialize={onChangeFrontmatter}
+                />
+              ) : (
+                <div className="no-frontmatter-notice">
+                  <p className="muted">This note has no frontmatter.</p>
+                  <button className="btn btn-primary" onClick={onAddFrontmatter}>
+                    Add WorldNotion frontmatter
+                  </button>
+                </div>
+              )
             ) : (
               <>
                 <Suspense fallback={<LazyPanelFallback label="Loading metadata..." />}>

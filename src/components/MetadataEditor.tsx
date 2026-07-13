@@ -1,5 +1,15 @@
 import { useMemo, useState } from "react";
-import { AlertCircle, ArrowRightLeft, Plus, Trash2, Wand2 } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowRightLeft,
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Plus,
+  Trash2,
+  Wand2,
+} from "lucide-react";
 import type { Entity, VaultIndex } from "../domain";
 import type {
   PropertiesConfig,
@@ -23,6 +33,7 @@ import {
   parseFrontmatterRaw,
   removeFrontmatterProperty,
   renameInspectorProperty,
+  emptyPropertyValue,
   getConfiguredFrontmatterOrder,
   reorderInspectorPropertySiblings,
   removeInspectorProperty,
@@ -463,6 +474,29 @@ export function MetadataEditor({
     onUpdateRawYaml?.(reorderedYaml);
   };
 
+  /** Sensible initial value for a missing schema field: entity fallback for core fields, defaultValue/empty otherwise. */
+  const missingFieldValue = (fieldName: string): unknown => {
+    const coreValues: Record<string, unknown> = {
+      id: entity.id,
+      type: entity.type,
+      name: entity.name,
+      status: entity.status,
+      tags: entity.tags,
+      aliases: entity.aliases,
+    };
+    if (fieldName in coreValues) return coreValues[fieldName];
+    const definition = allInspectableProperties.find((property) => property.id === fieldName);
+    return definition?.defaultValue ?? emptyPropertyValue(definition?.type);
+  };
+
+  const addMissingFields = (fieldNames: string[]) => {
+    if (!onUpdateRawYaml || fieldNames.length === 0) return;
+    const updates = Object.fromEntries(
+      fieldNames.map((fieldName) => [fieldName, missingFieldValue(fieldName)]),
+    );
+    onUpdateRawYaml(updateFrontmatterProperties(rawYaml, updates, propertiesConfig, entity.type));
+  };
+
   /**
    * Get all current property values for visibleWhen evaluation
    */
@@ -532,24 +566,10 @@ export function MetadataEditor({
     );
   }, [allInspectableProperties, frontmatterData]);
 
-  const emptyValueForType = (type?: string): unknown => {
-    switch (type) {
-      case "boolean":
-        return false;
-      case "multiselect":
-      case "entity-ref-list":
-        return [];
-      case "number":
-        return null;
-      default:
-        return "";
-    }
-  };
-
   const addExistingProperty = (propertyId: string) => {
     if (!onUpdateRawYaml) return;
     const property = allInspectableProperties.find((candidate) => candidate.id === propertyId);
-    const initialValue = property?.defaultValue ?? emptyValueForType(property?.type);
+    const initialValue = property?.defaultValue ?? emptyPropertyValue(property?.type);
     onUpdateRawYaml(
       updateFrontmatterProperties(
         rawYaml,
@@ -675,10 +695,11 @@ export function MetadataEditor({
                   }
                   aria-expanded={!isCollapsed}
                 >
-                  <span>{section.title}</span>
-                  <small>
-                    {isCollapsed ? "+" : "-"} {section.nodes.length}
-                  </small>
+                  <span className="metadata-property-section-title-main">
+                    {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                    {section.title}
+                  </span>
+                  <small>{section.nodes.length}</small>
                 </button>
               ) : null}
               {nodesVisible
@@ -770,6 +791,19 @@ export function MetadataEditor({
         <div className="metadata-fields">
           <div className="metadata-inspector-toolbar">
             <span>Properties</span>
+            <button
+              type="button"
+              onClick={() => setShowHiddenProperties((current) => !current)}
+              title={
+                showHiddenProperties
+                  ? "Hide hidden and conditional properties"
+                  : "Show hidden and conditional properties"
+              }
+              aria-pressed={showHiddenProperties}
+            >
+              {showHiddenProperties ? <EyeOff size={13} /> : <Eye size={13} />}
+              {showHiddenProperties ? "Hide hidden" : "Show hidden"}
+            </button>
           </div>
           {renderPropertySections()}
 
@@ -889,9 +923,20 @@ export function MetadataEditor({
               {/* Missing fields */}
               {missingFields.length > 0 && (
                 <div className="metadata-issue-group">
-                  <h4 className="metadata-issue-group-title metadata-issue-missing">
-                    <AlertCircle size={14} /> Missing fields ({missingFields.length})
-                  </h4>
+                  <div className="metadata-issue-header">
+                    <h4 className="metadata-issue-group-title metadata-issue-missing">
+                      <AlertCircle size={14} /> Missing fields ({missingFields.length})
+                    </h4>
+                    <button
+                      type="button"
+                      className="metadata-action-primary"
+                      onClick={() => addMissingFields(missingFields.map((f) => f.fieldName))}
+                      title="Add every missing field with a default value"
+                    >
+                      <Plus size={13} />
+                      Add all
+                    </button>
+                  </div>
                   <p className="field-hint">
                     Required or important fields defined in schema are not present.
                   </p>
@@ -907,6 +952,17 @@ export function MetadataEditor({
                             {field.expectedType || "unknown"}
                           </span>
                         </div>
+                      </div>
+                      <div className="metadata-orphaned-actions">
+                        <button
+                          type="button"
+                          className="metadata-action-primary"
+                          onClick={() => addMissingFields([field.fieldName])}
+                          title="Add this field with a default value"
+                        >
+                          <Plus size={13} />
+                          Add
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -937,24 +993,10 @@ export function MetadataEditor({
                         const nextProperty = inferPropertyDefinition(property.key, property.value);
                         savePropertyDefinition(nextProperty);
                       }}
-                      title="Add to universe properties"
+                      title="Declare this key in the universe schema"
                     >
                       <Plus size={13} />
-                      Turn into property
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const parentId = inspectorProperties[0]?.id;
-                        if (!parentId) return;
-                        const nextProperty = inferPropertyDefinition(property.key, property.value);
-                        savePropertyDefinition(nextProperty, parentId);
-                      }}
-                      title="Attach as child property"
-                      disabled={!inspectorProperties.length}
-                    >
-                      <Plus size={13} />
-                      Attach
+                      Add to schema
                     </button>
                     <label>
                       <select
@@ -979,6 +1021,7 @@ export function MetadataEditor({
                     <button
                       type="button"
                       onClick={() => adaptUnconfiguredProperty(property.key)}
+                      disabled={!adaptTargets[property.key]}
                       title="Move value to selected property"
                     >
                       <Wand2 size={13} />
@@ -988,10 +1031,10 @@ export function MetadataEditor({
                       type="button"
                       className="danger"
                       onClick={() => removeUnconfiguredProperty(property.key)}
-                      title="Remove from this note"
+                      title="Remove this key from the note"
                     >
                       <Trash2 size={13} />
-                      Hide
+                      Remove
                     </button>
                   </div>
                 </div>

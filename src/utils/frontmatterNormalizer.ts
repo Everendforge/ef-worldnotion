@@ -110,7 +110,7 @@ export function planFrontmatterNormalization({
 }
 
 export function frontmatterNormalizationConflict(
-  item: FrontmatterNormalizationItem,
+  item: { path: string; modifiedMs?: number | null },
   currentFile: VaultFile | undefined,
 ) {
   if (!currentFile) return `File no longer exists: ${item.path}`;
