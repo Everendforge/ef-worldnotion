@@ -9,7 +9,10 @@ import {
 import type { ResolvedWikilink } from "../editorTypes";
 
 // Compiled once at module load
-const WIKILINK_REGEX = /\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g;
+// Wikilinks are inline syntax. A multiline match would make the hidden
+// bracket/target ranges replace a line break, which CodeMirror disallows for
+// decorations supplied by a ViewPlugin.
+const WIKILINK_REGEX = /\[\[([^\]|#\n]+)(?:#[^\]|\n]+)?(?:\|([^\]\n]+))?\]\]/g;
 
 export function wikilinkPlugin(options: {
   resolveWikilink?: (label: string) => ResolvedWikilink;
