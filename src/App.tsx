@@ -1452,6 +1452,33 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     return nextIndex;
   }
 
+  useEffect(() => {
+    const path = suiteChrome?.sharedUniversePath;
+    if (!path || index?.rootPath === path) return;
+
+    let disposed = false;
+    setLoadState("loading");
+    setErrorMessage("");
+    setBrowserRoot(undefined);
+
+    void invoke<VaultReadResult>("index_vault", { path })
+      .then((readResult) => {
+        if (!disposed) {
+          applyUniverse(readResult);
+        }
+      })
+      .catch((error) => {
+        if (!disposed) {
+          setLoadState("error");
+          setErrorMessage(error instanceof Error ? error.message : String(error));
+        }
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, [index?.rootPath, suiteChrome?.sharedUniversePath]);
+
   async function readCurrentUniverse() {
     if (!index) return undefined;
     if (browserRoot) return readBrowserUniverse(browserRoot);
@@ -2580,6 +2607,8 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   }
 
   useEffect(() => {
+    if (suiteChrome && !suiteChrome.active) return;
+
     function handleKeyDown(event: KeyboardEvent) {
       if (showSettings) return;
       const binding = settings.keybindings.find((candidate) =>
@@ -2595,6 +2624,8 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   }, [activeTabPath, settings.keybindings, showSettings, tabs]);
 
   useEffect(() => {
+    if (suiteChrome && !suiteChrome.active) return;
+
     if (!isTauriRuntime()) return;
     let disposed = false;
     let unlisten: (() => void) | undefined;
@@ -2619,6 +2650,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     index?.rootPath,
     settings.recentUniverse,
     settings.theme,
+    suiteChrome,
     tabs,
   ]);
 
@@ -3401,7 +3433,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
           <button
             type="button"
             className="dock-icon-button"
-            onClick={() => setView("home")}
+            onClick={suiteChrome?.onHome ?? (() => setView("home"))}
             title="Home"
           >
             <Home size={15} />
