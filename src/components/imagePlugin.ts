@@ -10,7 +10,9 @@ import {
 import { isStructuralChange, selectionTouches } from "./pluginUtils";
 
 // Standard Markdown image: ![alt](path). Path stops at the first ")".
-const IMAGE_MD_REGEX = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+// Inline image syntax cannot span lines. Keeping the match single-line is
+// required because the live-preview widget is a Decoration.replace range.
+const IMAGE_MD_REGEX = /!\[([^\]\n]*)\]\(([^)\s\n]+)(?:\s+"[^"\n]*")?\)/g;
 
 export type ImageResolver = (rawPath: string) => Promise<string | null>;
 

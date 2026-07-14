@@ -23,7 +23,9 @@ const TASK_CHECKBOX_REGEX = /^(\s*)- \[[ xX]\]\s/; // Task list
 const BOLD_PATTERN = /(\*\*|__)([^*_`\n]+?)\1/g;
 const ITALIC_PATTERN = /(^|[^*_\w])(\*|_)([^*_`\n]+?)\2(?![*_\w])/g;
 const CODE_PATTERN = /`([^`\n]+?)`/g;
-const MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\(([^)]+)\)/g;
+// Markdown links are inline syntax. Do not let a match cross a line break,
+// since syntax hiding uses Decoration.replace for parts of the match.
+const MARKDOWN_LINK_PATTERN = /\[([^\]\n]+)\]\(([^)\n]+)\)/g;
 
 // Limit matches per visible range to prevent performance issues on huge documents
 const MAX_INLINE_MATCHES_PER_RANGE = 50;

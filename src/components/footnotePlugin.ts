@@ -8,7 +8,7 @@ import {
 } from "./pluginUtils";
 
 // Compiled once at module load - matches [^1], [^abc], etc. (inline footnote references)
-const FOOTNOTE_REF_REGEX = /\[\^([^\]]+)\]/g;
+const FOOTNOTE_REF_REGEX = /\[\^([^\]\n]+)\]/g;
 
 export function footnotePlugin() {
   function getDecorations(view: EditorView): DecorationSet {

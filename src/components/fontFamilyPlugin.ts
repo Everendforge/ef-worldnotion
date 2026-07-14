@@ -5,7 +5,7 @@ import { createSyntaxHiddenDecoration, isStructuralChange } from "./pluginUtils"
 // Match <!--font:FONTNAME-->content<!--/font-->
 // Pattern compiled once at module load for font family HTML comments
 // Allows font specifications without breaking markdown portability
-const FONT_PATTERN = /<!--font:\s*([^-]+?)\s*-->([\s\S]*?)<!--\/font-->/g;
+const FONT_PATTERN = /<!--font:\s*([^\-\n]+?)\s*-->([\s\S]*?)<!--\/font-->/g;
 
 function addFontFamilyMatches(text: string, from: number, decorations: Range<Decoration>[]) {
   let match: RegExpExecArray | null;
