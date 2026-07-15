@@ -4666,6 +4666,8 @@ button:hover:not(:disabled),
   .ai-provider-config-actions {
     justify-content: space-between;
   }
+}
+
 .forge-update-panel {
   max-width: 640px;
 }
