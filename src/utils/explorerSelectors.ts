@@ -144,47 +144,38 @@ export function selectFavoriteItems(
   });
 }
 
-function flattenTags(
-  nodes: TagHierarchyNode[],
-  tagMap: Map<string, { color?: string; fullPath: string }>,
-  parentPath = "",
-) {
-  nodes.forEach((node) => {
-    const fullPath = parentPath ? `${parentPath}/${node.label}` : node.label;
-    tagMap.set(node.label, { color: node.color, fullPath });
-    tagMap.set(fullPath, { color: node.color, fullPath });
-    if (node.children?.length) {
-      flattenTags(node.children, tagMap, fullPath);
-    }
-  });
-}
-
 export function selectEcosystemGroups(index: VaultIndex | undefined): Map<string, Entity[]> {
-  if (!index?.propertiesConfig) return new Map<string, Entity[]>();
+  if (!index) return new Map<string, Entity[]>();
 
   const groups = new Map<string, Entity[]>();
-  const tagMap = new Map<string, { color?: string; fullPath: string }>();
-  flattenTags(index.propertiesConfig.tags.rootNodes, tagMap);
 
   index.entities.forEach((entity) => {
-    if (entity.tags.length > 0) {
-      const primaryTag = entity.tags[0];
-      const tagInfo = tagMap.get(primaryTag);
-      const groupKey = tagInfo?.fullPath || primaryTag;
-
-      if (!groups.has(groupKey)) {
-        groups.set(groupKey, []);
-      }
-      groups.get(groupKey)!.push(entity);
-    } else {
-      if (!groups.has("_untagged")) {
-        groups.set("_untagged", []);
-      }
-      groups.get("_untagged")!.push(entity);
+    const groupKey = entity.type || "_untyped";
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, []);
     }
+    groups.get(groupKey)!.push(entity);
   });
 
   return groups;
+}
+
+export function selectEntityTypeColors(index: VaultIndex | undefined): Map<string, string> {
+  const colorMap = new Map<string, string>();
+  if (!index?.propertiesConfig) return colorMap;
+
+  const typeColors = new Map(
+    index.propertiesConfig.entityTypes.definitions.flatMap((definition) =>
+      definition.color ? [[definition.id, definition.color] as const] : [],
+    ),
+  );
+
+  index.entities.forEach((entity) => {
+    const color = typeColors.get(entity.type);
+    if (color) colorMap.set(entity.path, color);
+  });
+
+  return colorMap;
 }
 
 function findTagColor(nodes: TagHierarchyNode[], tag: string): string | undefined {

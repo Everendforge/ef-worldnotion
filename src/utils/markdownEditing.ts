@@ -97,6 +97,52 @@ export function markdownLinkInsertion(selectedText: string, url: string): TextIn
   };
 }
 
+/**
+ * Creates a portable GFM table. When tab- or pipe-separated text is selected,
+ * its first row becomes the header and the remaining rows become table data.
+ */
+export function tableInsertion(selectedText: string): TextInsertion {
+  const selectedRows = selectedText
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((row) =>
+      row
+        .trim()
+        .replace(/^\||\|$/g, "")
+        .split(row.includes("\t") ? "\t" : "|")
+        .map((cell) => cell.trim()),
+    )
+    .filter((row) => row.length > 1 || row[0]);
+
+  const rows =
+    selectedRows.length > 0
+      ? selectedRows
+      : [
+          ["Column 1", "Column 2", "Column 3"],
+          ["Value", "Value", "Value"],
+          ["Value", "Value", "Value"],
+        ];
+  const columnCount = Math.max(1, ...rows.map((row) => row.length));
+  const normalizedRows = rows.map((row) =>
+    Array.from({ length: columnCount }, (_, index) => row[index] || "Value"),
+  );
+  const header = normalizedRows[0];
+  const body = normalizedRows.slice(1);
+  const markdown = [
+    `| ${header.join(" | ")} |`,
+    `| ${header.map(() => ":---:").join(" | ")} |`,
+    ...body.map((row) => `| ${row.join(" | ")} |`),
+  ].join("\n");
+  const firstHeaderStart = 2;
+
+  return {
+    text: `\n\n${markdown}\n\n`,
+    anchorOffset: firstHeaderStart,
+    headOffset: firstHeaderStart + header[0].length,
+  };
+}
+
 export function headingLine(line: string, level: 1 | 2 | 3 | 4 | 5 | 6) {
   const clean = line.replace(/^#{1,6}\s+/, "").replace(/^(- \[[ xX]\]|\d+\.|[-*])\s+/, "");
   return `${"#".repeat(level)} ${clean || `Heading ${level}`}`;

@@ -110,6 +110,7 @@ function settingsReplacer(key: string, value: unknown): unknown {
             : undefined,
           editorState: workspaceSession.editorState ?? {},
           fileAccessStats: workspaceSession.fileAccessStats ?? [],
+          variantSelections: workspaceSession.variantSelections ?? {},
         };
       }
     }

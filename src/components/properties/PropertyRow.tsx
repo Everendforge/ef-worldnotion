@@ -1,4 +1,11 @@
-import { ChevronDown, ChevronRight, GripVertical, MoreHorizontal } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  GripVertical,
+  MoreHorizontal,
+  RotateCcw,
+  Wand2,
+} from "lucide-react";
 import type { BasePropertyDefinition, CustomFieldDefinition } from "../../editorTypes";
 import type { InspectorPropertyTreeNode } from "../../utils/propertiesConfig";
 import { PropertyFieldRenderer } from "../PropertyFieldRenderer";
@@ -17,6 +24,11 @@ export type PropertyRowHandlers = {
   onDrop: (propertyId: string) => void;
   onToggleGroup: (propertyId: string) => void;
   onOpenPropertyEditor: (propertyId: string, anchorEl: HTMLElement) => void;
+  isVariantMode?: boolean;
+  canOverride?: (propertyId: string) => boolean;
+  isOverridden?: (propertyId: string) => boolean;
+  onCreateOverride?: (propertyId: string) => void;
+  onRestoreOverride?: (propertyId: string) => void;
   vaultIndexProps?: Pick<
     PropertyFieldRendererProps,
     "vaultIndex" | "onOpenEntity" | "onRequestImage"
@@ -46,7 +58,11 @@ export function PropertyRow({
   const hasChildren = Boolean(node.children.length);
   const isGroup = property.type === "group";
   const isCollapsed = collapsedGroups.has(property.id);
-  const isReadOnly = "readOnly" in property && property.readOnly;
+  const canOverride = handlers.isVariantMode && handlers.canOverride?.(property.id);
+  const overridden = handlers.isOverridden?.(property.id);
+  const isReadOnly = Boolean(
+    ("readOnly" in property && property.readOnly) || (handlers.isVariantMode && !canOverride),
+  );
   const TypeIcon = propertyTypeIcon(property.type);
 
   if (!node.conditionActive) {
@@ -134,6 +150,28 @@ export function PropertyRow({
                 {...handlers.vaultIndexProps}
               />
             </span>
+            {handlers.isVariantMode ? (
+              canOverride && overridden ? (
+                <button
+                  type="button"
+                  className="property-row-variant"
+                  title="Restore inherited value"
+                  onClick={() => handlers.onRestoreOverride?.(property.id)}
+                >
+                  <RotateCcw size={12} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="property-row-variant"
+                  title="Override in variant"
+                  disabled={!canOverride}
+                  onClick={() => handlers.onCreateOverride?.(property.id)}
+                >
+                  <Wand2 size={12} />
+                </button>
+              )
+            ) : null}
           </>
         )}
         <button

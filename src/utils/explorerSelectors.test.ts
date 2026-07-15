@@ -6,6 +6,7 @@ import {
   explorerAncestorsForPath,
   flattenVisibleExplorerTree,
   selectEcosystemGroups,
+  selectEntityTypeColors,
   selectEntityTagColors,
   selectFavoriteItems,
   selectVisibleTree,
@@ -179,12 +180,40 @@ describe("explorer selectors", () => {
     ]);
   });
 
-  it("groups entities by primary taxonomy tag and keeps untagged entities together", () => {
-    const groups = selectEcosystemGroups(index());
+  it("groups ecosystem entities by type regardless of their tags", () => {
+    const groups = selectEcosystemGroups(
+      index({
+        entities: [
+          { ...entity("ada", "World/Ada.md", ["cast/main"]), type: "character" },
+          { ...entity("notes", "World/Notes.md", ["lore"]), type: "concept" },
+          { ...entity("arrival", "World/Scenes/Arrival.md"), type: "character" },
+        ],
+      }),
+    );
 
-    expect(Array.from(groups.keys())).toEqual(["cast/main", "_untagged"]);
-    expect(groups.get("cast/main")?.map((item) => item.id)).toEqual(["ada"]);
-    expect(groups.get("_untagged")?.map((item) => item.id)).toEqual(["notes"]);
+    expect(Array.from(groups.keys())).toEqual(["character", "concept"]);
+    expect(groups.get("character")?.map((item) => item.id)).toEqual(["ada", "arrival"]);
+    expect(groups.get("concept")?.map((item) => item.id)).toEqual(["notes"]);
+  });
+
+  it("selects registered type colors for ecosystem entities", () => {
+    const withTypes = index({
+      entities: [
+        { ...entity("ada", "World/Ada.md"), type: "character" },
+        { ...entity("notes", "World/Notes.md"), type: "custom-type" },
+      ],
+      propertiesConfig: {
+        ...taxonomyConfig,
+        entityTypes: {
+          ...taxonomyConfig.entityTypes,
+          definitions: [{ id: "character", label: "Character", color: "#3b82f6" }],
+        },
+      },
+    });
+
+    expect(Array.from(selectEntityTypeColors(withTypes).entries())).toEqual([
+      ["World/Ada.md", "#3b82f6"],
+    ]);
   });
 
   it("selects primary tag colors for entities", () => {

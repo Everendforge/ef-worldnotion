@@ -2401,6 +2401,11 @@ button:hover:not(:disabled),
   background: var(--wn-accent-soft);
 }
 
+.tree-button.multi-selected:not(.active) {
+  background: color-mix(in srgb, var(--wn-accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--wn-accent) 55%, transparent);
+}
+
 /* Drop-before: Guide line above element */
 .tree-button.tree-drop-before {
   position: relative;
@@ -4274,7 +4279,7 @@ button:hover:not(:disabled),
 .markdown-preview {
   padding: 16px;
   line-height: 1.6;
-  overflow-y: auto;
+  overflow: auto;
   height: 100%;
 }
 
@@ -4372,6 +4377,7 @@ button:hover:not(:disabled),
   border-collapse: collapse;
   width: 100%;
   margin-bottom: 12px;
+  min-width: 100%;
 }
 
 .markdown-preview th,
@@ -4384,6 +4390,41 @@ button:hover:not(:disabled),
 .markdown-preview th {
   background: var(--wn-card);
   font-weight: 600;
+}
+
+.cm-table-widget {
+  display: block;
+  max-width: 100%;
+  margin: 0.75rem 0;
+  overflow-x: auto;
+  border: 1px solid var(--wn-border);
+  border-radius: 0.45rem;
+  background: var(--wn-page, var(--wn-card));
+  cursor: text;
+}
+
+.cm-table-widget table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+}
+
+.cm-table-widget th,
+.cm-table-widget td {
+  min-width: 9rem;
+  max-width: 22rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--wn-border);
+  vertical-align: top;
+  white-space: normal;
+}
+
+.cm-table-widget th {
+  position: sticky;
+  top: 0;
+  background: var(--wn-card);
+  color: var(--wn-text);
+  font-weight: 650;
 }
 
 .settings-backdrop {
@@ -4815,7 +4856,9 @@ button:hover:not(:disabled),
 }
 
 @keyframes forge-update-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .settings-panel:has(.ecosystem-manager) {
@@ -11943,6 +11986,103 @@ select.property-field-control {
   border: 1px solid var(--wn-border, rgba(127, 127, 127, 0.22));
   border-radius: 9px;
   background: var(--wn-surface-muted, rgba(127, 127, 127, 0.08));
+}
+
+.variant-selector {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.variant-selector label {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+  color: var(--wn-text-muted, #718096);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.variant-selector select,
+.variant-selector button {
+  min-height: 29px;
+  border: 1px solid var(--wn-border, rgba(127, 127, 127, 0.28));
+  border-radius: 6px;
+  color: var(--wn-text, #1f2937);
+  background: var(--wn-editor-bg, #fff);
+  font: inherit;
+  font-size: 12px;
+}
+
+.variant-selector select {
+  width: 100%;
+  padding: 0 6px;
+}
+.variant-selector button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  cursor: pointer;
+}
+.variant-selector-delete {
+  color: var(--wn-danger, #dc2626) !important;
+}
+
+.variant-selector-form,
+.variant-selector-confirm {
+  display: grid;
+  flex: 1 0 100%;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid var(--wn-border, rgba(127, 127, 127, 0.22));
+  border-radius: 7px;
+  background: var(--wn-surface-muted, rgba(127, 127, 127, 0.08));
+  font-size: 12px;
+}
+
+.variant-selector-form label {
+  display: grid;
+  gap: 4px;
+}
+.variant-selector-form input {
+  min-height: 29px;
+  border: 1px solid var(--wn-border, rgba(127, 127, 127, 0.28));
+  border-radius: 6px;
+  padding: 0 7px;
+  color: var(--wn-text, #1f2937);
+  background: var(--wn-editor-bg, #fff);
+  font: inherit;
+}
+.variant-selector-form p,
+.variant-selector-confirm p {
+  margin: 0;
+  color: var(--wn-danger, #dc2626);
+}
+.variant-selector-form > div,
+.variant-selector-confirm {
+  grid-template-columns: 1fr auto auto;
+}
+
+.property-row-variant {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--wn-accent, #3b82f6);
+  background: transparent;
+  cursor: pointer;
+}
+
+.property-row-variant:disabled {
+  color: var(--wn-text-muted, #718096);
+  cursor: not-allowed;
 }
 
 .inspector-subviews button {

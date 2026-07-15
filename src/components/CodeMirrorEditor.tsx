@@ -14,9 +14,11 @@ import { foldGutter, foldKeymap } from "@codemirror/language";
 import { markdownSyntaxPlugin } from "./markdownSyntaxPlugin";
 import { wikilinkPlugin } from "./wikilinkPlugin";
 import { footnotePlugin } from "./footnotePlugin";
+import { tablePlugin } from "./tablePlugin";
 import { fontFamilyPlugin } from "./fontFamilyPlugin";
 import { imagePlugin, type ImageResolver } from "./imagePlugin";
 import { createDocumentHeaderPlugin } from "./documentHeaderPlugin";
+import { createVariantContentPlugin } from "./variantContentPlugin";
 import {
   EditorMode,
   EditorSettings,
@@ -29,6 +31,7 @@ import {
 import { isDarkTheme, selectionColorForTheme } from "../themes";
 import { isPluginEnabled } from "../utils/pluginRegistry";
 import { imageMarkdown } from "../utils/attachments";
+import { tableInsertion } from "../utils/markdownEditing";
 
 function imageFilesFromTransfer(data: DataTransfer | null): File[] {
   if (!data) return [];
@@ -61,6 +64,8 @@ export interface CodeMirrorEditorProps {
   onSelectionChange?: (rect?: DOMRect) => void;
   onCursorMove?: () => void; // Called on any cursor/selection change
   onEditorReady?: (view: EditorView) => void;
+  /** Local presentation selection used only by Write-mode decorations. */
+  activeVariantId?: string;
 }
 
 type SlashMenuState = {
@@ -113,6 +118,7 @@ const SLASH_COMMANDS: SlashCommandDefinition[] = [
   { id: "link", label: "Link", keywords: ["url"], group: "insert" },
   { id: "image", label: "Image", keywords: ["img", "picture", "photo"], group: "insert" },
   { id: "footnote", label: "Footnote", keywords: ["reference", "note"], group: "insert" },
+  { id: "table", label: "Table", keywords: ["grid", "columns", "gfm"], group: "insert" },
 ];
 
 export function CodeMirrorEditor({
@@ -138,6 +144,7 @@ export function CodeMirrorEditor({
   onSelectionChange,
   onCursorMove,
   onEditorReady,
+  activeVariantId,
 }: CodeMirrorEditorProps) {
   const [editorView, setEditorView] = useState<EditorView | null>(null);
   const [slashMenu, setSlashMenu] = useState<SlashMenuState>();
@@ -159,7 +166,13 @@ export function CodeMirrorEditor({
   useEffect(() => {
     if (!editorView) return;
     const firstLine = editorView.state.doc.line(1);
-    editorView.dispatch({ selection: { anchor: firstLine.to, head: firstLine.to } });
+    const secondLine =
+      editorView.state.doc.lines > 1 ? editorView.state.doc.line(2).text : undefined;
+    const startsWithTable =
+      firstLine.text.includes("|") &&
+      Boolean(secondLine && /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(secondLine));
+    const position = startsWithTable ? editorView.state.doc.length : firstLine.to;
+    editorView.dispatch({ selection: { anchor: position, head: position } });
   }, [documentName, editorView]);
 
   const filteredSlashCommands = useMemo(() => {
@@ -167,10 +180,11 @@ export function CodeMirrorEditor({
     const query = slashMenu.query.toLowerCase();
     return SLASH_COMMANDS.filter(
       (command) =>
-        command.label.toLowerCase().includes(query) ||
-        command.keywords.some((keyword) => keyword.includes(query)),
+        (command.id !== "table" || isPluginEnabled(pluginSettings, "table-tools")) &&
+        (command.label.toLowerCase().includes(query) ||
+          command.keywords.some((keyword) => keyword.includes(query))),
     ).slice(0, 8);
-  }, [slashMenu]);
+  }, [pluginSettings, slashMenu]);
 
   const filteredNoteSuggestions = useMemo(() => {
     if (!wikilinkMenu) return [];
@@ -228,6 +242,20 @@ export function CodeMirrorEditor({
           selection: { anchor: line.from + insert.length },
         });
       }
+      editorView.focus();
+      setSlashMenu(undefined);
+      return;
+    }
+
+    if (commandId === "table") {
+      const insertion = tableInsertion("");
+      editorView.dispatch({
+        changes: { from: line.from, to: line.to, insert: insertion.text },
+        selection: {
+          anchor: line.from + insertion.anchorOffset,
+          head: line.from + (insertion.headOffset ?? insertion.anchorOffset),
+        },
+      });
       editorView.focus();
       setSlashMenu(undefined);
       return;
@@ -673,6 +701,9 @@ export function CodeMirrorEditor({
         theme={isDarkTheme(theme) ? oneDark : undefined}
         extensions={[
           markdown(),
+          ...(mode === "write" && activeVariantId
+            ? [createVariantContentPlugin(activeVariantId)]
+            : []),
           ...(isPluginEnabled(pluginSettings, "document-header", settings.documentHeaderEnabled) &&
           documentName &&
           showDocumentHeader &&
@@ -699,6 +730,9 @@ export function CodeMirrorEditor({
             : []),
           ...(mode === "write" && isPluginEnabled(pluginSettings, "footnotes")
             ? [footnotePlugin()]
+            : []),
+          ...(mode === "write" && isPluginEnabled(pluginSettings, "table-tools")
+            ? [tablePlugin()]
             : []),
           ...(mode === "write" &&
           isPluginEnabled(

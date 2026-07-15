@@ -11,6 +11,7 @@ export type EditorCommandAction =
   | { type: "markdownLink" }
   | { type: "wikilink" }
   | { type: "footnote" }
+  | { type: "table" }
   | { type: "insert"; markdown: string }
   | { type: "foldBlock" }
   | { type: "openPanel"; panel: "commandPalette" | "quickSwitcher" }
@@ -66,6 +67,8 @@ export function editorCommandAction(commandId: EditorCommandId): EditorCommandAc
       return { type: "wikilink" };
     case "footnote":
       return { type: "footnote" };
+    case "table":
+      return { type: "table" };
     case "horizontalRule":
       return { type: "insert", markdown: "\n\n---\n\n" };
     case "foldBlock":

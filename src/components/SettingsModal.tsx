@@ -1648,7 +1648,7 @@ export function SettingsModal({
             {activeSection === "explorer" ? (
               <div className="settings-grid">
                 <label>
-                  <span>Confirm drag moves</span>
+                  <span>Confirm Explorer moves</span>
                   <input
                     type="checkbox"
                     checked={settings.explorer.confirmDragMove}

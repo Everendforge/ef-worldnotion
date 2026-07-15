@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   browserPathParts,
+  copyBrowserPath,
   copyBrowserDirectory,
   readBrowserUniverse,
   validateBrowserPathSegment,
@@ -146,5 +147,39 @@ describe("copyBrowserDirectory", () => {
     await copyBrowserDirectory(source, target);
 
     expect(written).toEqual([image]);
+  });
+});
+
+describe("browser move and copy safety", () => {
+  it("refuses to overwrite an existing file target", async () => {
+    const root = browserDirectory("Vault", []);
+    root.getFileHandle = async (name) => {
+      if (name === "target.md") return browserFile("existing target");
+      if (name === "source.md") return browserFile("source");
+      throw new DOMException("Missing", "NotFoundError");
+    };
+
+    await expect(copyBrowserPath(root, "source.md", "target.md", "file")).rejects.toThrow(
+      "Target path already exists: target.md",
+    );
+  });
+
+  it("refuses to merge a folder into an existing folder target", async () => {
+    const source = browserDirectory("Cast", []);
+    const archive = browserDirectory("Archive", []);
+    archive.getFileHandle = async (name) => {
+      if (name === "Cast") throw new DOMException("Directory", "TypeMismatchError");
+      throw new DOMException("Missing", "NotFoundError");
+    };
+    const root = browserDirectory("Vault", []);
+    root.getDirectoryHandle = async (name) => {
+      if (name === "Cast") return source;
+      if (name === "Archive") return archive;
+      throw new DOMException("Missing", "NotFoundError");
+    };
+
+    await expect(copyBrowserPath(root, "Cast", "Archive/Cast", "folder")).rejects.toThrow(
+      "Target path already exists: Archive/Cast",
+    );
   });
 });

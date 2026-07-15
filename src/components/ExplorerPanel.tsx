@@ -18,6 +18,7 @@ import {
   FolderOpen,
   Hash,
   Image,
+  Layers,
   Plus,
   Search,
   Star,
@@ -48,11 +49,14 @@ export type ExplorerPanelProps = {
   onSetFocusedFolder: (path: string | undefined) => void;
   visibleRows: VisibleExplorerRow[];
   selectedPath?: string;
+  multiSelectedPaths: Set<string>;
+  pointerDragTargetPath?: string;
   openTabPaths: Set<string>;
   dirtyTabPaths: Set<string>;
   favoritePaths: Set<string>;
   favoriteItems: ExplorerFavorite[];
   ecosystemGroups: Map<string, Entity[]>;
+  ecosystemEntityColors: Map<string, string>;
   entityTagColors: Map<string, string>;
   folderNotesEnabled: boolean;
   customIcons?: Record<string, string>;
@@ -62,6 +66,7 @@ export type ExplorerPanelProps = {
   onCreateTemplate: () => void;
   onSelectPath: (path: string) => void;
   onSelectFolder: (path: string) => void;
+  onToggleMultiSelection: (path: string, kind: "file" | "folder") => void;
   onToggleExpand: (path: string) => void;
   onTreeAction: (action: ExplorerTreeAction) => void;
   onContextMenu: (event: MouseEvent, path: string, kind: "file" | "folder" | "empty") => void;
@@ -88,11 +93,14 @@ export function ExplorerPanel({
   onSetFocusedFolder,
   visibleRows,
   selectedPath,
+  multiSelectedPaths,
+  pointerDragTargetPath,
   openTabPaths,
   dirtyTabPaths,
   favoritePaths,
   favoriteItems,
   ecosystemGroups,
+  ecosystemEntityColors,
   entityTagColors,
   folderNotesEnabled,
   customIcons,
@@ -102,6 +110,7 @@ export function ExplorerPanel({
   onCreateTemplate,
   onSelectPath,
   onSelectFolder,
+  onToggleMultiSelection,
   onToggleExpand,
   onTreeAction,
   onContextMenu,
@@ -117,6 +126,10 @@ export function ExplorerPanel({
   const sidebarMainRef = useRef<HTMLDivElement>(null);
   const scrollFrameRef = useRef<number>(undefined);
   const shouldVirtualize = visibleRows.length > VIRTUALIZE_AFTER;
+  const entityTypesById = useMemo(
+    () => new Map(index.propertiesConfig?.entityTypes.definitions.map((type) => [type.id, type])),
+    [index.propertiesConfig],
+  );
 
   useEffect(() => {
     const element = sidebarMainRef.current;
@@ -287,43 +300,55 @@ export function ExplorerPanel({
               {ecosystemGroups.size > 0 ? (
                 Array.from(ecosystemGroups.entries())
                   .sort(([a], [b]) => {
-                    if (a === "_untagged") return 1;
-                    if (b === "_untagged") return -1;
+                    if (a === "_untyped") return 1;
+                    if (b === "_untyped") return -1;
                     return a.localeCompare(b);
                   })
-                  .map(([tagPath, entities]) => (
-                    <div key={tagPath} className="ecosystem-group">
-                      <div className="ecosystem-group-header">
-                        <Hash size={14} />
-                        <span className="ecosystem-group-name">
-                          {tagPath === "_untagged" ? "Sin etiquetas" : tagPath}
-                        </span>
-                        <span className="ecosystem-group-count">{entities.length}</span>
+                  .map(([typeId, entities]) => {
+                    const type = entityTypesById.get(typeId);
+                    const typeLabel = typeId === "_untyped" ? "Sin tipo" : (type?.label ?? typeId);
+
+                    return (
+                      <div key={typeId} className="ecosystem-group">
+                        <div className="ecosystem-group-header">
+                          {type?.color ? (
+                            <span
+                              className="ecosystem-group-color"
+                              style={{ backgroundColor: type.color }}
+                            />
+                          ) : (
+                            <Layers size={14} />
+                          )}
+                          <span className="ecosystem-group-name">{typeLabel}</span>
+                          <span className="ecosystem-group-count">{entities.length}</span>
+                        </div>
+                        <div className="ecosystem-group-items">
+                          {entities.map((entity) => (
+                            <button
+                              key={entity.path}
+                              type="button"
+                              className={`ecosystem-item ${selectedPath === entity.path ? "active" : ""}`}
+                              onClick={() => onSelectPath(entity.path)}
+                              onContextMenu={(event) => onContextMenu(event, entity.path, "file")}
+                            >
+                              {ecosystemEntityColors.get(entity.path) ? (
+                                <span
+                                  className="ecosystem-item-color"
+                                  style={{
+                                    backgroundColor: ecosystemEntityColors.get(entity.path),
+                                  }}
+                                />
+                              ) : null}
+                              <FileText size={14} />
+                              <span className="ecosystem-item-name">{entity.name}</span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                      <div className="ecosystem-group-items">
-                        {entities.map((entity) => (
-                          <button
-                            key={entity.path}
-                            type="button"
-                            className={`ecosystem-item ${selectedPath === entity.path ? "active" : ""}`}
-                            onClick={() => onSelectPath(entity.path)}
-                            onContextMenu={(event) => onContextMenu(event, entity.path, "file")}
-                          >
-                            {entityTagColors.get(entity.path) ? (
-                              <span
-                                className="ecosystem-item-color"
-                                style={{ backgroundColor: entityTagColors.get(entity.path) }}
-                              />
-                            ) : null}
-                            <FileText size={14} />
-                            <span className="ecosystem-item-name">{entity.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
               ) : (
-                <p className="muted">No entities with tags yet.</p>
+                <p className="muted">No entities yet.</p>
               )}
             </div>
           </section>
@@ -357,6 +382,8 @@ export function ExplorerPanel({
                       key={row.path}
                       row={row}
                       selectedPath={selectedPath}
+                      multiSelectedPaths={multiSelectedPaths}
+                      pointerDragTargetPath={pointerDragTargetPath}
                       openTabPaths={openTabPaths}
                       dirtyTabPaths={dirtyTabPaths}
                       favoritePaths={favoritePaths}
@@ -364,6 +391,7 @@ export function ExplorerPanel({
                       folderNotesEnabled={folderNotesEnabled}
                       onSelectPath={onSelectPath}
                       onSelectFolder={onSelectFolder}
+                      onToggleMultiSelection={onToggleMultiSelection}
                       onToggleExpand={onToggleExpand}
                       onContextMenu={onContextMenu}
                       onToggleFavorite={onToggleFavorite}
@@ -437,6 +465,8 @@ export function ExplorerPanel({
 type ExplorerTreeRowProps = {
   row: VisibleExplorerRow;
   selectedPath?: string;
+  multiSelectedPaths: Set<string>;
+  pointerDragTargetPath?: string;
   openTabPaths: Set<string>;
   dirtyTabPaths: Set<string>;
   favoritePaths: Set<string>;
@@ -444,6 +474,7 @@ type ExplorerTreeRowProps = {
   folderNotesEnabled: boolean;
   onSelectPath: (path: string) => void;
   onSelectFolder: (path: string) => void;
+  onToggleMultiSelection: (path: string, kind: "file" | "folder") => void;
   onToggleExpand: (path: string) => void;
   onContextMenu: (event: MouseEvent, path: string, kind: "file" | "folder" | "empty") => void;
   onToggleFavorite: (path: string, kind: "file" | "folder") => void;
@@ -459,6 +490,8 @@ type ExplorerTreeRowProps = {
 const ExplorerTreeRow = memo(function ExplorerTreeRow({
   row,
   selectedPath,
+  multiSelectedPaths,
+  pointerDragTargetPath,
   openTabPaths,
   dirtyTabPaths,
   favoritePaths,
@@ -466,6 +499,7 @@ const ExplorerTreeRow = memo(function ExplorerTreeRow({
   folderNotesEnabled,
   onSelectPath,
   onSelectFolder,
+  onToggleMultiSelection,
   onToggleExpand,
   onContextMenu,
   onToggleFavorite,
@@ -488,8 +522,12 @@ const ExplorerTreeRow = memo(function ExplorerTreeRow({
   const customIcon = customIcons?.[row.path];
   const IconComponent = customIcon ? getIconComponent(customIcon) : undefined;
 
-  const activateNode = () => {
+  const activateNode = (event?: MouseEvent) => {
     if (isPointerClickSuppressed()) return;
+    if (event?.metaKey || event?.ctrlKey) {
+      onToggleMultiSelection(row.path, row.kind);
+      return;
+    }
     if (row.kind === "folder") {
       onSelectFolder(row.path);
       if (row.hasChildren) onToggleExpand(row.path);
@@ -506,7 +544,8 @@ const ExplorerTreeRow = memo(function ExplorerTreeRow({
         draggable={false}
         data-tree-node="true"
         data-tree-drop-path={row.kind === "folder" ? row.path : undefined}
-        className={`tree-button ${selectedPath === row.path ? "active" : ""} ${row.hasDescription ? "has-description" : ""} ${isOpen ? "is-open" : ""} ${isDragOver && dropPosition ? `tree-drop-${dropPosition}` : ""}`}
+        aria-pressed={multiSelectedPaths.has(row.path)}
+        className={`tree-button ${selectedPath === row.path ? "active" : ""} ${multiSelectedPaths.has(row.path) ? "multi-selected" : ""} ${row.hasDescription ? "has-description" : ""} ${isOpen ? "is-open" : ""} ${pointerDragTargetPath === row.path ? "tree-drop-into" : ""} ${isDragOver && dropPosition ? `tree-drop-${dropPosition}` : ""}`}
         style={{ paddingLeft: `${7 + Math.min(row.depth, 10) * 16}px` }}
         onClick={activateNode}
         onKeyDown={(event) => {
@@ -565,7 +604,7 @@ const ExplorerTreeRow = memo(function ExplorerTreeRow({
             onDragMove(fromPath, row.path, fromKind || undefined);
           } else if (dropPosition === "before" || dropPosition === "after") {
             const parentPath = row.path.substring(0, row.path.lastIndexOf("/"));
-            onDragMove(fromPath, parentPath || "/", fromKind || undefined);
+            onDragMove(fromPath, parentPath, fromKind || undefined);
           }
         }}
         title={row.path}

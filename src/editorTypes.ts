@@ -38,6 +38,7 @@ export type EditorCommandId =
   | "link"
   | "wikilink"
   | "footnote"
+  | "table"
   | "horizontalRule"
   | "foldBlock"
   | "commandPalette"
@@ -66,6 +67,7 @@ export type Keybinding = {
 export type PluginId =
   | "wikilinks"
   | "footnotes"
+  | "table-tools"
   | "code-folding"
   | "markdown-syntax-hiding"
   | "font-family-rendering"
@@ -260,6 +262,8 @@ export type WorkspaceSession = {
   explorerExpandedPaths?: string[];
   editorState?: Record<string, FileEditorState>;
   fileAccessStats?: FileAccessStats[];
+  /** Per-user local presentation selection; never written into the vault. */
+  variantSelections?: Record<string, string>;
 };
 
 export type ExplorerFavorite = {
@@ -564,7 +568,7 @@ export const DEFAULT_EXPLORER_SETTINGS: ExplorerSettings = {
   favorites: [],
   recentFiles: [],
   activeSection: "allFiles",
-  confirmDragMove: true,
+  confirmDragMove: false,
   showHiddenEverend: false,
   ignoreFolderNoteMetadata: false,
   customIcons: {},
@@ -596,6 +600,7 @@ export const DEFAULT_PLUGIN_SETTINGS: PluginSettings = {
   enabled: {
     wikilinks: true,
     footnotes: true,
+    "table-tools": true,
     "code-folding": true,
     "markdown-syntax-hiding": true,
     "font-family-rendering": true,
@@ -631,6 +636,7 @@ export const EDITOR_COMMANDS: EditorCommand[] = [
   { id: "link", label: "Link", group: "insert", defaultShortcut: "Mod+K" },
   { id: "wikilink", label: "Wikilink", group: "insert", defaultShortcut: "Mod+Shift+K" },
   { id: "footnote", label: "Footnote", group: "insert", defaultShortcut: "Mod+Alt+F" },
+  { id: "table", label: "Table", group: "insert" },
   {
     id: "horizontalRule",
     label: "Horizontal Rule",

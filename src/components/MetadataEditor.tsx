@@ -58,6 +58,14 @@ import { AddPropertyRow, type NewInspectorProperty } from "./properties/AddPrope
 import { PropertyContextMenu } from "./properties/PropertyContextMenu";
 import { PropertyEditorPopover } from "./properties/PropertyEditorPopover";
 import { LegacyMetadataFields } from "./properties/LegacyMetadataFields";
+import {
+  BASE_VARIANT_ID,
+  hasVariantOverride,
+  resolveVariantFrontmatter,
+  setVariantOverride,
+  updateVariantsInRawYaml,
+  variantPropertyValue,
+} from "../utils/noteVariants";
 
 type MetadataEditorProps = {
   entity: Entity;
@@ -72,6 +80,7 @@ type MetadataEditorProps = {
   onDeleteField?: (fieldName: string) => void;
   onOpenEntity?: (path: string) => void;
   onRequestImage?: () => Promise<{ path: string; alt?: string } | null>;
+  activeVariantId?: string;
 };
 
 type EditableOption = { value: string; label: string; color?: string };
@@ -108,6 +117,7 @@ export function MetadataEditor({
   onDeleteField,
   onOpenEntity,
   onRequestImage,
+  activeVariantId = BASE_VARIANT_ID,
 }: MetadataEditorProps) {
   const { confirmDialog } = useAppDialogs();
   // The app reindexes after saving properties.json. Keep the draft schema in
@@ -134,7 +144,11 @@ export function MetadataEditor({
   const entityTypes = propertiesConfig?.entityTypes.definitions ?? [];
   const statuses = propertiesConfig?.statuses.definitions ?? [];
   const basePropertyDefs = propertiesConfig?.baseProperties?.definitions ?? [];
-  const frontmatterData = useMemo(() => parseFrontmatterRaw(rawYaml), [rawYaml]);
+  const rawFrontmatterData = useMemo(() => parseFrontmatterRaw(rawYaml), [rawYaml]);
+  const frontmatterData = useMemo(
+    () => resolveVariantFrontmatter(rawFrontmatterData, activeVariantId),
+    [activeVariantId, rawFrontmatterData],
+  );
   const configuredProperties = useMemo(
     () => listAllProperties(propertiesConfig),
     [propertiesConfig],
@@ -182,6 +196,24 @@ export function MetadataEditor({
   );
 
   const handlePropertyChange = (propertyId: string, value: unknown) => {
+    if (activeVariantId !== BASE_VARIANT_ID) {
+      if (!onUpdateRawYaml || ["id", "type", "variants"].includes(propertyId)) return;
+      onUpdateRawYaml(
+        updateVariantsInRawYaml(
+          rawYaml,
+          setVariantOverride(
+            rawFrontmatterData,
+            propertiesConfig,
+            activeVariantId,
+            propertyId,
+            value,
+          ),
+          propertiesConfig,
+          entity.type,
+        ),
+      );
+      return;
+    }
     if (ENTITY_FRONTMATTER_FIELD_IDS.has(propertyId)) {
       onUpdate({ [propertyId]: value } as Partial<Entity>);
     } else if (onUpdateRawYaml) {
@@ -702,6 +734,50 @@ export function MetadataEditor({
     onToggleGroup: toggleGroupCollapsed,
     onOpenPropertyEditor: openPropertyEditor,
     vaultIndexProps: { vaultIndex, onOpenEntity, onRequestImage },
+    isVariantMode: activeVariantId !== BASE_VARIANT_ID,
+    canOverride: (propertyId) => !["id", "type", "variants"].includes(propertyId),
+    isOverridden: (propertyId) =>
+      hasVariantOverride(rawFrontmatterData, propertiesConfig, activeVariantId, propertyId),
+    onCreateOverride: (propertyId) => {
+      if (!onUpdateRawYaml || activeVariantId === BASE_VARIANT_ID) return;
+      const value = variantPropertyValue(
+        rawFrontmatterData,
+        propertiesConfig,
+        activeVariantId,
+        propertyId,
+      );
+      onUpdateRawYaml(
+        updateVariantsInRawYaml(
+          rawYaml,
+          setVariantOverride(
+            rawFrontmatterData,
+            propertiesConfig,
+            activeVariantId,
+            propertyId,
+            value,
+          ),
+          propertiesConfig,
+          entity.type,
+        ),
+      );
+    },
+    onRestoreOverride: (propertyId) => {
+      if (!onUpdateRawYaml || activeVariantId === BASE_VARIANT_ID) return;
+      onUpdateRawYaml(
+        updateVariantsInRawYaml(
+          rawYaml,
+          setVariantOverride(
+            rawFrontmatterData,
+            propertiesConfig,
+            activeVariantId,
+            propertyId,
+            undefined,
+          ),
+          propertiesConfig,
+          entity.type,
+        ),
+      );
+    },
   };
 
   const renderPropertySections = (): React.ReactNode[] => {

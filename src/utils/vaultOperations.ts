@@ -12,6 +12,12 @@ export type FolderDescriptionRenamePlan = {
   change: PathChange;
 };
 
+export type FolderDescriptionMovePlan = {
+  oldDescriptionPath: string;
+  newDescriptionPath: string;
+  change: PathChange;
+};
+
 export function pathWithinTree(path: string, rootPath: string) {
   return path === rootPath || path.startsWith(`${rootPath}/`);
 }
@@ -29,6 +35,15 @@ export function dirtyTabPathsAffectedByTree(tabs: OpenTab[], rootPath: string) {
 
 export function favoritesOutsideTree(favorites: ExplorerFavorite[], rootPath: string) {
   return favorites.filter((favorite) => !pathWithinTree(favorite.path, rootPath));
+}
+
+/** Indexed descendants that make a folder unsafe to delete. */
+export function folderContents(index: VaultIndex, folderPath: string) {
+  const prefix = `${folderPath}/`;
+  return [
+    ...index.directories.filter((path) => path.startsWith(prefix)),
+    ...index.files.map((file) => file.relativePath).filter((path) => path.startsWith(prefix)),
+  ];
 }
 
 export function renamePathTarget(fromPath: string, newName: string) {
@@ -68,6 +83,28 @@ export function movePathProblem(fromPath: string, toFolderPath: string, kind: "f
     return "already-there";
   }
   return undefined;
+}
+
+export function planFolderDescriptionMove(
+  index: VaultIndex,
+  folderPath: string,
+  toFolderPath: string,
+): FolderDescriptionMovePlan | undefined {
+  const oldDescriptionPath = folderDescriptionPath(folderPath);
+  if (!index.files.some((file) => file.relativePath === oldDescriptionPath)) return undefined;
+
+  const newDescriptionPath = movePathTarget(oldDescriptionPath, toFolderPath);
+  if (index.files.some((file) => file.relativePath === newDescriptionPath)) {
+    throw new Error(
+      `Cannot move folder because its folder note would overwrite ${newDescriptionPath}.`,
+    );
+  }
+
+  return {
+    oldDescriptionPath,
+    newDescriptionPath,
+    change: { fromPath: oldDescriptionPath, toPath: newDescriptionPath, mode: "single" },
+  };
 }
 
 export function planFolderDescriptionRename(

@@ -1,8 +1,8 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { VisibleExplorerRow } from "../utils/explorerSelectors";
-import { makeVaultIndex } from "../test/fixtures";
-import { ExplorerPanel } from "./ExplorerPanel";
+import { makeEntity, makeVaultIndex } from "../test/fixtures";
+import { ExplorerPanel, type ExplorerPanelProps } from "./ExplorerPanel";
 
 function makeRows(count: number): VisibleExplorerRow[] {
   return Array.from({ length: count }, (_, index) => ({
@@ -16,7 +16,11 @@ function makeRows(count: number): VisibleExplorerRow[] {
   }));
 }
 
-function renderPanel(rows: VisibleExplorerRow[], query = "") {
+function renderPanel(
+  rows: VisibleExplorerRow[],
+  query = "",
+  overrides: Partial<ExplorerPanelProps> = {},
+) {
   return render(
     <ExplorerPanel
       index={makeVaultIndex()}
@@ -27,11 +31,13 @@ function renderPanel(rows: VisibleExplorerRow[], query = "") {
       focusBreadcrumb={[]}
       onSetFocusedFolder={vi.fn()}
       visibleRows={rows}
+      multiSelectedPaths={new Set()}
       openTabPaths={new Set()}
       dirtyTabPaths={new Set()}
       favoritePaths={new Set()}
       favoriteItems={[]}
       ecosystemGroups={new Map()}
+      ecosystemEntityColors={new Map()}
       entityTagColors={new Map()}
       folderNotesEnabled={false}
       pointerDragActive={false}
@@ -40,6 +46,7 @@ function renderPanel(rows: VisibleExplorerRow[], query = "") {
       onCreateTemplate={vi.fn()}
       onSelectPath={vi.fn()}
       onSelectFolder={vi.fn()}
+      onToggleMultiSelection={vi.fn()}
       onToggleExpand={vi.fn()}
       onTreeAction={vi.fn()}
       onContextMenu={vi.fn()}
@@ -49,6 +56,7 @@ function renderPanel(rows: VisibleExplorerRow[], query = "") {
       onDragMove={vi.fn()}
       onPointerDragStart={vi.fn()}
       isPointerClickSuppressed={() => false}
+      {...overrides}
     />,
   );
 }
@@ -70,5 +78,79 @@ describe("ExplorerPanel virtualization", () => {
     const { container } = renderPanel(makeRows(10000), "note");
     const rendered = container.querySelectorAll(".tree-node").length;
     expect(rendered).toBeLessThan(100);
+  });
+
+  it("renders ecosystem groups from entity types instead of tags", () => {
+    const mara = makeEntity({ tags: ["cast/main"] });
+    const keep = makeEntity({
+      id: "iron-keep",
+      name: "Iron Keep",
+      path: "Places/Iron.md",
+      type: "location",
+      tags: ["places/fortress"],
+    });
+    const onSelectPath = vi.fn();
+    renderPanel([], "", {
+      activeSection: "ecosystem",
+      index: makeVaultIndex({
+        entities: [mara, keep],
+        propertiesConfig: {
+          version: "3.0",
+          tags: { rootNodes: [], allowCustomTags: true, autoDetectSlashNotation: true },
+          entityTypes: {
+            definitions: [
+              { id: "character", label: "Character", color: "#3b82f6" },
+              { id: "location", label: "Location", color: "#10b981" },
+            ],
+            defaultType: "character",
+            allowCustomTypes: true,
+          },
+          statuses: { definitions: [], defaultStatus: "draft", allowCustomStatuses: true },
+          customFields: { definitions: [] },
+        },
+      }),
+      ecosystemGroups: new Map([
+        ["character", [mara]],
+        ["location", [keep]],
+      ]),
+      ecosystemEntityColors: new Map([
+        [mara.path, "#3b82f6"],
+        [keep.path, "#10b981"],
+      ]),
+      onSelectPath,
+    });
+
+    expect(screen.getByText("Character")).toBeInTheDocument();
+    expect(screen.getByText("Location")).toBeInTheDocument();
+    expect(screen.getByText("Mara")).toBeInTheDocument();
+    expect(screen.getByText("Iron Keep")).toBeInTheDocument();
+    expect(screen.queryByText("cast/main")).not.toBeInTheDocument();
+    expect(screen.queryByText("places/fortress")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Iron Keep" }));
+    expect(onSelectPath).toHaveBeenCalledWith("Places/Iron.md");
+  });
+
+  it("adds an item to the bulk selection with Ctrl-click", () => {
+    const onToggleMultiSelection = vi.fn();
+    renderPanel(makeRows(1), "", { onToggleMultiSelection });
+
+    fireEvent.click(screen.getByRole("button", { name: "Note 0.md" }), { ctrlKey: true });
+
+    expect(onToggleMultiSelection).toHaveBeenCalledWith("Notes/Note 0.md", "file");
+  });
+
+  it("highlights the folder under a pointer drag", () => {
+    const folder: VisibleExplorerRow = {
+      name: "Archive",
+      path: "Archive",
+      kind: "folder",
+      children: [],
+      depth: 0,
+      hasChildren: false,
+      isExpanded: false,
+    };
+    const { container } = renderPanel([folder], "", { pointerDragTargetPath: "Archive" });
+
+    expect(container.querySelector(".tree-button")).toHaveClass("tree-drop-into");
   });
 });

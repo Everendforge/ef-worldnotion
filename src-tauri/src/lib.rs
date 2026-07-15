@@ -1061,10 +1061,28 @@ fn duplicate_path(
 }
 
 #[tauri::command]
-fn trash_path(vault_path: String, relative_path: String) -> Result<WriteResult, String> {
+fn trash_path(
+    vault_path: String,
+    relative_path: String,
+    require_empty: bool,
+) -> Result<WriteResult, String> {
+    if relative_path.trim().is_empty() {
+        return Err("Cannot move the vault root to Trash.".to_string());
+    }
     let (_root, path) = resolve_vault_path(&vault_path, &relative_path)?;
     if !path.exists() {
         return Err("Path does not exist.".to_string());
+    }
+    if require_empty && path.is_dir() {
+        let has_entries = fs::read_dir(&path)
+            .map_err(|error| error.to_string())?
+            .next()
+            .transpose()
+            .map_err(|error| error.to_string())?
+            .is_some();
+        if has_entries {
+            return Err("Folder is not empty. Move or delete its contents first.".to_string());
+        }
     }
 
     move_to_system_trash(&path)?;

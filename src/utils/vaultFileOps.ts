@@ -160,14 +160,18 @@ export async function moveVaultPath(
   return relativeFromAbsolute(vault.rootPath, result.path);
 }
 
-export async function trashVaultPath(vault: VaultHandle, relativePath: string): Promise<void> {
+export async function trashVaultPath(
+  vault: VaultHandle,
+  relativePath: string,
+  options: { requireEmpty?: boolean } = {},
+): Promise<void> {
   if (vault.kind === "browser") {
-    await removeBrowserPath(vault.root, relativePath, true);
+    await removeBrowserPath(vault.root, relativePath, !options.requireEmpty);
     return;
   }
   await invokeWrite(
     "trash_path",
-    { vaultPath: vault.rootPath, relativePath },
+    { vaultPath: vault.rootPath, relativePath, requireEmpty: options.requireEmpty ?? false },
     "Could not move item to Trash.",
   );
 }

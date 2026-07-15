@@ -41,6 +41,12 @@ describe("ContextMenu folder notes", () => {
     expect(screen.getByText("Create Folder Note")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Delete Folder Note" })).toBeNull();
   });
+
+  it("labels folder deletion as an empty-folder-only operation", () => {
+    renderFolderMenu(false);
+
+    expect(screen.getByRole("button", { name: "Delete Empty Folder" })).toBeTruthy();
+  });
 });
 
 describe("ContextMenu image actions", () => {

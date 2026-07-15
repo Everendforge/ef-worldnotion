@@ -19,4 +19,17 @@ describe("renderMarkdownPreviewHtml", () => {
     expect(html).toContain("Mara &quot;The Gate&quot; &#x26; allies");
     expect(html).not.toContain('data-target="Mara "The Gate" & allies"');
   });
+
+  it("renders the wide GFM tables used by worldbuilding notes", () => {
+    const html = renderMarkdownPreviewHtml(
+      "| CARGO | USO | POSICIÓN | ANTIGUA | INVASIÓN | MODERNA |\n" +
+        "| :---: | :---: | :---: | :---: | :---: | :---: |\n" +
+        "| Virithiana | Vi-na | General | Regente | Líder | Caudillo |",
+    );
+
+    expect(html).toContain("<table>");
+    expect(html).toContain("<thead>");
+    expect(html).toContain("Virithiana");
+    expect(html).toContain('align="center"');
+  });
 });

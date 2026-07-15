@@ -4,8 +4,10 @@ import type { ExplorerFavorite, OpenTab } from "../editorTypes";
 import {
   dirtyTabPathsAffectedByTree,
   favoritesOutsideTree,
+  folderContents,
   movePathChange,
   movePathProblem,
+  planFolderDescriptionMove,
   planFolderDescriptionRename,
   renamePathChange,
   renamePathTarget,
@@ -61,6 +63,21 @@ describe("vault operation helpers", () => {
     );
   });
 
+  it("moves a folder description with its folder and rejects note collisions", () => {
+    expect(planFolderDescriptionMove(index, "World/Cast", "Archive")).toEqual({
+      oldDescriptionPath: "World/Cast.md",
+      newDescriptionPath: "Archive/Cast.md",
+      change: { fromPath: "World/Cast.md", toPath: "Archive/Cast.md", mode: "single" },
+    });
+    expect(() =>
+      planFolderDescriptionMove(
+        { ...index, files: [...index.files, { relativePath: "Archive/Cast.md", content: "" }] },
+        "World/Cast",
+        "Archive",
+      ),
+    ).toThrow("would overwrite Archive/Cast.md");
+  });
+
   it("computes rename and move changes consistently", () => {
     expect(renamePathTarget("World/Cast/Ada.md", "Mara.md")).toBe("World/Cast/Mara.md");
     expect(renamePathChange("World/Cast", "Characters", "folder")).toEqual({
@@ -99,5 +116,19 @@ describe("vault operation helpers", () => {
     expect(favoritesOutsideTree(favorites, "World/Cast")).toEqual([
       { path: "Other.md", kind: "file", label: "Other" },
     ]);
+  });
+
+  it("identifies indexed descendants that make a folder unsafe to delete", () => {
+    expect(folderContents(index, "World/Cast")).toEqual([]);
+    expect(
+      folderContents(
+        {
+          ...index,
+          directories: [...index.directories, "World/Cast/Scenes"],
+          files: [...index.files, { relativePath: "World/Cast/Scenes/Arrival.md", content: "" }],
+        },
+        "World/Cast",
+      ),
+    ).toEqual(["World/Cast/Scenes", "World/Cast/Scenes/Arrival.md"]);
   });
 });

@@ -75,7 +75,7 @@ import {
   createDefaultTaxonomyConfig,
 } from "./domain";
 import { isDarkTheme, themeById, themeForStyleCommand, toggledThemeMode } from "./themes";
-import { updateFrontmatterProperties } from "./utils/propertiesConfig";
+import { parseFrontmatterRaw, updateFrontmatterProperties } from "./utils/propertiesConfig";
 import { serializePropertiesConfig, validatePropertiesConfig } from "./utils/propertiesSerializer";
 import { addCustomFieldToSchema } from "./utils/propertiesSerializer";
 import { applyPropertyTemplate, WORLDBUILDING_TEMPLATE } from "./utils/propertyTemplates";
@@ -105,6 +105,15 @@ import {
 } from "./utils/vaultFileOps";
 import { isImagePath, resolveNoteImageUrl, setBrowserVaultRoot } from "./utils/vaultImages";
 import { getEntityTypeDefinition, getPresentationRoleValue } from "./utils/entityPresentation";
+import {
+  BASE_VARIANT_ID,
+  deleteVariant,
+  insertVariantBlock,
+  removeVariantBlocks,
+  resolveVariantFrontmatter,
+  resolveVariantId,
+  updateVariantsInRawYaml,
+} from "./utils/noteVariants";
 import {
   buildCommandResults,
   buildFileResults,
@@ -164,14 +173,17 @@ import {
   headingLine,
   listLine,
   markdownLinkInsertion,
+  tableInsertion,
   wikilinkInsertion,
   wrapSelectionText,
 } from "./utils/markdownEditing";
 import {
   dirtyTabPathsAffectedByTree,
   favoritesOutsideTree,
+  folderContents,
   movePathChange,
   movePathProblem,
+  planFolderDescriptionMove,
   planFolderDescriptionRename,
   renamePathChange,
 } from "./utils/vaultOperations";
@@ -182,6 +194,9 @@ import { indexCanonChangeSets, type IndexedCanonChangeSet } from "./utils/canonC
 
 const EVEREND_FORGE_GITHUB_URL = "https://github.com/Everendforge/everend-forge";
 const BUY_SUITE_URL = "https://everendforge.com/buy-suite";
+
+type ExplorerSelection = { path: string; kind: "file" | "folder" };
+type ExplorerUndoMove = { fromPath: string; toFolderPath: string; kind: "file" | "folder" };
 
 function ForgeCornerLogo() {
   return (
@@ -207,6 +222,7 @@ import {
   explorerAncestorsForPath,
   flattenVisibleExplorerTree,
   selectEcosystemGroups,
+  selectEntityTypeColors,
   selectEntityTagColors,
   selectFavoriteItems,
   selectVisibleTree,
@@ -294,6 +310,7 @@ const FLOATING_FORMAT_COMMANDS: FloatingFormatCommand[] = [
   { id: "inlineCode", label: "<>" },
   { id: "link", label: "Link" },
   { id: "wikilink", label: "[[]]" },
+  { id: "table", label: "Table" },
   { id: "unorderedList", label: "List" },
   { id: "blockquote", label: "Quote" },
   { id: "spaceBefore", label: "↑ Espacio" },
@@ -362,6 +379,9 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     path: string;
     kind: "file" | "folder";
   }>();
+  const [explorerSelection, setExplorerSelection] = useState<ExplorerSelection[]>([]);
+  const [pointerDragTargetPath, setPointerDragTargetPath] = useState<string>();
+  const [lastExplorerMoves, setLastExplorerMoves] = useState<ExplorerUndoMove[]>();
   const [imagePreviewPath, setImagePreviewPath] = useState<string>();
   const [query, setQuery] = useState("");
   const [loadState, setLoadState] = useState<LoadState>("idle");
@@ -490,6 +510,77 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   }, [forgeMenuOpen]);
 
   const activeTab = tabs.find((tab) => tab.path === activeTabPath);
+  const activeVariantId = useMemo(() => {
+    if (!activeTab || !index?.rootPath) return BASE_VARIANT_ID;
+    const requested = settings.sessions[index.rootPath]?.variantSelections?.[activeTab.path];
+    return resolveVariantId(
+      parseFrontmatterRaw(rawToEditorParts(activeTab.rawMarkdown).frontmatterRaw),
+      requested,
+    );
+  }, [activeTab, index?.rootPath, settings.sessions]);
+  const selectActiveVariant = (variantId: string) => {
+    if (!activeTab || !index?.rootPath) return;
+    setSettings((current) => {
+      const session = current.sessions[index.rootPath] ?? { rootPath: index.rootPath, tabs: [] };
+      return {
+        ...current,
+        sessions: {
+          ...current.sessions,
+          [index.rootPath]: {
+            ...session,
+            variantSelections: { ...session.variantSelections, [activeTab.path]: variantId },
+          },
+        },
+      };
+    });
+  };
+
+  function insertActiveVariantBlock() {
+    if (!activeTab || activeVariantId === BASE_VARIANT_ID) return;
+    const opening = `\n\n<!-- everend:variant id="${activeVariantId}" -->\n`;
+    const block = `${opening}\n<!-- /everend:variant -->`;
+    if (editorViewRef.current && activeTab.mode === "write") {
+      const position = editorViewRef.current.state.selection.main.head;
+      editorViewRef.current.dispatch({
+        changes: { from: position, to: position, insert: block },
+        selection: { anchor: position + opening.length },
+      });
+      editorViewRef.current.focus();
+      return;
+    }
+    const parts = rawToEditorParts(activeTab.rawMarkdown);
+    const nextRaw = joinMarkdown(
+      parts.frontmatterRaw,
+      insertVariantBlock(parts.bodyMarkdown, activeVariantId),
+    );
+    setTabs((current) =>
+      current.map((tab) =>
+        tab.path === activeTab.path ? { ...tab, rawMarkdown: nextRaw, dirty: true } : tab,
+      ),
+    );
+  }
+
+  function deleteActiveVariant(variantId: string) {
+    if (!activeTab) return;
+    const parts = rawToEditorParts(activeTab.rawMarkdown);
+    const frontmatter = parseFrontmatterRaw(parts.frontmatterRaw);
+    const nextYaml = updateVariantsInRawYaml(
+      parts.frontmatterRaw,
+      deleteVariant(frontmatter, variantId),
+      index?.propertiesConfig,
+      inspectorEntity?.type,
+    );
+    const nextRaw = joinMarkdown(nextYaml, removeVariantBlocks(parts.bodyMarkdown, variantId));
+    setTabs((current) =>
+      current.map((tab) =>
+        tab.path === activeTab.path
+          ? { ...tab, rawMarkdown: nextRaw, savedMarkdown: nextRaw, dirty: false }
+          : tab,
+      ),
+    );
+    scheduleInspectorFrontmatterSave(activeTab.path, nextRaw);
+    selectActiveVariant(BASE_VARIANT_ID);
+  }
   const openTabPaths = useMemo(() => new Set(tabs.map((tab) => tab.path)), [tabs]);
   const dirtyTabPaths = useMemo(
     () => new Set(tabs.filter((tab) => tab.dirty).map((tab) => tab.path)),
@@ -686,9 +777,13 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     return selectFavoriteItems(index, settings.explorer.favorites);
   }, [index, settings.explorer.favorites]);
 
-  // Group entities by their ecosystem tags
+  // Group ecosystem entities by their registered type.
   const ecosystemGroups = useMemo(() => {
     return selectEcosystemGroups(index);
+  }, [index]);
+
+  const ecosystemEntityColors = useMemo(() => {
+    return selectEntityTypeColors(index);
   }, [index]);
 
   // Get tag color for an entity
@@ -700,16 +795,28 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     if (!pointerDragItem) return;
 
     function handlePointerMove(event: PointerEvent) {
+      const dragItem = pointerDragItem;
+      if (!dragItem) return;
       setPointerDragItem((current) => {
         if (!current || current.active) return current;
         const distance = Math.hypot(event.clientX - current.startX, event.clientY - current.startY);
         return distance > 6 ? { ...current, active: true } : current;
       });
+      if (Math.hypot(event.clientX - dragItem.startX, event.clientY - dragItem.startY) > 6) {
+        const element = document.elementFromPoint(
+          event.clientX,
+          event.clientY,
+        ) as HTMLElement | null;
+        setPointerDragTargetPath(
+          element?.closest<HTMLElement>("[data-tree-drop-path]")?.dataset.treeDropPath,
+        );
+      }
     }
 
     function handlePointerUp(event: PointerEvent) {
       const dragItem = pointerDragItem;
       setPointerDragItem(undefined);
+      setPointerDragTargetPath(undefined);
       if (!dragItem) return;
       if (!dragItem.active) return;
 
@@ -736,6 +843,24 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
       document.removeEventListener("pointerup", handlePointerUp);
     };
   }, [pointerDragItem]);
+
+  useEffect(() => {
+    function handleUndo(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (
+        !(event.metaKey || event.ctrlKey) ||
+        event.key.toLowerCase() !== "z" ||
+        !lastExplorerMoves?.length ||
+        target?.closest("input, textarea, [contenteditable='true'], .cm-content")
+      ) {
+        return;
+      }
+      event.preventDefault();
+      void undoExplorerMoves();
+    }
+    window.addEventListener("keydown", handleUndo);
+    return () => window.removeEventListener("keydown", handleUndo);
+  }, [lastExplorerMoves]);
 
   function toggleExpand(path: string) {
     setExpandedPaths((prev) => {
@@ -876,16 +1001,37 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     });
     if (index) {
       setSettings((current) => {
+        const movePath = (path: string) =>
+          pathIsAffectedByChanges(path, change) ? pathAfterChanges(path, change) : path;
         const focusedPath = current.explorer.focusedFoldersByUniverse?.[index.rootPath];
-        if (!focusedPath || !pathIsAffectedByChanges(focusedPath, change)) return current;
+        const focusedFoldersByUniverse =
+          focusedPath && pathIsAffectedByChanges(focusedPath, change)
+            ? {
+                ...(current.explorer.focusedFoldersByUniverse ?? {}),
+                [index.rootPath]: movePath(focusedPath),
+              }
+            : current.explorer.focusedFoldersByUniverse;
+        const customIcons = Object.fromEntries(
+          Object.entries(current.explorer.customIcons ?? {}).map(([path, icon]) => [
+            movePath(path),
+            icon,
+          ]),
+        );
         return {
           ...current,
           explorer: {
             ...current.explorer,
-            focusedFoldersByUniverse: {
-              ...(current.explorer.focusedFoldersByUniverse ?? {}),
-              [index.rootPath]: pathAfterChanges(focusedPath, change),
-            },
+            focusedFoldersByUniverse,
+            favorites: current.explorer.favorites.map((favorite) => {
+              const path = movePath(favorite.path);
+              return {
+                ...favorite,
+                path,
+                label: pathName(path).replace(/\.md$/i, ""),
+              };
+            }),
+            recentFiles: current.explorer.recentFiles.map(movePath),
+            customIcons,
           },
         };
       });
@@ -905,6 +1051,13 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
       current && pathIsAffectedByChanges(current.path, change)
         ? { ...current, path: pathAfterChanges(current.path, change) }
         : current,
+    );
+    setExplorerSelection((current) =>
+      current.map((item) =>
+        pathIsAffectedByChanges(item.path, change)
+          ? { ...item, path: pathAfterChanges(item.path, change) }
+          : item,
+      ),
     );
   }
 
@@ -1100,35 +1253,132 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     fromPath: string,
     toFolderPath: string,
     kind?: "file" | "folder",
+    options: { recordUndo?: boolean; skipConfirmation?: boolean } = {},
   ) {
     if (!index) return;
     const itemKind =
       kind ?? (index.files.some((file) => file.relativePath === fromPath) ? "file" : "folder");
-    const moveProblem = movePathProblem(fromPath, toFolderPath, itemKind);
-    if (moveProblem === "Cannot move a folder into itself.") {
-      showToast(moveProblem, "warning");
-      return;
+    try {
+      const moveProblem = movePathProblem(fromPath, toFolderPath, itemKind);
+      if (moveProblem === "Cannot move a folder into itself.") {
+        showToast(moveProblem, "warning");
+        return;
+      }
+      if (moveProblem === "already-there") return;
+
+      const folderNoteMove =
+        itemKind === "folder"
+          ? planFolderDescriptionMove(index, fromPath, toFolderPath)
+          : undefined;
+      const confirmed =
+        !options.skipConfirmation && settings.explorer.confirmDragMove
+          ? await confirmDialog(`Move ${pathName(fromPath)} to ${toFolderPath || "root"}?`, {
+              title: "Move item",
+              confirmLabel: "Move",
+            })
+          : true;
+      if (!confirmed) return;
+
+      const vault = vaultHandleFor(index.rootPath, browserRoot);
+      const movedPath = await moveVaultPath(vault, fromPath, toFolderPath, itemKind);
+      try {
+        if (folderNoteMove) {
+          await moveVaultPath(vault, folderNoteMove.oldDescriptionPath, toFolderPath, "file");
+        }
+      } catch (error) {
+        try {
+          await moveVaultPath(vault, movedPath, dirname(fromPath), "folder");
+        } catch {
+          throw new Error(
+            "The folder note could not be moved and the folder rollback also failed.",
+          );
+        }
+        throw error;
+      }
+
+      const change = movePathChange(fromPath, dirname(movedPath));
+      const changes = folderNoteMove ? [change, folderNoteMove.change] : change;
+      updateTabsForPathChange(changes);
+      await refreshUniverse(undefined, changes);
+      const undoMove = { fromPath: movedPath, toFolderPath: dirname(fromPath), kind: itemKind };
+      if (options.recordUndo !== false) setLastExplorerMoves([undoMove]);
+      showToast(`Moved ${pathName(fromPath)}.`, "success");
+      return undoMove;
+    } catch (error) {
+      showToast(
+        `Could not move ${pathName(fromPath)}: ${error instanceof Error ? error.message : String(error)}`,
+        "error",
+      );
+      return undefined;
     }
-    if (moveProblem === "already-there") {
-      return;
-    }
-    const confirmed = settings.explorer.confirmDragMove
-      ? await confirmDialog(`Move ${pathName(fromPath)} to ${toFolderPath || "root"}?`, {
-          title: "Move item",
+  }
+
+  async function moveExplorerSelection(toFolderPath: string) {
+    const targets = explorerSelection
+      .slice()
+      .sort((left, right) => left.path.length - right.path.length)
+      .filter(
+        (item, index, all) =>
+          !all.slice(0, index).some((parent) => item.path.startsWith(`${parent.path}/`)),
+      );
+    if (targets.length < 2) return;
+    if (settings.explorer.confirmDragMove) {
+      const confirmed = await confirmDialog(
+        `Move ${targets.length} items to ${toFolderPath || "root"}?`,
+        {
+          title: "Move items",
           confirmLabel: "Move",
-        })
-      : true;
-    if (!confirmed) return;
-    const movedPath = await moveVaultPath(
-      vaultHandleFor(index.rootPath, browserRoot),
-      fromPath,
-      toFolderPath,
-      itemKind,
+        },
+      );
+      if (!confirmed) return;
+    }
+    const completed: ExplorerUndoMove[] = [];
+    for (const target of targets) {
+      const move = await moveExplorerPath(target.path, toFolderPath, target.kind, {
+        recordUndo: false,
+        skipConfirmation: true,
+      });
+      if (!move) {
+        for (const completedMove of completed.slice().reverse()) {
+          await moveExplorerPath(
+            completedMove.fromPath,
+            completedMove.toFolderPath,
+            completedMove.kind,
+            {
+              recordUndo: false,
+              skipConfirmation: true,
+            },
+          );
+        }
+        return;
+      }
+      completed.push(move);
+    }
+    setLastExplorerMoves(completed);
+    setExplorerSelection(completed.map((move) => ({ path: move.fromPath, kind: move.kind })));
+    showToast(`Moved ${completed.length} items. Press Ctrl/⌘+Z to undo.`, "success");
+  }
+
+  async function undoExplorerMoves() {
+    const moves = lastExplorerMoves;
+    if (!moves?.length) return;
+    setLastExplorerMoves(undefined);
+    for (const move of moves.slice().reverse()) {
+      const restored = await moveExplorerPath(move.fromPath, move.toFolderPath, move.kind, {
+        recordUndo: false,
+        skipConfirmation: true,
+      });
+      if (!restored) return;
+    }
+    setExplorerSelection(
+      moves.map((move) => ({
+        path: move.toFolderPath
+          ? `${move.toFolderPath}/${pathName(move.fromPath)}`
+          : pathName(move.fromPath),
+        kind: move.kind,
+      })),
     );
-    const change = movePathChange(fromPath, dirname(movedPath));
-    updateTabsForPathChange(change);
-    await refreshUniverse(undefined, change);
-    showToast(`Moved ${pathName(fromPath)}.`, "success");
+    showToast(`Undid ${moves.length} move${moves.length === 1 ? "" : "s"}.`, "success");
   }
 
   async function revealExplorerPath(path?: string) {
@@ -1146,7 +1396,25 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
 
   async function trashExplorerPath(path: string, kind: "file" | "folder") {
     if (!index) return;
-    const affectedDirtyTabs = dirtyTabPathsAffectedByTree(tabs, path);
+    const folderNotePath = kind === "folder" ? folderDescriptionPath(path) : undefined;
+    const hasFolderNote = Boolean(
+      folderNotePath && index.files.some((file) => file.relativePath === folderNotePath),
+    );
+    const folderContentsCount = kind === "folder" ? folderContents(index, path).length : 0;
+    if (folderContentsCount) {
+      showToast(
+        `Cannot delete ${pathName(path)}: it contains ${folderContentsCount} item(s). Move or delete its contents first.`,
+        "warning",
+      );
+      return;
+    }
+
+    const affectedDirtyTabs = [
+      ...new Set([
+        ...dirtyTabPathsAffectedByTree(tabs, path),
+        ...tabs.filter((tab) => tab.dirty && tab.path === folderNotePath).map((tab) => tab.path),
+      ]),
+    ];
     if (affectedDirtyTabs.length) {
       const confirmed = await confirmDialog(
         `${affectedDirtyTabs.length} open tab(s) have unsaved changes. ${labels.trashAction} anyway?`,
@@ -1155,37 +1423,55 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
       if (!confirmed) return;
     }
     const confirmed = await confirmDialog(
-      browserRoot
-        ? `Delete ${pathName(path)} from this browser-opened universe?`
-        : `${labels.trashAction} ${pathName(path)}?`,
+      kind === "folder"
+        ? `Delete the empty folder ${pathName(path)}${hasFolderNote ? " and its folder note" : ""}?`
+        : browserRoot
+          ? `Delete ${pathName(path)} from this browser-opened universe?`
+          : `${labels.trashAction} ${pathName(path)}?`,
       { title: labels.trashAction, confirmLabel: labels.trashAction, destructive: true },
     );
     if (!confirmed) return;
     const vault = vaultHandleFor(index.rootPath, browserRoot);
-    await trashVaultPath(vault, path);
-    // Also trash the folder note when trashing a folder
-    if (kind === "folder") {
-      const folderNotePath = folderDescriptionPath(path);
-      if (index.files.some((file) => file.relativePath === folderNotePath)) {
-        try {
-          await trashVaultPath(vault, folderNotePath);
-        } catch {
-          // Ignore error if folder note doesn't exist
-        }
+    await trashVaultPath(vault, path, { requireEmpty: kind === "folder" });
+    const removedPaths = [path];
+    if (folderNotePath && hasFolderNote) {
+      try {
+        await trashVaultPath(vault, folderNotePath);
+        removedPaths.push(folderNotePath);
+      } catch (error) {
+        showToast(
+          `Folder deleted, but its folder note could not be removed: ${error instanceof Error ? error.message : String(error)}`,
+          "warning",
+        );
       }
     }
-    setTabs((current) =>
-      current.filter((tab) => !(tab.path === path || tab.path.startsWith(`${path}/`))),
-    );
-    if (selectedPath === path || selectedPath?.startsWith(`${path}/`)) {
+    const wasRemoved = (candidate: string | undefined) => {
+      if (!candidate) return false;
+      return (
+        candidate === path || candidate.startsWith(`${path}/`) || removedPaths.includes(candidate)
+      );
+    };
+    setTabs((current) => current.filter((tab) => !wasRemoved(tab.path)));
+    if (wasRemoved(selectedPath)) {
       setSelectedPath(undefined);
       setActiveTabPath(undefined);
     }
-    if (imagePreviewPath === path || imagePreviewPath?.startsWith(`${path}/`)) {
+    if (wasRemoved(activeTabPath)) setActiveTabPath(undefined);
+    if (wasRemoved(imagePreviewPath)) {
       setImagePreviewPath(undefined);
     }
+    setSelectedExplorerTarget((current) =>
+      current && wasRemoved(current.path) ? undefined : current,
+    );
     updateExplorer({
-      favorites: favoritesOutsideTree(settings.explorer.favorites, path),
+      favorites: favoritesOutsideTree(settings.explorer.favorites, path).filter(
+        (favorite) => !removedPaths.includes(favorite.path),
+      ),
+      customIcons: Object.fromEntries(
+        Object.entries(settings.explorer.customIcons ?? {}).filter(
+          ([iconPath]) => !wasRemoved(iconPath),
+        ),
+      ),
       focusedFoldersByUniverse:
         index &&
         focusedFolderPath &&
@@ -1933,6 +2219,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   function selectPath(path: string) {
     if (!index) return;
     setSelectedExplorerTarget({ path, kind: "file" });
+    setExplorerSelection([{ path, kind: "file" }]);
     if (isImagePath(path)) {
       setSelectedPath(path);
       setImagePreviewPath(path);
@@ -1946,12 +2233,27 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     const file = nextIndex.files.find((f) => f.relativePath === path);
     if (!file) return;
     setSelectedExplorerTarget({ path, kind: "file" });
+    setExplorerSelection([{ path, kind: "file" }]);
     openOrCreateTab(path, nextIndex);
   }
 
   function selectFolder(path: string) {
     setSelectedExplorerTarget({ path, kind: "folder" });
+    setExplorerSelection([{ path, kind: "folder" }]);
     setSelectedPath(path);
+  }
+
+  function toggleExplorerMultiSelection(path: string, kind: "file" | "folder") {
+    setExplorerSelection((current) => {
+      const base = current.length
+        ? current
+        : selectedExplorerTarget
+          ? [selectedExplorerTarget]
+          : [];
+      return base.some((item) => item.path === path)
+        ? base.filter((item) => item.path !== path)
+        : [...base, { path, kind }];
+    });
   }
 
   async function openUniverse() {
@@ -2152,8 +2454,10 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
         return {
           ...tab,
           rawMarkdown: nextRawMarkdown,
-          savedMarkdown: nextRawMarkdown,
-          dirty: false,
+          // The inspector writes its changes asynchronously. Keep the tab dirty
+          // until that write succeeds so a note is never presented as saved
+          // before its property change has reached disk.
+          dirty: nextRawMarkdown !== tab.savedMarkdown,
         };
       }),
     );
@@ -2352,6 +2656,21 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     if (!url?.trim()) return;
     const selection = view.state.selection.main;
     const insertion = markdownLinkInsertion(view.state.sliceDoc(selection.from, selection.to), url);
+    view.dispatch({
+      changes: { from: selection.from, to: selection.to, insert: insertion.text },
+      selection: {
+        anchor: selection.from + insertion.anchorOffset,
+        head: selection.from + (insertion.headOffset ?? insertion.anchorOffset),
+      },
+    });
+    view.focus();
+  }
+
+  function insertTableAtSelection() {
+    const view = editorViewRef.current;
+    if (!view) return;
+    const selection = view.state.selection.main;
+    const insertion = tableInsertion(view.state.sliceDoc(selection.from, selection.to));
     view.dispatch({
       changes: { from: selection.from, to: selection.to, insert: insertion.text },
       selection: {
@@ -2742,6 +3061,13 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
       case "footnote":
         insertFootnoteAtSelection();
         break;
+      case "table":
+        if (!isPluginEnabled(settings.plugins, "table-tools")) {
+          showToast("Enable Table Tools in Settings to insert a table.", "error");
+          break;
+        }
+        insertTableAtSelection();
+        break;
       case "insert":
         insertAtCursor(action.markdown);
         break;
@@ -3100,11 +3426,14 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
       onSetFocusedFolder={setFocusedFolder}
       visibleRows={visibleExplorerRows}
       selectedPath={selectedPath}
+      multiSelectedPaths={new Set(explorerSelection.map((item) => item.path))}
+      pointerDragTargetPath={pointerDragTargetPath}
       openTabPaths={openTabPaths}
       dirtyTabPaths={dirtyTabPaths}
       favoritePaths={favoritePaths}
       favoriteItems={favoriteItems}
       ecosystemGroups={ecosystemGroups}
+      ecosystemEntityColors={ecosystemEntityColors}
       entityTagColors={entityTagColors}
       folderNotesEnabled={!settings.explorer.ignoreFolderNoteMetadata}
       customIcons={settings.explorer.customIcons}
@@ -3114,6 +3443,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
       onCreateTemplate={createTemplate}
       onSelectPath={selectPath}
       onSelectFolder={selectFolder}
+      onToggleMultiSelection={toggleExplorerMultiSelection}
       onToggleExpand={toggleExpand}
       onTreeAction={handleExplorerTreeAction}
       onContextMenu={handleContextMenu}
@@ -3215,7 +3545,10 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
         settings.editor.floatingToolbarEnabled ? (
           <div className="floating-format-toolbar-fixed">
             <FontSelector availableFonts={fonts} onSelectFont={applyFontFamily} />
-            {FLOATING_FORMAT_COMMANDS.map((command) => (
+            {FLOATING_FORMAT_COMMANDS.filter(
+              (command) =>
+                command.id !== "table" || isPluginEnabled(settings.plugins, "table-tools"),
+            ).map((command) => (
               <button
                 key={command.id}
                 type="button"
@@ -3309,11 +3642,15 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
                 const frontmatter = entity?.customProperties
                   ? { ...entity.customProperties, type: entity.type, name: entity.name }
                   : {};
+                const effectiveFrontmatter = resolveVariantFrontmatter(
+                  frontmatter,
+                  activeVariantId,
+                );
                 const portraitPath = entity
                   ? getPresentationRoleValue(
                       index?.propertiesConfig,
                       entity.type,
-                      frontmatter,
+                      effectiveFrontmatter,
                       "portrait",
                     )
                   : undefined;
@@ -3321,14 +3658,18 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
                   ? getPresentationRoleValue(
                       index?.propertiesConfig,
                       entity.type,
-                      frontmatter,
+                      effectiveFrontmatter,
                       "cover",
                     )
                   : undefined;
                 return documentTab.mode === "write" && index && entity && type ? (
                   <DocumentPresentation
                     vaultIndex={index}
-                    name={entity.name}
+                    name={
+                      typeof effectiveFrontmatter.name === "string"
+                        ? effectiveFrontmatter.name
+                        : entity.name
+                    }
                     typeLabel={type.label}
                     portraitPath={portraitPath}
                     coverPath={coverPath}
@@ -3338,6 +3679,9 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
               <CodeMirrorEditor
                 value={editorDisplayValue(documentTab)}
                 onChange={(value) => updateRawMarkdownForPath(documentTab.path, value)}
+                activeVariantId={
+                  documentTab.path === activeTabPath ? activeVariantId : BASE_VARIANT_ID
+                }
                 theme={settings.theme}
                 mode={documentTab.mode}
                 settings={settings.editor}
@@ -3352,17 +3696,21 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
                       type: entity.type,
                       name: entity.name,
                     };
+                    const effectiveFrontmatter = resolveVariantFrontmatter(
+                      frontmatter,
+                      activeVariantId,
+                    );
                     return Boolean(
                       getPresentationRoleValue(
                         index.propertiesConfig,
                         entity.type,
-                        frontmatter,
+                        effectiveFrontmatter,
                         "portrait",
                       ) ||
                       getPresentationRoleValue(
                         index.propertiesConfig,
                         entity.type,
-                        frontmatter,
+                        effectiveFrontmatter,
                         "cover",
                       ),
                     );
@@ -3494,6 +3842,12 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
       onConserveField={handleConserveField}
       onDeleteField={handleDeleteField}
       onRequestImage={requestImageInsertion}
+      activeVariantId={activeVariantId}
+      onSelectVariant={selectActiveVariant}
+      onInsertVariantBlock={insertActiveVariantBlock}
+      onDeleteVariant={deleteActiveVariant}
+      explorerSelection={explorerSelection}
+      onMoveExplorerSelection={moveExplorerSelection}
     />
   );
 

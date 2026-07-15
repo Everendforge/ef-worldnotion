@@ -13,6 +13,12 @@ import {
 } from "../utils/entityPresentation";
 import { parseFrontmatterRaw } from "../utils/propertiesConfig";
 import { ImageField } from "./properties/fields/ImageField";
+import {
+  BASE_VARIANT_ID,
+  resolveVariantFrontmatter,
+  setVariantOverride,
+  updateVariantsInRawYaml,
+} from "../utils/noteVariants";
 
 type PresentationEditorProps = {
   entity: Entity;
@@ -22,6 +28,7 @@ type PresentationEditorProps = {
   onUpdateRawYaml: (yaml: string) => void;
   onUpdatePropertiesConfig?: (config: PropertiesConfig) => void | Promise<void>;
   onRequestImage?: () => Promise<{ path: string; alt?: string } | null>;
+  activeVariantId?: string;
 };
 
 const ROLE_COPY: Record<
@@ -48,13 +55,18 @@ export function PresentationEditor({
   onUpdateRawYaml,
   onUpdatePropertiesConfig,
   onRequestImage,
+  activeVariantId = BASE_VARIANT_ID,
 }: PresentationEditorProps) {
   const type = getEntityTypeDefinition(config, entity.type);
   const imageProperties = useMemo(
     () => listPresentationImageProperties(config, entity.type),
     [config, entity.type],
   );
-  const frontmatter = useMemo(() => parseFrontmatterRaw(rawYaml), [rawYaml]);
+  const rawFrontmatter = useMemo(() => parseFrontmatterRaw(rawYaml), [rawYaml]);
+  const frontmatter = useMemo(
+    () => resolveVariantFrontmatter(rawFrontmatter, activeVariantId),
+    [activeVariantId, rawFrontmatter],
+  );
 
   if (!type) {
     return (
@@ -76,6 +88,17 @@ export function PresentationEditor({
   const setRoleValue = (role: PresentationRole, value: unknown) => {
     const propertyId = getPresentationRolePropertyId(config, type.id, role);
     if (!propertyId) return;
+    if (activeVariantId !== BASE_VARIANT_ID) {
+      onUpdateRawYaml(
+        updateVariantsInRawYaml(
+          rawYaml,
+          setVariantOverride(rawFrontmatter, config, activeVariantId, propertyId, value),
+          config,
+          type.id,
+        ),
+      );
+      return;
+    }
     onUpdateRawYaml(updateFrontmatterProperties(rawYaml, { [propertyId]: value }, config, type.id));
   };
 
@@ -84,7 +107,7 @@ export function PresentationEditor({
       <header className="presentation-editor-heading">
         <div>
           <span className="presentation-editor-eyebrow">{type.label}</span>
-          <h3>Presentation</h3>
+          <h3>Presentation{activeVariantId !== BASE_VARIANT_ID ? " variant" : ""}</h3>
         </div>
         <p>
           Configure the visual roles for every {type.label} note, then assign this note’s images.

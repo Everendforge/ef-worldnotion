@@ -67,7 +67,7 @@ export function useWorkspaceState({
     );
     setSettings((current) => ({
       ...current,
-      sessions: { ...current.sessions, [rootPath]: session },
+      sessions: { ...current.sessions, [rootPath]: { ...current.sessions[rootPath], ...session } },
     }));
   }, [
     activeTabPath,

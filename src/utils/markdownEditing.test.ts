@@ -6,6 +6,7 @@ import {
   headingLine,
   listLine,
   markdownLinkInsertion,
+  tableInsertion,
   wikilinkInsertion,
   wrapSelectionText,
 } from "./markdownEditing";
@@ -76,5 +77,13 @@ describe("markdown editing helpers", () => {
     expect(listLine("  # Scene", 0, "bullet")).toBe("  - # Scene");
     expect(listLine("Old", 1, "ordered")).toBe("2. Old");
     expect(listLine("", 0, "task")).toBe("- [ ] List item");
+  });
+
+  it("creates a portable GFM table from tabular selection", () => {
+    expect(tableInsertion("Cargo\tUso\nVirithiana\tVi-na")).toMatchObject({
+      text: "\n\n| Cargo | Uso |\n| :---: | :---: |\n| Virithiana | Vi-na |\n\n",
+      anchorOffset: 2,
+      headOffset: 7,
+    });
   });
 });

@@ -261,7 +261,7 @@ export function ContextMenu({
           </button>
           <button type="button" onClick={() => run("trash")} className="context-menu-item danger">
             <Trash2 size={16} />
-            <span>{trashLabel}</span>
+            <span>{targetKind === "folder" ? "Delete Empty Folder" : trashLabel}</span>
           </button>
         </>
       ) : (

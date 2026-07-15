@@ -5,6 +5,7 @@ import type { OpenTab, PropertiesConfig } from "../editorTypes";
 import { rawToEditorParts } from "../utils/contentTemplates";
 import { LazyPanelFallback } from "./LazyPanelFallback";
 import { InspectorOnboarding } from "./properties/InspectorOnboarding";
+import { VariantSelector } from "./VariantSelector";
 
 function noteFileName(path: string) {
   return path.split("/").pop()?.replace(/\.md$/i, "") || "untitled";
@@ -32,6 +33,12 @@ export type InspectorPanelProps = {
   onConserveField?: (fieldName: string, value: unknown) => void | Promise<void>;
   onDeleteField?: (fieldName: string) => void;
   onRequestImage?: () => Promise<{ path: string; alt?: string } | null>;
+  activeVariantId?: string;
+  onSelectVariant?: (id: string) => void;
+  onInsertVariantBlock?: () => void;
+  onDeleteVariant?: (id: string) => void;
+  explorerSelection?: Array<{ path: string; kind: "file" | "folder" }>;
+  onMoveExplorerSelection?: (targetFolderPath: string) => void | Promise<void>;
 };
 
 export function InspectorPanel({
@@ -50,13 +57,46 @@ export function InspectorPanel({
   onConserveField,
   onDeleteField,
   onRequestImage,
+  activeVariantId = "base",
+  onSelectVariant,
+  onInsertVariantBlock,
+  onDeleteVariant,
+  explorerSelection = [],
+  onMoveExplorerSelection,
 }: InspectorPanelProps) {
   const [activeView, setActiveView] = useState<"properties" | "presentation">("properties");
+  const [moveTarget, setMoveTarget] = useState("");
   if (!index) {
     return (
       <aside className="inspector">
         <h2>Inspector</h2>
         <p className="muted">Open a universe to inspect metadata.</p>
+      </aside>
+    );
+  }
+
+  if (explorerSelection.length > 1) {
+    return (
+      <aside className="inspector">
+        <h2>Bulk selection</h2>
+        <p className="muted">
+          {explorerSelection.length} items selected. Use Ctrl/⌘-click to adjust.
+        </p>
+        <label className="field-label">
+          Move to folder path
+          <input
+            value={moveTarget}
+            onChange={(event) => setMoveTarget(event.target.value)}
+            placeholder="Root"
+          />
+        </label>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => void onMoveExplorerSelection?.(moveTarget)}
+        >
+          Move {explorerSelection.length} items
+        </button>
       </aside>
     );
   }
@@ -171,6 +211,16 @@ export function InspectorPanel({
               )
             ) : (
               <>
+                <VariantSelector
+                  rawYaml={editableFrontmatter || "---\n\n---"}
+                  config={propertiesConfig}
+                  type={entity.type}
+                  activeVariantId={activeVariantId}
+                  onSelect={(id) => onSelectVariant?.(id)}
+                  onUpdateRawYaml={(yaml) => onChangeFrontmatter(yaml)}
+                  onInsertBlock={onInsertVariantBlock}
+                  onDeleteVariant={onDeleteVariant}
+                />
                 <div className="inspector-subviews" role="tablist" aria-label="Note inspector">
                   <button
                     type="button"
@@ -207,6 +257,7 @@ export function InspectorPanel({
                       onDeleteField={onDeleteField}
                       onOpenEntity={onOpenEntity}
                       onRequestImage={onRequestImage}
+                      activeVariantId={activeVariantId}
                     />
                   ) : (
                     <PresentationEditor
@@ -217,6 +268,7 @@ export function InspectorPanel({
                       onUpdateRawYaml={onChangeFrontmatter}
                       onUpdatePropertiesConfig={onUpdatePropertiesConfig}
                       onRequestImage={onRequestImage}
+                      activeVariantId={activeVariantId}
                     />
                   )}
                 </Suspense>

@@ -276,6 +276,10 @@ export async function copyBrowserPath(
   kind: "file" | "folder",
 ) {
   await ensureBrowserWritePermission(root);
+  if (kind === "folder" && (toPath === fromPath || toPath.startsWith(`${fromPath}/`))) {
+    throw new Error("Cannot copy a folder into itself.");
+  }
+  await assertBrowserPathAvailable(root, toPath);
   if (kind === "file") {
     const source = await getBrowserFile(root, fromPath);
     const file = await source.getFile();
@@ -287,6 +291,21 @@ export async function copyBrowserPath(
   const { directory, name } = await getBrowserParent(root, toPath);
   const target = await directory.getDirectoryHandle(name, { create: true });
   await copyBrowserDirectory(source, target);
+}
+
+async function assertBrowserPathAvailable(root: BrowserDirectoryHandle, relativePath: string) {
+  const { directory, name } = await getBrowserParent(root, relativePath);
+  try {
+    await directory.getFileHandle(name);
+  } catch (error) {
+    const errorName = (error as { name?: string } | undefined)?.name;
+    if (errorName === "NotFoundError") return;
+    if (errorName === "TypeMismatchError") {
+      throw new Error(`Target path already exists: ${relativePath}`);
+    }
+    throw error;
+  }
+  throw new Error(`Target path already exists: ${relativePath}`);
 }
 
 export async function renameBrowserPath(

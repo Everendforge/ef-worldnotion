@@ -87,6 +87,17 @@ const PLUGIN_DEFINITIONS: PluginDefinition[] = [
     riskLevel: "low",
   },
   {
+    id: "table-tools",
+    name: "Table Tools",
+    description: "Creates and highlights portable GitHub-Flavored Markdown tables in Write mode.",
+    category: "visual",
+    status: "available",
+    scope: "worldnotion",
+    defaultEnabled: true,
+    configurable: true,
+    riskLevel: "low",
+  },
+  {
     id: "unity-adapter",
     name: "Unity Adapter",
     description: "Planned engine adapter for runtime packages exported by PathBranching.",
