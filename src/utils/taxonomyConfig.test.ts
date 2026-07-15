@@ -6,17 +6,73 @@ import {
   normalizeCoreBaseProperties,
   type TaxonomyEntityInput,
 } from "./taxonomyConfig";
+import { applyPropertyTemplate, WORLDBUILDING_TEMPLATE } from "./propertyTemplates";
+import { validatePropertiesConfig } from "./propertiesSerializer";
 
 describe("taxonomy config helpers", () => {
   it("creates the default taxonomy without requiring vault data", () => {
     const taxonomy = createDefaultTaxonomyConfig();
 
-    expect(taxonomy.version).toBe("1.0");
+    expect(taxonomy.version).toBe("3.0");
     expect(taxonomy.entityTypes.defaultType).toBe("concept");
     expect(taxonomy.entityTypes.definitions.map((definition) => definition.id)).toContain(
       "character",
     );
     expect(taxonomy.statuses.definitions.map((definition) => definition.id)).toContain("draft");
+  });
+
+  it("materializes core select options before a properties save is validated", () => {
+    const normalized = normalizeCoreBaseProperties(createDefaultTaxonomyConfig());
+
+    expect(validatePropertiesConfig(normalized).valid).toBe(true);
+    expect(
+      normalized.baseProperties?.definitions.find((definition) => definition.id === "type")
+        ?.options,
+    ).toEqual(
+      expect.arrayContaining([expect.objectContaining({ value: "character", label: "Character" })]),
+    );
+  });
+
+  it("removes stale property scopes after entity types are removed", () => {
+    const worldbuilding = applyPropertyTemplate(
+      createDefaultTaxonomyConfig(),
+      WORLDBUILDING_TEMPLATE,
+    );
+    const retainedTypes = new Set([
+      "character",
+      "location",
+      "organization",
+      "concept",
+      "item",
+      "cycle",
+      "universe",
+    ]);
+    const normalized = normalizeCoreBaseProperties({
+      ...worldbuilding,
+      entityTypes: {
+        ...worldbuilding.entityTypes,
+        definitions: worldbuilding.entityTypes.definitions.filter((definition) =>
+          retainedTypes.has(definition.id),
+        ),
+      },
+    });
+
+    expect(validatePropertiesConfig(normalized)).toMatchObject({ valid: true, errors: [] });
+    const visit = (
+      definitions: Array<{ appliesTo?: string[]; children?: unknown[] }>,
+      parentScope = retainedTypes,
+    ) => {
+      definitions.forEach((definition) => {
+        const scope = new Set(definition.appliesTo ?? parentScope);
+        expect([...scope].every((typeId) => retainedTypes.has(typeId))).toBe(true);
+        expect([...scope].every((typeId) => parentScope.has(typeId))).toBe(true);
+        visit(
+          (definition.children ?? []) as Array<{ appliesTo?: string[]; children?: unknown[] }>,
+          scope,
+        );
+      });
+    };
+    visit(normalized.customFields.definitions);
   });
 
   it("keeps folder out of properties while preserving the Everend base contract", () => {

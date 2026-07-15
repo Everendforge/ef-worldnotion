@@ -22,6 +22,7 @@ import {
   buildInspectorPropertySections,
   changePropertyType,
   duplicateInspectorProperty,
+  ensureEntityTypeDefinition,
   inferPropertyDefinition,
   knownPropertyIds,
   listAllProperties,
@@ -32,25 +33,28 @@ import {
   NON_INSPECTOR_PROPERTY_IDS,
   parseFrontmatterRaw,
   removeFrontmatterProperty,
-  renameInspectorProperty,
   emptyPropertyValue,
+  getFrontmatterPropertyValue,
+  getFrontmatterPropertyValues,
   getConfiguredFrontmatterOrder,
   reorderInspectorPropertySiblings,
   removeInspectorProperty,
   reorderFrontmatter,
   sanitizePropertyId,
   setInspectorPropertyVisibility,
+  setInspectorPropertyAppliesTo,
   updateFrontmatterProperties,
   upsertInspectorProperty,
   type VisiblePropertyDefinition,
 } from "../utils/propertiesConfig";
+import { propertyAppliesToEntityType } from "../utils/entityPresentation";
 import { getPropertyPath } from "../utils/propertyTreeUtils";
+import { listPropertyPathEntries } from "../utils/propertyPaths";
 import { coercePropertyValue } from "../utils/propertyValueCoercion";
 import { detectOrphanedFields, inferValueType } from "../utils/frontmatterValidator";
-import { useToast } from "./ToastProvider";
 import { useAppDialogs } from "./DialogProvider";
 import { PropertyRow, type PropertyRowHandlers } from "./properties/PropertyRow";
-import { AddPropertyRow } from "./properties/AddPropertyRow";
+import { AddPropertyRow, type NewInspectorProperty } from "./properties/AddPropertyRow";
 import { PropertyContextMenu } from "./properties/PropertyContextMenu";
 import { PropertyEditorPopover } from "./properties/PropertyEditorPopover";
 import { LegacyMetadataFields } from "./properties/LegacyMetadataFields";
@@ -63,9 +67,11 @@ type MetadataEditorProps = {
   onUpdate: (updates: Partial<Entity>) => void;
   onUpdateRawYaml?: (yaml: string) => void;
   onUpdatePropertiesConfig?: (properties: PropertiesConfig) => void | Promise<void>;
+  onRequestPropertyPathChange?: (properties: PropertiesConfig) => void | Promise<void>;
   onConserveField?: (fieldName: string, value: unknown) => void | Promise<void>;
   onDeleteField?: (fieldName: string) => void;
   onOpenEntity?: (path: string) => void;
+  onRequestImage?: () => Promise<{ path: string; alt?: string } | null>;
 };
 
 type EditableOption = { value: string; label: string; color?: string };
@@ -91,18 +97,25 @@ function formatPreviewValue(value: unknown): string {
 
 export function MetadataEditor({
   entity,
-  propertiesConfig,
+  propertiesConfig: incomingPropertiesConfig,
   rawYaml,
   vaultIndex,
   onUpdate,
   onUpdateRawYaml,
   onUpdatePropertiesConfig,
+  onRequestPropertyPathChange,
   onConserveField,
   onDeleteField,
   onOpenEntity,
+  onRequestImage,
 }: MetadataEditorProps) {
-  const { showToast } = useToast();
   const { confirmDialog } = useAppDialogs();
+  // The app reindexes after saving properties.json. Keep the draft schema in
+  // the Inspector until that asynchronous round-trip returns it as a prop.
+  const [pendingPropertiesConfig, setPendingPropertiesConfig] = useState<
+    PropertiesConfig | undefined
+  >();
+  const propertiesConfig = pendingPropertiesConfig ?? incomingPropertiesConfig;
   const [adaptTargets, setAdaptTargets] = useState<Record<string, string>>({});
   const [draggedPropertyId, setDraggedPropertyId] = useState<string | null>(null);
   const [propertyContextMenu, setPropertyContextMenu] = useState<{
@@ -171,18 +184,25 @@ export function MetadataEditor({
   const handlePropertyChange = (propertyId: string, value: unknown) => {
     if (ENTITY_FRONTMATTER_FIELD_IDS.has(propertyId)) {
       onUpdate({ [propertyId]: value } as Partial<Entity>);
-    } else {
-      onUpdate({
-        customProperties: {
-          ...entity.customProperties,
-          [propertyId]: value,
-        },
-      });
+    } else if (onUpdateRawYaml) {
+      onUpdateRawYaml(
+        updateFrontmatterProperties(
+          rawYaml,
+          { [propertyId]: value },
+          propertiesConfig,
+          entity.type,
+        ),
+      );
     }
   };
 
   const getPropertyValue = (property: BasePropertyDefinition | CustomFieldDefinition): unknown => {
-    if (property.id in frontmatterData) return frontmatterData[property.id];
+    const frontmatterValue = getFrontmatterPropertyValue(
+      frontmatterData,
+      property.id,
+      propertiesConfig,
+    );
+    if (frontmatterValue !== undefined) return frontmatterValue;
     if (ENTITY_FRONTMATTER_FIELD_IDS.has(property.id)) return (entity as any)[property.id];
     return entity.customProperties[property.id];
   };
@@ -199,8 +219,19 @@ export function MetadataEditor({
     onUpdateRawYaml(adaptFrontmatterProperty(rawYaml, key, target, propertiesConfig, entity.type));
   };
 
+  const persistConfig = async (nextConfig: PropertiesConfig) => {
+    setPendingPropertiesConfig(nextConfig);
+    try {
+      await onUpdatePropertiesConfig?.(nextConfig);
+    } finally {
+      setPendingPropertiesConfig((current) => (current === nextConfig ? undefined : current));
+    }
+  };
+
   const saveConfig = (nextConfig: PropertiesConfig) => {
-    void onUpdatePropertiesConfig?.(nextConfig);
+    // App owns the user-facing error toast for background edits. The creation
+    // dialog uses persistConfig directly so it can keep the form open on error.
+    void persistConfig(nextConfig).catch(() => undefined);
   };
 
   const allInspectableProperties = useMemo(
@@ -222,6 +253,12 @@ export function MetadataEditor({
   const openPropertyEditor = (propertyId: string, anchorEl: HTMLElement) => {
     setPropertyEditor({ propertyId, anchorEl });
     setPropertyContextMenu(null);
+  };
+
+  const closePropertyEditor = () => {
+    const anchorEl = propertyEditor?.anchorEl;
+    setPropertyEditor(null);
+    window.requestAnimationFrame(() => anchorEl?.focus());
   };
 
   const parentIdOf = (propertyId: string): string => {
@@ -255,14 +292,20 @@ export function MetadataEditor({
     );
   };
 
-  const setPropertyDependency = (propertyId: string, parentId: string, values: string[]) => {
-    const visibleWhen = parentId && values.length ? { [parentId]: values } : undefined;
-    updatePropertyDefinition(propertyId, { visibleWhen });
+  const setPropertyConditions = (propertyId: string, visibleWhen: Record<string, string[]>) => {
+    updatePropertyDefinition(propertyId, {
+      visibleWhen: Object.keys(visibleWhen).length ? visibleWhen : undefined,
+    });
   };
 
   const movePropertyParent = (propertyId: string, parentId: string | null) => {
     if (!propertiesConfig) return;
-    saveConfig(moveInspectorProperty(propertiesConfig, entity.type, propertyId, parentId));
+    const nextConfig = moveInspectorProperty(propertiesConfig, entity.type, propertyId, parentId);
+    if (onRequestPropertyPathChange) {
+      void onRequestPropertyPathChange(nextConfig);
+    } else {
+      saveConfig(nextConfig);
+    }
   };
 
   const duplicateProperty = (propertyId: string) => {
@@ -272,8 +315,20 @@ export function MetadataEditor({
 
   const deletePropertyFromUniverse = async (propertyId: string) => {
     if (!propertiesConfig) return;
+    const presentationRoles = propertiesConfig.entityTypes.definitions.flatMap((type) => {
+      const roles: string[] = [];
+      if (type.presentation?.portraitPropertyId === propertyId) {
+        roles.push(`${type.label} portrait`);
+      }
+      if (type.presentation?.coverPropertyId === propertyId) {
+        roles.push(`${type.label} cover`);
+      }
+      return roles;
+    });
     const confirmed = await confirmDialog(
-      "Delete this property from universe properties? Existing note values will stay until removed from frontmatter.",
+      presentationRoles.length
+        ? `Delete this property from universe properties? It will also disable ${presentationRoles.join(", ")}. Existing note values will stay until removed from frontmatter.`
+        : "Delete this property from universe properties? Existing note values will stay until removed from frontmatter.",
       { title: "Delete property", confirmLabel: "Delete", destructive: true },
     );
     if (!confirmed) return;
@@ -390,34 +445,9 @@ export function MetadataEditor({
       return;
     }
 
-    if ("immutable" in property) {
-      saveConfig({
-        ...propertiesConfig,
-        baseProperties: propertiesConfig.baseProperties
-          ? {
-              ...propertiesConfig.baseProperties,
-              definitions: propertiesConfig.baseProperties.definitions.map((definition) =>
-                definition.id === property.id
-                  ? { ...definition, options: normalizedOptions }
-                  : definition,
-              ),
-            }
-          : propertiesConfig.baseProperties,
-      });
-      return;
-    }
-
-    saveConfig({
-      ...propertiesConfig,
-      customFields: {
-        ...propertiesConfig.customFields,
-        definitions: propertiesConfig.customFields.definitions.map((definition) =>
-          definition.id === property.id
-            ? { ...definition, options: normalizedOptions }
-            : definition,
-        ),
-      },
-    });
+    // Route every ordinary option edit through the tree-aware updater. The
+    // previous root-only mapping lost changes for fields nested in a section.
+    updatePropertyDefinition(property.id, { options: normalizedOptions });
   };
 
   const hideProperty = (propertyId: string) => {
@@ -512,9 +542,7 @@ export function MetadataEditor({
       childrenIds: entity.childrenIds,
     };
 
-    Object.entries(frontmatterData).forEach(([key, value]) => {
-      values[key] = value;
-    });
+    Object.assign(values, getFrontmatterPropertyValues(frontmatterData, propertiesConfig));
 
     Object.entries(entity.customProperties).forEach(([key, value]) => {
       values[key] = value;
@@ -557,14 +585,26 @@ export function MetadataEditor({
   };
 
   const availableProperties = useMemo(() => {
-    const presentKeys = new Set(Object.keys(frontmatterData));
     return allInspectableProperties.filter(
       (property) =>
-        !presentKeys.has(property.id) &&
+        getFrontmatterPropertyValue(frontmatterData, property.id, propertiesConfig) === undefined &&
         property.type !== "group" &&
         !NON_INSPECTOR_PROPERTY_IDS.has(property.id),
     );
-  }, [allInspectableProperties, frontmatterData]);
+  }, [allInspectableProperties, frontmatterData, propertiesConfig]);
+
+  const parentProperties = useMemo(
+    () =>
+      allInspectableProperties.filter(
+        (property) =>
+          property.type === "group" &&
+          Boolean(
+            propertiesConfig &&
+            propertyAppliesToEntityType(propertiesConfig, property.id, entity.type),
+          ),
+      ),
+    [allInspectableProperties, entity.type, propertiesConfig],
+  );
 
   const addExistingProperty = (propertyId: string) => {
     if (!onUpdateRawYaml) return;
@@ -580,60 +620,62 @@ export function MetadataEditor({
     );
   };
 
-  const createProperty = (name: string) => {
-    if (!propertiesConfig || !onUpdateRawYaml) return;
+  const createProperty = async ({ name, type, parentId }: NewInspectorProperty) => {
+    if (!propertiesConfig) return;
     const id = sanitizePropertyId(name);
     if (!id) return;
     if (knownPropertyIds(propertiesConfig).has(id)) {
       addExistingProperty(id);
       return;
     }
-    const definition = inferPropertyDefinition(id, "");
-    definition.label = name.trim();
-    const nextConfig = upsertInspectorProperty(propertiesConfig, definition, entity.type);
-    saveConfig(nextConfig);
-    onUpdateRawYaml(updateFrontmatterProperties(rawYaml, { [id]: "" }, nextConfig, entity.type));
+    const scopedConfig = ensureEntityTypeDefinition(propertiesConfig, entity.type);
+    const knownEntityTypeIds = scopedConfig.entityTypes.definitions.map(
+      (definition) => definition.id,
+    );
+    const scopedToCurrentType = scopedConfig.version === "3.0" && Boolean(entity.type);
+    const defaultReferenceTarget = knownEntityTypeIds.includes(entity.type)
+      ? entity.type
+      : knownEntityTypeIds[0];
+    const definition: CustomFieldDefinition = {
+      id,
+      label: name.trim(),
+      type,
+      required: false,
+      ...(type === "group" ? { children: [] } : {}),
+      ...(type === "select" || type === "multiselect"
+        ? { options: [{ value: "option-1", label: "Option 1" }] }
+        : {}),
+      ...((type === "entity-ref" || type === "entity-ref-list") && defaultReferenceTarget
+        ? { targetTypes: [defaultReferenceTarget] }
+        : {}),
+      ...(scopedToCurrentType ? { appliesTo: [entity.type] } : {}),
+    };
+    const nextConfig = upsertInspectorProperty(scopedConfig, definition, entity.type, parentId);
+    await persistConfig(nextConfig);
+    if (type !== "group" && onUpdateRawYaml) {
+      onUpdateRawYaml(
+        updateFrontmatterProperties(
+          rawYaml,
+          { [id]: emptyPropertyValue(type) },
+          nextConfig,
+          entity.type,
+        ),
+      );
+    }
   };
 
   const renameProperty = (propertyId: string, newName: string) => {
     if (!propertiesConfig || isProtectedProperty(propertyId)) return;
-    const newId = sanitizePropertyId(newName);
-    if (!newId || newId === propertyId) return;
-    if (knownPropertyIds(propertiesConfig).has(newId)) {
-      showToast(`A property named "${newId}" already exists.`, "warning");
-      return;
-    }
-    let nextConfig = renameInspectorProperty(propertiesConfig, propertyId, newId);
-    if (nextConfig === propertiesConfig) {
-      showToast("Could not rename property.", "error");
-      return;
-    }
-    const renamedDefinition = listInspectableProperties(nextConfig).find(
-      (property) => property.id === newId,
-    );
-    if (renamedDefinition && "type" in renamedDefinition) {
-      nextConfig = upsertInspectorProperty(
-        nextConfig,
-        { ...renamedDefinition, label: newName.trim() } as CustomFieldDefinition,
-        entity.type,
-      );
-    }
-    saveConfig(nextConfig);
-    onUpdateRawYaml?.(
-      adaptFrontmatterProperty(rawYaml, propertyId, newId, nextConfig, entity.type),
-    );
-    showToast(
-      "Property renamed. Notes still using the old name will show it as unconfigured.",
-      "warning",
-    );
+    updatePropertyDefinition(propertyId, { label: newName.trim() });
   };
 
   const changeType = (propertyId: string, newType: CustomFieldType) => {
     if (!propertiesConfig || isProtectedProperty(propertyId)) return;
     const nextConfig = changePropertyType(propertiesConfig, propertyId, newType);
     saveConfig(nextConfig);
-    if (propertyId in frontmatterData && onUpdateRawYaml) {
-      const coerced = coercePropertyValue(frontmatterData[propertyId], newType);
+    const currentValue = getFrontmatterPropertyValue(frontmatterData, propertyId, propertiesConfig);
+    if (currentValue !== undefined && onUpdateRawYaml) {
+      const coerced = coercePropertyValue(currentValue, newType);
       onUpdateRawYaml(
         updateFrontmatterProperties(rawYaml, { [propertyId]: coerced }, nextConfig, entity.type),
       );
@@ -659,7 +701,7 @@ export function MetadataEditor({
     onDrop: reorderProperty,
     onToggleGroup: toggleGroupCollapsed,
     onOpenPropertyEditor: openPropertyEditor,
-    vaultIndexProps: { vaultIndex, onOpenEntity },
+    vaultIndexProps: { vaultIndex, onOpenEntity, onRequestImage },
   };
 
   const renderPropertySections = (): React.ReactNode[] => {
@@ -747,8 +789,15 @@ export function MetadataEditor({
       (candidate) => candidate.id === propertyEditor.propertyId,
     );
     if (!property) return null;
+    const propertyPaths = Object.fromEntries(
+      listPropertyPathEntries(propertiesConfig).map((entry) => [entry.definition.id, entry.path]),
+    );
+    const optionSets = Object.fromEntries(
+      allInspectableProperties.map((candidate) => [candidate.id, getEditableOptions(candidate)]),
+    );
     return (
       <PropertyEditorPopover
+        key={property.id}
         open
         anchorEl={propertyEditor.anchorEl}
         property={property}
@@ -757,12 +806,18 @@ export function MetadataEditor({
         canEditOptions={propertyCanEditOptions(property)}
         isProtected={isProtectedProperty(property.id)}
         parentId={parentIdOf(property.id)}
-        onClose={() => setPropertyEditor(null)}
+        propertyPaths={propertyPaths}
+        entityTypes={entityTypes.map((type) => ({ id: type.id, label: type.label }))}
+        optionSets={optionSets}
+        onClose={closePropertyEditor}
         onRename={(label) => renameProperty(property.id, label)}
         onChangeType={(type) => changeType(property.id, type)}
         onUpdate={(patch) => updatePropertyDefinition(property.id, patch)}
         onUpdateOptions={(options) => updatePropertyOptions(property, options)}
-        onSetDependency={(parentId, values) => setPropertyDependency(property.id, parentId, values)}
+        onSetConditions={(conditions) => setPropertyConditions(property.id, conditions)}
+        onSetAppliesTo={(appliesTo) =>
+          saveConfig(setInspectorPropertyAppliesTo(propertiesConfig, property.id, appliesTo))
+        }
         onMoveParent={(parentId) => movePropertyParent(property.id, parentId)}
         onDuplicate={() => duplicateProperty(property.id)}
         onDelete={() => deletePropertyFromUniverse(property.id)}
@@ -809,6 +864,7 @@ export function MetadataEditor({
 
           <AddPropertyRow
             availableProperties={availableProperties}
+            parentProperties={parentProperties}
             onAddExisting={addExistingProperty}
             onCreate={createProperty}
           />

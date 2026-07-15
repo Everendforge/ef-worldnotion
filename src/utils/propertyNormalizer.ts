@@ -5,11 +5,12 @@ import { isHiddenMetadata } from "./treeBuilder";
 import {
   conditionIsActive,
   emptyPropertyValue,
-  frontmatterDataToRaw,
   getConfiguredFrontmatterOrder,
+  getFrontmatterPropertyValue,
+  getFrontmatterPropertyValues,
   listVisibleProperties,
   parseFrontmatterRaw,
-  reorderFrontmatter,
+  updateFrontmatterProperties,
 } from "./propertiesConfig";
 
 /**
@@ -101,13 +102,17 @@ export function planPropertyNormalization({
         addedFields.push(key);
       });
 
-      const values = { ...coreDefaults, ...data };
+      const values = {
+        ...coreDefaults,
+        ...getFrontmatterPropertyValues(data, propertiesConfig),
+      };
       const activeLeaves = collectActiveLeaves(
         listVisibleProperties(propertiesConfig, entityType),
         values,
       );
       activeLeaves.forEach((leaf) => {
-        if (leaf.id in nextData) return;
+        if (CORE_FIELD_IDS.includes(leaf.id as (typeof CORE_FIELD_IDS)[number])) return;
+        if (getFrontmatterPropertyValue(data, leaf.id, propertiesConfig) !== undefined) return;
         // Only auto-add fields the schema insists on; optional empty fields
         // would bloat every note in the universe.
         if (!leaf.required && leaf.defaultValue === undefined) return;
@@ -126,7 +131,15 @@ export function planPropertyNormalization({
 
       if (addedFields.length === 0 && !reordered) return [];
 
-      const nextFrontmatter = reorderFrontmatter(frontmatterDataToRaw(nextData), expectedOrder);
+      const propertyUpdates = Object.fromEntries(
+        addedFields.map((fieldId) => [fieldId, nextData[fieldId]]),
+      );
+      const nextFrontmatter = updateFrontmatterProperties(
+        frontmatterRaw,
+        propertyUpdates,
+        propertiesConfig,
+        entityType,
+      );
       return [
         {
           path: file.relativePath,

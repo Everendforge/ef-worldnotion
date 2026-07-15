@@ -73,9 +73,10 @@ export type PluginId =
   | "document-header"
   | "unity-adapter"
   | "godot-adapter"
-  | "unreal-adapter";
+  | "unreal-adapter"
+  | "ai-advisor";
 
-export type PluginCategory = "editor" | "navigation" | "visual" | "runtime-adapter";
+export type PluginCategory = "editor" | "navigation" | "visual" | "integration" | "runtime-adapter";
 export type PluginStatus = "available" | "core" | "planned";
 export type PluginRiskLevel = "low" | "medium" | "high";
 
@@ -93,6 +94,19 @@ export type PluginDefinition = {
 
 export type PluginSettings = {
   enabled: Partial<Record<PluginId, boolean>>;
+};
+
+export type AiAdvisorProvider = {
+  id: string;
+  name: string;
+  url: string;
+  enabled: boolean;
+  description?: string;
+};
+
+export type AiAdvisorSettings = {
+  providers: AiAdvisorProvider[];
+  activeProviderId: string;
 };
 
 export type EditorSettings = {
@@ -183,7 +197,14 @@ export type DocumentTabGroup = {
 };
 
 export type DockPanelKind =
-  "document" | "explorer" | "graph" | "outline" | "links" | "backlinks" | "inspector";
+  | "document"
+  | "explorer"
+  | "graph"
+  | "outline"
+  | "links"
+  | "backlinks"
+  | "inspector"
+  | "ai-advisor";
 
 export type DockTabRef = {
   id: string;
@@ -305,6 +326,7 @@ export type AppSettingsV4 = {
   explorer: ExplorerSettings;
   graph: GraphSettings;
   plugins: PluginSettings;
+  aiAdvisor: AiAdvisorSettings;
   keybindings: Keybinding[];
   sessions: Record<string, WorkspaceSession>;
 };
@@ -398,9 +420,10 @@ export type CustomFieldDefinition = {
   min?: number; // For number type
   max?: number; // For number type
   pattern?: string; // For text type (regex)
-  // Hierarchical properties support (v2.0)
+  // Hierarchical properties support (v2.0+)
   children?: PropertyDefinition[]; // Child properties for this field
   visibleWhen?: Record<string, string[]>; // Conditional visibility: { parentFieldId: ['value1', 'value2'] }
+  appliesTo?: string[]; // Entity types where this property is available (v3.0)
   group?: string; // Grouping category for UI organization
   order?: number; // Display order within parent or global scope
 };
@@ -429,6 +452,11 @@ export type EntityTypeDefinition = {
   // Template settings
   defaultTemplate?: string; // Path to template file
   defaultFolder?: string; // Suggested folder for new entities of this type
+  /** Optional visual roles rendered above the Markdown editor for this type. */
+  presentation?: {
+    portraitPropertyId?: string;
+    coverPropertyId?: string;
+  };
 };
 
 export type StatusDefinition = {
@@ -458,16 +486,17 @@ export type BasePropertyDefinition = {
   min?: number;
   max?: number;
   pattern?: string;
-  // Hierarchical properties support (v2.0)
+  // Hierarchical properties support (v2.0+)
   children?: PropertyDefinition[]; // Child properties for this field
   visibleWhen?: Record<string, string[]>; // Conditional visibility: { parentFieldId: ['value1', 'value2'] }
+  appliesTo?: string[]; // Entity types where this property is available (v3.0)
   group?: string; // Grouping category for UI organization
 };
 
 export type PropertyDefinition = BasePropertyDefinition | CustomFieldDefinition;
 
 export type TaxonomyConfig = {
-  version: string; // Schema version (e.g., "1.0", "2.0")
+  version: string; // Schema version (e.g., "1.0", "2.0", "3.0")
   baseProperties?: {
     definitions: BasePropertyDefinition[]; // Configurable base properties
     visibleByDefault?: string[]; // Which properties appear in UI by default
@@ -575,6 +604,7 @@ export const DEFAULT_PLUGIN_SETTINGS: PluginSettings = {
     "unity-adapter": false,
     "godot-adapter": false,
     "unreal-adapter": false,
+    "ai-advisor": true,
   },
 };
 

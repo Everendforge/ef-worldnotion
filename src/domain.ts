@@ -41,6 +41,8 @@ export type VaultFile = {
   relativePath: string;
   absolutePath?: string;
   content: string;
+  /** Binary files are indexed for references and pickers, never as editable notes. */
+  binary?: boolean;
   modifiedMs?: number | null;
 };
 
@@ -85,6 +87,11 @@ export type UniverseProfile = {
   name?: string;
   icon?: UniverseIcon;
   taxonomyVersion?: string; // Version of taxonomy config being used
+  localization?: {
+    primaryLocale: string;
+    locales: string[];
+    localeNames?: Record<string, string>;
+  };
 };
 
 export type ValidationFinding = {

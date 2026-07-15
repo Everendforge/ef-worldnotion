@@ -7,6 +7,7 @@ import {
   DEFAULT_PLUGIN_SETTINGS,
 } from "./editorTypes";
 import { normalizeThemeId } from "./themes";
+import { DEFAULT_AI_ADVISOR_SETTINGS, normalizeAiAdvisorSettings } from "./utils/aiProviders";
 import { normalizePluginSettings } from "./utils/pluginRegistry";
 
 export const SETTINGS_KEY = "worldnotion.settings.v4";
@@ -49,6 +50,7 @@ export function loadSettings(): AppSettingsV4 {
       explorer: { ...DEFAULT_EXPLORER_SETTINGS, ...parsedExplorer, activeSection },
       graph: { ...DEFAULT_GRAPH_SETTINGS, ...(parsed.graph ?? {}) },
       plugins: normalizePluginSettings(parsed.plugins ?? DEFAULT_PLUGIN_SETTINGS),
+      aiAdvisor: normalizeAiAdvisorSettings(parsed.aiAdvisor ?? DEFAULT_AI_ADVISOR_SETTINGS),
       keybindings: mergedKeybindings,
       sessions: parsed.sessions ?? {},
     };
@@ -61,6 +63,7 @@ export function loadSettings(): AppSettingsV4 {
       explorer: DEFAULT_EXPLORER_SETTINGS,
       graph: DEFAULT_GRAPH_SETTINGS,
       plugins: DEFAULT_PLUGIN_SETTINGS,
+      aiAdvisor: DEFAULT_AI_ADVISOR_SETTINGS,
       keybindings: DEFAULT_KEYBINDINGS,
       sessions: {},
     };

@@ -75,6 +75,7 @@ import {
 } from "./domain";
 import { isDarkTheme, themeById, themeForStyleCommand, toggledThemeMode } from "./themes";
 import { updateFrontmatterProperties } from "./utils/propertiesConfig";
+import { serializePropertiesConfig, validatePropertiesConfig } from "./utils/propertiesSerializer";
 import { addCustomFieldToSchema } from "./utils/propertiesSerializer";
 import { applyPropertyTemplate, WORLDBUILDING_TEMPLATE } from "./utils/propertyTemplates";
 import { normalizeCoreBaseProperties } from "./utils/taxonomyConfig";
@@ -90,6 +91,7 @@ import {
   writeBrowserFile,
 } from "./utils/browserVault";
 import { uniqueAttachmentPath } from "./utils/attachments";
+import { normalizeLocaleList, normalizeLocaleNames } from "./utils/localization";
 import {
   createVaultEntity,
   createVaultFolder,
@@ -101,6 +103,7 @@ import {
   vaultHandleFor,
 } from "./utils/vaultFileOps";
 import { resolveNoteImageUrl, setBrowserVaultRoot } from "./utils/vaultImages";
+import { getEntityTypeDefinition, getPresentationRoleValue } from "./utils/entityPresentation";
 import {
   buildCommandResults,
   buildFileResults,
@@ -222,7 +225,14 @@ import {
 } from "./utils/frontmatterNormalizer";
 import { planPropertyNormalization } from "./utils/propertyNormalizer";
 import {
+  planPropertyPathMigration,
+  planPropertyStructureMigration,
+  type PropertyStructureMigrationPlan,
+} from "./utils/propertyStructureMigration";
+import { parseFrontmatterDocument } from "./utils/frontmatterDocument";
+import {
   activateDockTab,
+  addPanelToLayout,
   addDocumentToLayout,
   closeDockTab as closeDockLayoutTab,
   createWorkspaceLayoutPreset,
@@ -231,12 +241,15 @@ import {
   layoutHasPanel,
   moveDockTab,
   orderOpenTabsByLayout,
+  panelDockTabId,
   resizeDockSplit,
   setPanelInGroup,
   togglePanelInLayout,
   updateLayoutForPathChange,
   type WorkspaceLayoutPreset,
 } from "./utils/workspaceLayout";
+import { isPluginEnabled } from "./utils/pluginRegistry";
+import { DocumentPresentation } from "./components/DocumentPresentation";
 
 const CommandPalette = lazy(() =>
   import("./components/CommandPalette").then((module) => ({ default: module.CommandPalette })),
@@ -258,6 +271,9 @@ const LinksPanel = lazy(() =>
 );
 const BacklinksPanel = lazy(() =>
   import("./components/BacklinksPanel").then((module) => ({ default: module.BacklinksPanel })),
+);
+const AiAdvisorPanel = lazy(() =>
+  import("./components/AiAdvisorPanel").then((module) => ({ default: module.AiAdvisorPanel })),
 );
 
 type LoadState = "idle" | "loading" | "ready" | "error";
@@ -371,7 +387,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     useState<ActiveWorkspacePreset>("default");
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialSection, setSettingsInitialSection] = useState<
-    "overview" | "tags" | "utils" | "editor"
+    "overview" | "tags" | "utils" | "editor" | "ai-advisor"
   >("overview");
   const [settingsInitialPropertiesMode, setSettingsInitialPropertiesMode] = useState<
     "template" | "blank"
@@ -393,6 +409,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   const forgeMenuRef = useRef<HTMLDivElement | null>(null);
   const inspectorSaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const propertiesOnboardingPromptedRef = useRef<Set<string>>(new Set());
+  const propertiesSaveFingerprintRef = useRef<string | undefined>(undefined);
   const ignoreFolderNoteMetadataBootstrappedRef = useRef(false);
 
   // Font detection hook
@@ -506,6 +523,21 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   const isLinksPanelOpen = layoutHasPanel(workspaceLayout, "links");
   const isBacklinksPanelOpen = layoutHasPanel(workspaceLayout, "backlinks");
   const isGraphPanelOpen = layoutHasPanel(workspaceLayout, "graph");
+  const isAiAdvisorPanelOpen = layoutHasPanel(workspaceLayout, "ai-advisor");
+  const aiAdvisorEnabled = isPluginEnabled(settings.plugins, "ai-advisor");
+
+  useEffect(() => {
+    if (!index?.rootPath) return;
+    setWorkspaceLayout((current) => {
+      const tabId = panelDockTabId("ai-advisor");
+      if (aiAdvisorEnabled) {
+        return layoutHasPanel(current, "ai-advisor")
+          ? current
+          : addPanelToLayout(current, "ai-advisor");
+      }
+      return layoutHasPanel(current, "ai-advisor") ? closeDockLayoutTab(current, tabId) : current;
+    });
+  }, [aiAdvisorEnabled, index?.rootPath, setWorkspaceLayout]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = suiteChrome?.suiteSettings?.style ?? settings.theme;
@@ -1024,7 +1056,14 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
           setContextMenu(null);
         }
       } else if (action === "editFolderDescription" && targetKind === "folder") {
-        await createFolderDescription(targetPath);
+        const { descriptionPath, hasDescription } = folderDescriptionInfo(index, targetPath);
+        if (hasDescription) {
+          selectPath(descriptionPath);
+        } else {
+          await createFolderDescription(targetPath);
+        }
+      } else if (action === "deleteFolderDescription" && targetKind === "folder") {
+        await deleteFolderDescription(targetPath);
       } else if (action === "reveal") {
         await revealExplorerPath(targetKind === "empty" ? undefined : targetPath);
       } else if (action === "trash" && targetKind !== "empty") {
@@ -1173,6 +1212,37 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     }
   }
 
+  async function deleteFolderDescription(folderPath: string) {
+    if (!index) return;
+    const descriptionPath = folderDescriptionPath(folderPath);
+    if (!index.files.some((file) => file.relativePath === descriptionPath)) return;
+
+    const dirtyDescriptionTab = tabs.find((tab) => tab.path === descriptionPath && tab.dirty);
+    if (dirtyDescriptionTab) {
+      const discardChanges = await confirmDialog(
+        `${pathName(descriptionPath)} has unsaved changes. Delete the folder note anyway?`,
+        { title: "Delete folder note", confirmLabel: "Delete", destructive: true },
+      );
+      if (!discardChanges) return;
+    }
+
+    const confirmed = await confirmDialog(
+      `Delete ${pathName(descriptionPath)}? The folder and everything inside it will remain.`,
+      { title: "Delete folder note", confirmLabel: "Delete", destructive: true },
+    );
+    if (!confirmed) return;
+
+    await trashVaultPath(vaultHandleFor(index.rootPath, browserRoot), descriptionPath);
+    setTabs((current) => current.filter((tab) => tab.path !== descriptionPath));
+    if (selectedPath === descriptionPath) {
+      setSelectedPath(folderPath);
+      setSelectedExplorerTarget({ path: folderPath, kind: "folder" });
+      setActiveTabPath(undefined);
+    }
+    await refreshUniverse();
+    showToast("Folder note deleted. The folder was kept.", "success");
+  }
+
   async function openUniverseNote() {
     if (!index) return;
     const universeName = pathName(index.rootPath);
@@ -1200,9 +1270,20 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
 
   async function saveUniverseProfile(profile: UniverseProfile) {
     if (!index) return;
+    const locales = normalizeLocaleList(
+      profile.localization?.primaryLocale ?? navigator.language ?? "en",
+      profile.localization?.locales ?? [],
+    );
     const normalizedProfile: UniverseProfile = {
       name: profile.name?.trim() || undefined,
       icon: profile.icon,
+      localization: profile.localization
+        ? {
+            primaryLocale: locales[0],
+            locales,
+            localeNames: normalizeLocaleNames(profile.localization.localeNames, locales),
+          }
+        : undefined,
     };
     const content = `${JSON.stringify(normalizedProfile, null, 2)}\n`;
     try {
@@ -1232,7 +1313,21 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   async function savePropertiesConfig(properties: import("./editorTypes.js").PropertiesConfig) {
     if (!index) return;
     const normalizedProperties = normalizeCoreBaseProperties(properties);
-    const content = `${JSON.stringify(normalizedProperties, null, 2)}\n`;
+    const validation = validatePropertiesConfig(normalizedProperties);
+    if (!validation.valid) {
+      throw new Error(validation.errors.map((error) => error.message).join(" "));
+    }
+    const content = `${serializePropertiesConfig(normalizedProperties)}\n`;
+    const fingerprint = `${index.rootPath}\0${content}`;
+    if (propertiesSaveFingerprintRef.current === fingerprint) return;
+    propertiesSaveFingerprintRef.current = fingerprint;
+    // The inspector can immediately render a property defined in this save.
+    // Keeping the in-memory schema in step prevents its YAML field from being
+    // classified as an unknown "extra" while persistence is still in flight.
+    const previousProperties = index.propertiesConfig;
+    setIndex((current) =>
+      current ? { ...current, propertiesConfig: normalizedProperties } : current,
+    );
     try {
       await saveVaultFile(
         vaultHandleFor(index.rootPath, browserRoot),
@@ -1246,6 +1341,14 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
       await reindexUniverseMetadata();
       showToast("Properties configuration saved.", "success");
     } catch (error) {
+      setIndex((current) =>
+        current?.propertiesConfig === normalizedProperties
+          ? { ...current, propertiesConfig: previousProperties }
+          : current,
+      );
+      if (propertiesSaveFingerprintRef.current === fingerprint) {
+        propertiesSaveFingerprintRef.current = undefined;
+      }
       console.error("[savePropertiesConfig] Error:", error);
       showToast(
         error instanceof Error ? error.message : "Could not save properties configuration.",
@@ -1316,6 +1419,143 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
       files: index.files,
       propertiesConfig: index.propertiesConfig,
     });
+  }
+
+  function scanPropertyStructureMigration() {
+    if (!index?.propertiesConfig) return undefined;
+    const dirtyPaths = new Set(tabs.filter((tab) => tab.dirty).map((tab) => tab.path));
+    return planPropertyStructureMigration(index.files, index.propertiesConfig, dirtyPaths);
+  }
+
+  async function applyPropertyStructureMigration(plan: PropertyStructureMigrationPlan) {
+    if (!index) return { applied: 0, skipped: 0, errors: ["No universe is open."] };
+    const blocked = plan.items.filter((item) => item.status !== "ready");
+    if (blocked.length) {
+      return {
+        applied: 0,
+        skipped: blocked.length,
+        errors: blocked.flatMap((item) =>
+          item.conflicts.map((message) => `${item.path}: ${message}`),
+        ),
+      };
+    }
+
+    const readyItems = plan.items.filter(
+      (item) => item.status === "ready" && item.copyContent && item.nextContent,
+    );
+    const errors: string[] = [];
+    for (const item of readyItems) {
+      try {
+        await saveVaultFile(
+          vaultHandleFor(index.rootPath, browserRoot),
+          item.path,
+          item.copyContent!,
+          `Could not stage property migration for ${item.path}.`,
+          item.modifiedMs ?? null,
+        );
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
+    }
+    if (errors.length) {
+      return { applied: 0, skipped: readyItems.length, errors };
+    }
+
+    const stagedRead = await readCurrentUniverse();
+    const stagedByPath = new Map(
+      (stagedRead?.files ?? []).map((file) => [file.relativePath, file]),
+    );
+    for (const item of readyItems) {
+      const stagedFile = stagedByPath.get(item.path);
+      const stagedFrontmatter = stagedFile
+        ? rawToEditorParts(stagedFile.content).frontmatterRaw
+        : undefined;
+      const document = stagedFrontmatter ? parseFrontmatterDocument(stagedFrontmatter) : undefined;
+      const verified = document
+        ? item.moves.every(
+            (move) =>
+              document.hasIn(move.fromPath) &&
+              document.hasIn(move.toPath) &&
+              JSON.stringify(document.getIn(move.fromPath)) ===
+                JSON.stringify(document.getIn(move.toPath)),
+          )
+        : false;
+      if (!verified) {
+        errors.push(`Could not verify staged values in ${item.path}.`);
+      }
+    }
+    if (errors.length) {
+      return { applied: 0, skipped: readyItems.length, errors };
+    }
+
+    await savePropertiesConfig(plan.upgradedConfig);
+
+    let applied = 0;
+    for (const item of readyItems) {
+      try {
+        await saveVaultFile(
+          vaultHandleFor(index.rootPath, browserRoot),
+          item.path,
+          item.nextContent!,
+          `Nested values are canonical, but the old key could not be removed from ${item.path}.`,
+          null,
+        );
+        applied += 1;
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
+    }
+
+    await refreshUniverse(readyItems[0]?.path);
+    const isVersionUpgrade = plan.sourceVersion !== "3.0";
+    showToast(
+      errors.length
+        ? "Nested values are canonical; some duplicate legacy keys need cleanup."
+        : isVersionUpgrade
+          ? "Property structure upgraded to 3.0."
+          : "Property paths migrated.",
+      errors.length ? "warning" : "success",
+    );
+    return { applied, skipped: readyItems.length - applied, errors };
+  }
+
+  async function requestPropertyPathChange(nextConfig: import("./editorTypes").PropertiesConfig) {
+    if (!index?.propertiesConfig) return;
+    const dirtyPaths = new Set(tabs.filter((tab) => tab.dirty).map((tab) => tab.path));
+    const plan = planPropertyPathMigration(
+      index.files,
+      index.propertiesConfig,
+      nextConfig,
+      dirtyPaths,
+    );
+    const blocked = plan.items.filter((item) => item.status !== "ready");
+    if (blocked.length) {
+      const details = blocked
+        .slice(0, 4)
+        .map((item) => `${item.path}: ${item.conflicts.join(" ")}`)
+        .join("\n");
+      await confirmDialog(`The property cannot be moved safely yet.\n\n${details}`, {
+        title: "Property migration blocked",
+        confirmLabel: "OK",
+      });
+      return;
+    }
+    if (!plan.items.length) {
+      await savePropertiesConfig(nextConfig);
+      return;
+    }
+    const preview = plan.items
+      .slice(0, 8)
+      .map(
+        (item) =>
+          `${item.path}: ${item.moves.map((move) => `${move.fromPath.join(".")} → ${move.toPath.join(".")}`).join(", ")}`,
+      )
+      .join("\n");
+    const confirmed = await confirmDialog(
+      `This move changes YAML paths in ${plan.items.length} note${plan.items.length === 1 ? "" : "s"}:\n\n${preview}${plan.items.length > 8 ? "\n…" : ""}`,
+      { title: "Preview property migration", confirmLabel: "Move property" },
+    );
+    if (confirmed) await applyPropertyStructureMigration(plan);
   }
 
   // Shared writer for both Settings normalization tools (missing frontmatter +
@@ -3040,6 +3280,39 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
             <JsonReader value={documentTab.rawMarkdown} />
           ) : (
             <Suspense fallback={<LazyPanelFallback label="Loading editor..." />}>
+              {(() => {
+                const entity = selectLiveEntity(index, documentTab.path, tabs);
+                const type =
+                  entity && getEntityTypeDefinition(index?.propertiesConfig, entity.type);
+                const frontmatter = entity?.customProperties
+                  ? { ...entity.customProperties, type: entity.type, name: entity.name }
+                  : {};
+                const portraitPath = entity
+                  ? getPresentationRoleValue(
+                      index?.propertiesConfig,
+                      entity.type,
+                      frontmatter,
+                      "portrait",
+                    )
+                  : undefined;
+                const coverPath = entity
+                  ? getPresentationRoleValue(
+                      index?.propertiesConfig,
+                      entity.type,
+                      frontmatter,
+                      "cover",
+                    )
+                  : undefined;
+                return documentTab.mode === "write" && index && entity && type ? (
+                  <DocumentPresentation
+                    vaultIndex={index}
+                    name={entity.name}
+                    typeLabel={type.label}
+                    portraitPath={portraitPath}
+                    coverPath={coverPath}
+                  />
+                ) : null;
+              })()}
               <CodeMirrorEditor
                 value={editorDisplayValue(documentTab)}
                 onChange={(value) => updateRawMarkdownForPath(documentTab.path, value)}
@@ -3048,6 +3321,31 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
                 settings={settings.editor}
                 pluginSettings={settings.plugins}
                 documentName={documentTab.title}
+                showDocumentHeader={
+                  !(() => {
+                    const entity = selectLiveEntity(index, documentTab.path, tabs);
+                    if (documentTab.mode !== "write" || !entity || !index) return true;
+                    const frontmatter = {
+                      ...entity.customProperties,
+                      type: entity.type,
+                      name: entity.name,
+                    };
+                    return Boolean(
+                      getPresentationRoleValue(
+                        index.propertiesConfig,
+                        entity.type,
+                        frontmatter,
+                        "portrait",
+                      ) ||
+                      getPresentationRoleValue(
+                        index.propertiesConfig,
+                        entity.type,
+                        frontmatter,
+                        "cover",
+                      ),
+                    );
+                  })()
+                }
                 projectName={
                   index?.universeProfile?.name ??
                   (index?.rootPath ? pathName(index.rootPath) : undefined)
@@ -3158,6 +3456,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
       onUpdateEntity={updateEntityMetadata}
       onAddFrontmatter={addFrontmatterToActiveTab}
       onUpdatePropertiesConfig={savePropertiesConfig}
+      onRequestPropertyPathChange={requestPropertyPathChange}
       onApplyPropertiesTemplate={() =>
         initializeUniverseProperties(
           applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE),
@@ -3172,6 +3471,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
       }}
       onConserveField={handleConserveField}
       onDeleteField={handleDeleteField}
+      onRequestImage={requestImageInsertion}
     />
   );
 
@@ -3304,6 +3604,16 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     if (tab.kind === "links") return linksPanel;
     if (tab.kind === "backlinks") return backlinksPanel;
     if (tab.kind === "graph") return graphPanel;
+    if (tab.kind === "ai-advisor") {
+      return (
+        <Suspense fallback={<LazyPanelFallback label="Loading AI Advisor..." />}>
+          <AiAdvisorPanel
+            settings={settings.aiAdvisor}
+            onChange={(aiAdvisor) => setSettings((current) => ({ ...current, aiAdvisor }))}
+          />
+        </Suspense>
+      );
+    }
     return emptyDocumentPanel;
   }
 
@@ -3365,14 +3675,19 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   }
 
   function toggleDockPanel(
-    kind: "explorer" | "inspector" | "links" | "backlinks" | "graph" | "outline",
+    kind: "explorer" | "inspector" | "links" | "backlinks" | "graph" | "ai-advisor" | "outline",
   ) {
+    if (kind === "ai-advisor" && !aiAdvisorEnabled) return;
     setActiveWorkspacePreset("custom");
     setWorkspaceLayout((current) => togglePanelInLayout(current, kind));
   }
 
   function setDockPanelInContextGroup(kind: Exclude<DockPanelKind, "document" | "outline">) {
     if (!dockPanelContextMenu) return;
+    if (kind === "ai-advisor" && !aiAdvisorEnabled) {
+      setDockPanelContextMenu(null);
+      return;
+    }
     const enabled = !layoutHasPanel(workspaceLayout, kind);
     setActiveWorkspacePreset("custom");
     setWorkspaceLayout((current) =>
@@ -3382,7 +3697,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   }
 
   function openSettingsAt(
-    section: "overview" | "tags" | "utils" | "editor",
+    section: "overview" | "tags" | "utils" | "editor" | "ai-advisor",
     propertiesMode: "template" | "blank" = "template",
   ) {
     setSettingsInitialSection(section);
@@ -3534,6 +3849,16 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
             >
               Flow Map
             </button>
+            {aiAdvisorEnabled ? (
+              <button
+                type="button"
+                className={isAiAdvisorPanelOpen ? "active" : ""}
+                onClick={() => toggleDockPanel("ai-advisor")}
+                title="Toggle AI Advisor"
+              >
+                AI Advisor
+              </button>
+            ) : null}
             <button
               type="button"
               className={showCanonChanges ? "active" : ""}
@@ -3608,6 +3933,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
             ["explorer", "Explorer", isExplorerPanelOpen],
             ["graph", "Flow Map", isGraphPanelOpen],
             ["inspector", "Inspector", isInspectorPanelOpen],
+            ...(aiAdvisorEnabled ? [["ai-advisor", "AI Advisor", isAiAdvisorPanelOpen]] : []),
             ["links", "Links", isLinksPanelOpen],
             ["backlinks", "Backlinks", isBacklinksPanelOpen],
           ].map(([kind, label, checked]) => (
@@ -3691,6 +4017,8 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
             onApplyFrontmatterNormalization={applyFrontmatterNormalization}
             onScanPropertyNormalization={scanPropertyNormalization}
             onApplyPropertyNormalization={applyFrontmatterNormalization}
+            onScanPropertyStructureMigration={scanPropertyStructureMigration}
+            onApplyPropertyStructureMigration={applyPropertyStructureMigration}
             onClose={() => setShowSettings(false)}
             onRevealUniverse={() => {
               void revealExplorerPath();
@@ -3774,6 +4102,11 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
           revealLabel={labels.revealItem}
           revealUniverseLabel={labels.revealUniverse}
           trashLabel={browserRoot ? "Delete" : labels.trashAction}
+          hasFolderDescription={
+            contextMenu.targetKind === "folder" && index
+              ? folderDescriptionInfo(index, contextMenu.targetPath).hasDescription
+              : false
+          }
           onAction={handleContextMenuAction}
           onClose={() => setContextMenu(null)}
         />

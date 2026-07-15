@@ -4,10 +4,15 @@ import type { VaultIndex } from "../domain";
 import { dirname, joinMarkdown, slugify, splitMarkdown } from "../domain";
 import { pathName } from "./pathUtils";
 import {
+  conditionIsActive,
+  emptyPropertyValue,
   frontmatterDataToRaw,
   getConfiguredFrontmatterOrder,
+  listVisibleProperties,
   reorderFrontmatter,
+  updateFrontmatterProperties,
 } from "./propertiesConfig";
+import type { PropertyDefinition } from "../editorTypes";
 
 export const FOLDER_SYSTEM_PROPERTY_COMMENT =
   "Don't delete; it's a WorldNotion system property: indicates whether this note corresponds to a folder.";
@@ -48,7 +53,26 @@ export function createEntityFrontmatter({
   if (parentId) data.parentId = parentId;
   if (childrenIds && childrenIds.length > 0) data.childrenIds = childrenIds;
   const order = getConfiguredFrontmatterOrder(propertiesConfig, type, Object.keys(data));
-  return reorderFrontmatter(frontmatterDataToRaw(data), order);
+  let frontmatter = reorderFrontmatter(frontmatterDataToRaw(data), order);
+  if (propertiesConfig) {
+    const defaults: Record<string, unknown> = {};
+    const values: Record<string, unknown> = { ...data };
+    const visit = (property: PropertyDefinition) => {
+      if (!conditionIsActive(property, values)) return;
+      if (
+        property.type !== "group" &&
+        !(property.id in data) &&
+        (property.required || property.defaultValue !== undefined)
+      ) {
+        defaults[property.id] = property.defaultValue ?? emptyPropertyValue(property.type);
+        values[property.id] = defaults[property.id];
+      }
+      property.children?.forEach(visit);
+    };
+    listVisibleProperties(propertiesConfig, type).forEach(visit);
+    frontmatter = updateFrontmatterProperties(frontmatter, defaults, propertiesConfig, type);
+  }
+  return frontmatter;
 }
 
 export function contentFromTemplate(index: VaultIndex, entityType: string, name: string) {

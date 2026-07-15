@@ -1,5 +1,5 @@
-import { lazy, Suspense } from "react";
-import { SlidersHorizontal, Sparkles } from "lucide-react";
+import { lazy, Suspense, useState } from "react";
+import { PanelsTopLeft, SlidersHorizontal, Sparkles } from "lucide-react";
 import type { Entity, EntityTemplate, VaultIndex } from "../domain";
 import type { OpenTab, PropertiesConfig } from "../editorTypes";
 import { rawToEditorParts } from "../utils/contentTemplates";
@@ -13,6 +13,9 @@ function noteFileName(path: string) {
 const MetadataEditor = lazy(() =>
   import("./MetadataEditor").then((module) => ({ default: module.MetadataEditor })),
 );
+const PresentationEditor = lazy(() =>
+  import("./PresentationEditor").then((module) => ({ default: module.PresentationEditor })),
+);
 export type InspectorPanelProps = {
   entity?: Entity;
   template?: EntityTemplate;
@@ -23,10 +26,12 @@ export type InspectorPanelProps = {
   onOpenEntity?: (path: string) => void;
   onAddFrontmatter?: () => void;
   onUpdatePropertiesConfig?: (properties: PropertiesConfig) => void | Promise<void>;
+  onRequestPropertyPathChange?: (properties: PropertiesConfig) => void | Promise<void>;
   onApplyPropertiesTemplate?: () => void | Promise<void>;
   onOpenPropertiesSettings?: () => void;
   onConserveField?: (fieldName: string, value: unknown) => void | Promise<void>;
   onDeleteField?: (fieldName: string) => void;
+  onRequestImage?: () => Promise<{ path: string; alt?: string } | null>;
 };
 
 export function InspectorPanel({
@@ -39,11 +44,14 @@ export function InspectorPanel({
   onOpenEntity,
   onAddFrontmatter,
   onUpdatePropertiesConfig,
+  onRequestPropertyPathChange,
   onApplyPropertiesTemplate,
   onOpenPropertiesSettings,
   onConserveField,
   onDeleteField,
+  onRequestImage,
 }: InspectorPanelProps) {
+  const [activeView, setActiveView] = useState<"properties" | "presentation">("properties");
   if (!index) {
     return (
       <aside className="inspector">
@@ -163,19 +171,54 @@ export function InspectorPanel({
               )
             ) : (
               <>
-                <Suspense fallback={<LazyPanelFallback label="Loading metadata..." />}>
-                  <MetadataEditor
-                    entity={entity}
-                    propertiesConfig={propertiesConfig}
-                    rawYaml={editableFrontmatter || "---\n\n---"}
-                    vaultIndex={index}
-                    onUpdate={(updates) => onUpdateEntity(updates)}
-                    onUpdateRawYaml={(yaml) => onChangeFrontmatter(yaml)}
-                    onUpdatePropertiesConfig={onUpdatePropertiesConfig}
-                    onConserveField={onConserveField}
-                    onDeleteField={onDeleteField}
-                    onOpenEntity={onOpenEntity}
-                  />
+                <div className="inspector-subviews" role="tablist" aria-label="Note inspector">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeView === "properties"}
+                    className={activeView === "properties" ? "active" : ""}
+                    onClick={() => setActiveView("properties")}
+                  >
+                    Properties
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeView === "presentation"}
+                    className={activeView === "presentation" ? "active" : ""}
+                    onClick={() => setActiveView("presentation")}
+                  >
+                    <PanelsTopLeft size={13} aria-hidden="true" />
+                    Presentation
+                  </button>
+                </div>
+                <Suspense fallback={<LazyPanelFallback label="Loading inspector..." />}>
+                  {activeView === "properties" ? (
+                    <MetadataEditor
+                      entity={entity}
+                      propertiesConfig={propertiesConfig}
+                      rawYaml={editableFrontmatter || "---\n\n---"}
+                      vaultIndex={index}
+                      onUpdate={(updates) => onUpdateEntity(updates)}
+                      onUpdateRawYaml={(yaml) => onChangeFrontmatter(yaml)}
+                      onUpdatePropertiesConfig={onUpdatePropertiesConfig}
+                      onRequestPropertyPathChange={onRequestPropertyPathChange}
+                      onConserveField={onConserveField}
+                      onDeleteField={onDeleteField}
+                      onOpenEntity={onOpenEntity}
+                      onRequestImage={onRequestImage}
+                    />
+                  ) : (
+                    <PresentationEditor
+                      entity={entity}
+                      config={propertiesConfig}
+                      rawYaml={editableFrontmatter || "---\n\n---"}
+                      vaultIndex={index}
+                      onUpdateRawYaml={onChangeFrontmatter}
+                      onUpdatePropertiesConfig={onUpdatePropertiesConfig}
+                      onRequestImage={onRequestImage}
+                    />
+                  )}
                 </Suspense>
               </>
             )}

@@ -10,6 +10,23 @@ import {
   traversePropertyTree,
 } from "./propertyTreeUtils";
 
+const VALID_PROPERTY_TYPES = new Set<CustomFieldType>([
+  "text",
+  "number",
+  "boolean",
+  "date",
+  "select",
+  "multiselect",
+  "entity-ref",
+  "entity-ref-list",
+  "url",
+  "email",
+  "phone",
+  "file",
+  "image",
+  "group",
+]);
+
 export interface ValidationError {
   type:
     | "circular-dependency"
@@ -112,6 +129,13 @@ export function validatePropertyDefinition(definition: PropertyDefinition): Vali
       message: "Property type is required",
     });
   }
+  if (definition.type && !VALID_PROPERTY_TYPES.has(definition.type)) {
+    errors.push({
+      type: "invalid-type",
+      propertyId: definition.id,
+      message: `Unknown property type: ${definition.type}`,
+    });
+  }
 
   // Type-specific validation
   if (definition.type) {
@@ -142,13 +166,12 @@ export function validatePropertyDefinition(definition: PropertyDefinition): Vali
 
   // Validate children recursively
   if (definition.children && definition.children.length > 0) {
-    // Group type should have children
-    if (definition.type !== "group" && definition.type !== "select") {
-      // Allow children on select for nested options
-      // But for other types, warn
-      if (definition.type !== "multiselect" && definition.type !== "entity-ref-list") {
-        // Some types logically support children, but validate carefully
-      }
+    if (definition.type !== "group") {
+      errors.push({
+        type: "invalid-configuration",
+        propertyId: definition.id,
+        message: "Only group properties may contain children",
+      });
     }
 
     definition.children.forEach((child) => {
@@ -248,9 +271,7 @@ function validatePropertyType(definition: PropertyDefinition): ValidationError[]
  * Check if a property can have children based on its type.
  */
 export function canPropertyHaveChildren(type: CustomFieldType): boolean {
-  // Only group type logically contains other properties
-  // But select/multiselect could theoretically have nested options
-  return type === "group" || type === "select" || type === "multiselect";
+  return type === "group";
 }
 
 /**

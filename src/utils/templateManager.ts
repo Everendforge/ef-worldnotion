@@ -128,7 +128,7 @@ export function createPropertyTemplate(
     name,
     description,
     definitions,
-    version: "2.0",
+    version: "3.0",
     createdAt: now,
     updatedAt: now,
     tags,

@@ -15,6 +15,7 @@ export type PropertyFieldRendererProps = {
   /** Enables entity/file/image pickers; without it those types degrade to text inputs. */
   vaultIndex?: VaultIndex;
   onOpenEntity?: (path: string) => void;
+  onRequestImage?: () => Promise<{ path: string; alt?: string } | null>;
 };
 
 const FIELD_CONTROL_CLASS = "property-field-control";
@@ -41,6 +42,7 @@ export function PropertyFieldRenderer({
   availableOptions,
   vaultIndex,
   onOpenEntity,
+  onRequestImage,
 }: PropertyFieldRendererProps): React.JSX.Element {
   const isReadOnly = readOnly || ("readOnly" in property && property.readOnly) || false;
   const isRequired = property.required ?? false;
@@ -125,6 +127,7 @@ export function PropertyFieldRenderer({
             onChange={onChange}
             readOnly={isReadOnly}
             vaultIndex={vaultIndex}
+            onRequestImage={onRequestImage}
           />
         );
       }

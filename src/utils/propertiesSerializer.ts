@@ -1,13 +1,15 @@
 /**
  * Serialization and migration utilities for property configurations.
- * Handles saving/loading properties.json and migrating from v1.0 to v2.0.
+ * Handles saving/loading properties.json and explicit migrations between versions.
  */
 
 import { PropertiesConfig, PropertyDefinition, CustomFieldDefinition } from "../editorTypes";
 import { migrateV1toV2, flattenPropertyTree } from "./propertyTreeUtils";
 import { validatePropertyStructure, ValidationResult } from "./propertyValidator";
+import { validateEntityPresentations } from "./entityPresentation";
 
-const CURRENT_VERSION = "2.0";
+export const CURRENT_PROPERTIES_VERSION = "3.0";
+const V2_VERSION = "2.0";
 const V1_VERSION = "1.0";
 
 /**
@@ -17,7 +19,7 @@ export function serializePropertiesConfig(config: PropertiesConfig): string {
   // Ensure version is set
   const configWithVersion: PropertiesConfig = {
     ...config,
-    version: config.version || CURRENT_VERSION,
+    version: config.version || CURRENT_PROPERTIES_VERSION,
   };
 
   return JSON.stringify(configWithVersion, null, 2);
@@ -25,7 +27,9 @@ export function serializePropertiesConfig(config: PropertiesConfig): string {
 
 /**
  * Deserialize JSON string to PropertiesConfig.
- * Automatically detects and migrates from v1.0 to v2.0.
+ * Automatically normalizes v1.0 to the legacy hierarchical 2.0 model. Version
+ * 2.0 is deliberately not upgraded here: 3.0 changes YAML storage paths and
+ * therefore requires a vault-wide preview and explicit confirmation.
  */
 export function deserializePropertiesConfig(jsonString: string): {
   config: PropertiesConfig;
@@ -54,9 +58,72 @@ export function deserializePropertiesConfig(jsonString: string): {
   }
 
   // Validate structure
-  const validation = validatePropertyStructure(config.customFields.definitions);
+  const validation = validatePropertiesConfig(config);
 
   return { config, migrated, validation };
+}
+
+export function validatePropertiesConfig(config: PropertiesConfig): ValidationResult {
+  const roots: PropertyDefinition[] = [
+    ...(config.baseProperties?.definitions ?? []),
+    ...(config.customFields.definitions ?? []),
+  ];
+  const validation = validatePropertyStructure(roots);
+  if (config.version !== CURRENT_PROPERTIES_VERSION) return validation;
+  const allTypes = new Set(config.entityTypes.definitions.map((definition) => definition.id));
+  const visit = (definitions: PropertyDefinition[], parentScope?: string[]) => {
+    definitions.forEach((definition) => {
+      if (definition.visibleWhen && "type" in definition.visibleWhen) {
+        validation.errors.push({
+          type: "invalid-configuration",
+          propertyId: definition.id,
+          message: "Use appliesTo instead of visibleWhen.type in properties 3.0.",
+        });
+      }
+      const scope = definition.appliesTo ?? parentScope;
+      definition.appliesTo?.forEach((typeId) => {
+        if (!allTypes.has(typeId)) {
+          validation.errors.push({
+            type: "invalid-configuration",
+            propertyId: definition.id,
+            message: `Unknown entity type in appliesTo: ${typeId}`,
+          });
+        }
+        if (parentScope && !parentScope.includes(typeId)) {
+          validation.errors.push({
+            type: "invalid-configuration",
+            propertyId: definition.id,
+            message: `Child scope must be a subset of its parent scope: ${typeId}`,
+          });
+        }
+      });
+      if (definition.type !== "group" && definition.children?.length) {
+        validation.errors.push({
+          type: "invalid-configuration",
+          propertyId: definition.id,
+          message: "Only group properties may contain children in properties 3.0.",
+        });
+      }
+      if (definition.type === "group" && definition.defaultValue !== undefined) {
+        validation.errors.push({
+          type: "invalid-configuration",
+          propertyId: definition.id,
+          message: "Groups cannot have scalar default values.",
+        });
+      }
+      if (definition.children?.length) visit(definition.children, scope);
+    });
+  };
+  visit(roots, [...allTypes]);
+  validateEntityPresentations(config).forEach((issue) => {
+    validation.errors.push({
+      type: "invalid-configuration",
+      propertyId: issue.propertyId,
+      message: issue.message,
+    });
+  });
+  validation.valid = validation.errors.length === 0;
+  return validation;
 }
 
 /**
@@ -73,7 +140,7 @@ export function deserializePropertiesConfig(jsonString: string): {
 export function migratePropertiesV1toV2(config: PropertiesConfig): PropertiesConfig {
   const migratedConfig: PropertiesConfig = {
     ...config,
-    version: CURRENT_VERSION,
+    version: V2_VERSION,
   };
 
   // Migrate customFields definitions
@@ -93,6 +160,116 @@ export function migratePropertiesV1toV2(config: PropertiesConfig): PropertiesCon
   return migratedConfig;
 }
 
+function sameScope(first: readonly string[], second: readonly string[]) {
+  return first.length === second.length && first.every((value) => second.includes(value));
+}
+
+function legacyScopeForProperty(
+  config: PropertiesConfig,
+  property: PropertyDefinition,
+): string[] | undefined {
+  const typeCondition = property.visibleWhen?.type;
+  if (typeCondition?.length) return [...typeCondition];
+
+  const isGlobal =
+    config.customFields.globalFields?.includes(property.id) ||
+    config.baseProperties?.visibleByDefault?.includes(property.id);
+  const scope = config.entityTypes.definitions
+    .filter((type) => {
+      if (type.hiddenProperties?.includes(property.id)) return false;
+      return (
+        isGlobal ||
+        type.customFields?.includes(property.id) ||
+        type.visibleProperties?.includes(property.id)
+      );
+    })
+    .map((type) => type.id);
+  return scope.length ? scope : undefined;
+}
+
+/** Convert only the schema. Note values must be moved by the migration planner. */
+export function upgradePropertiesConfigToV3(config: PropertiesConfig): PropertiesConfig {
+  if (config.version === CURRENT_PROPERTIES_VERSION) return config;
+  const allTypes = config.entityTypes.definitions.map((definition) => definition.id);
+
+  function upgradeDefinitions(
+    definitions: PropertyDefinition[],
+    inheritedScope: string[] = allTypes,
+  ): PropertyDefinition[] {
+    return definitions.map((definition) => {
+      const explicitScope = legacyScopeForProperty(config, definition);
+      const scope = explicitScope ?? inheritedScope;
+      const { type: _legacyType, ...visibleWhen } = definition.visibleWhen ?? {};
+      const children = definition.children?.length
+        ? upgradeDefinitions(definition.children, scope)
+        : undefined;
+      return {
+        ...definition,
+        ...(sameScope(scope, inheritedScope) ? {} : { appliesTo: scope }),
+        ...(Object.keys(visibleWhen).length ? { visibleWhen } : { visibleWhen: undefined }),
+        ...(children ? { children } : {}),
+      } as PropertyDefinition;
+    });
+  }
+
+  function normalizeScopes(
+    definitions: PropertyDefinition[],
+    inheritedScope: string[] = allTypes,
+  ): Array<{ definition: PropertyDefinition; effectiveScope: string[] }> {
+    return definitions.map((definition) => {
+      const initialScope = definition.appliesTo ?? inheritedScope;
+      const normalizedChildren = normalizeScopes(definition.children ?? [], initialScope);
+      const effectiveScope =
+        definition.type === "group"
+          ? uniqueScope([
+              ...initialScope,
+              ...normalizedChildren.flatMap((child) => child.effectiveScope),
+            ])
+          : initialScope;
+      const children = normalizedChildren.map((child) => ({
+        ...child.definition,
+        appliesTo: sameScope(child.effectiveScope, effectiveScope)
+          ? undefined
+          : child.effectiveScope,
+      }));
+      return {
+        effectiveScope,
+        definition: {
+          ...definition,
+          appliesTo: sameScope(effectiveScope, inheritedScope) ? undefined : effectiveScope,
+          ...(definition.type === "group" ? { children } : {}),
+        },
+      };
+    });
+  }
+
+  const upgradedBase = upgradeDefinitions(config.baseProperties?.definitions ?? []);
+  const upgradedCustom = upgradeDefinitions(config.customFields.definitions);
+
+  return {
+    ...config,
+    version: CURRENT_PROPERTIES_VERSION,
+    baseProperties: config.baseProperties
+      ? {
+          ...config.baseProperties,
+          definitions: normalizeScopes(upgradedBase).map(
+            (entry) => entry.definition,
+          ) as typeof config.baseProperties.definitions,
+        }
+      : config.baseProperties,
+    customFields: {
+      ...config.customFields,
+      definitions: normalizeScopes(upgradedCustom).map(
+        (entry) => entry.definition,
+      ) as CustomFieldDefinition[],
+    },
+  };
+}
+
+function uniqueScope(values: string[]) {
+  return values.filter((value, index) => values.indexOf(value) === index);
+}
+
 /**
  * Export properties to a template file (just the customFields definitions).
  */
@@ -102,7 +279,7 @@ export function exportPropertiesTemplate(
   description?: string,
 ): string {
   const template = {
-    version: CURRENT_VERSION,
+    version: CURRENT_PROPERTIES_VERSION,
     name: templateName,
     description: description || "",
     exportedAt: new Date().toISOString(),
@@ -220,7 +397,7 @@ export function cleanupPropertiesConfig(config: PropertiesConfig): PropertiesCon
   // Remove empty children arrays
   function cleanChildren(defs: PropertyDefinition[]): void {
     defs.forEach((def) => {
-      if (def.children && def.children.length === 0) {
+      if (def.type !== "group" && def.children && def.children.length === 0) {
         delete (def as any).children;
       } else if (def.children) {
         cleanChildren(def.children);

@@ -16,6 +16,7 @@ struct VaultFile {
     relative_path: String,
     absolute_path: String,
     content: String,
+    binary: bool,
     modified_ms: Option<u128>,
 }
 
@@ -125,9 +126,19 @@ fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
             &PredefinedMenuItem::select_all(app, None)?,
             &PredefinedMenuItem::separator(app)?,
             &menu_item(app, "wn:edit:find", "Find", Some("CmdOrCtrl+F"))?,
-            &menu_item(app, "wn:edit:replace", "Find and Replace", Some("CmdOrCtrl+H"))?,
+            &menu_item(
+                app,
+                "wn:edit:replace",
+                "Find and Replace",
+                Some("CmdOrCtrl+H"),
+            )?,
             &menu_item(app, "wn:edit:find-next", "Find Next", Some("F3"))?,
-            &menu_item(app, "wn:edit:find-previous", "Find Previous", Some("Shift+F3"))?,
+            &menu_item(
+                app,
+                "wn:edit:find-previous",
+                "Find Previous",
+                Some("Shift+F3"),
+            )?,
             &PredefinedMenuItem::separator(app)?,
             &menu_item(app, "wn:edit:bold", "Bold", Some("CmdOrCtrl+B"))?,
             &menu_item(app, "wn:edit:italic", "Italic", Some("CmdOrCtrl+I"))?,
@@ -243,10 +254,19 @@ fn normalize_relative_path(relative_path: &str) -> Result<PathBuf, String> {
     }
     let path = PathBuf::from(relative_path);
     // `C:/x` is not absolute on Unix, so also reject drive-letter prefixes explicitly.
+    // Inspect path components for traversal rather than rejecting any `..`
+    // substring: filenames such as `reference..png` are safe vault paths.
     if path.is_absolute()
-        || relative_path.contains("..")
         || relative_path.contains('\\')
         || relative_path.contains(':')
+        || path.components().any(|component| {
+            matches!(
+                component,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        })
     {
         return Err("Path must be a safe relative path inside the vault.".to_string());
     }
@@ -314,15 +334,18 @@ fn ensure_inside(root: &Path, path: &Path) -> Result<(), String> {
     let root = root
         .canonicalize()
         .map_err(|error| format!("Could not resolve vault path: {error}"))?;
-    let candidate = if path.exists() {
-        path.canonicalize()
-            .map_err(|error| format!("Could not resolve path: {error}"))?
-    } else {
-        path.parent()
-            .unwrap_or(path)
-            .canonicalize()
-            .map_err(|error| format!("Could not resolve parent path: {error}"))?
-    };
+    // A new file may have several missing parents (e.g. attachments/hero.png
+    // on first upload). Canonicalize its nearest existing ancestor so symlink
+    // escapes are still detected before the writer creates any directories.
+    let mut existing_ancestor = path;
+    while !existing_ancestor.exists() {
+        existing_ancestor = existing_ancestor
+            .parent()
+            .ok_or_else(|| "Could not find an existing parent path.".to_string())?;
+    }
+    let candidate = existing_ancestor
+        .canonicalize()
+        .map_err(|error| format!("Could not resolve parent path: {error}"))?;
 
     if candidate.starts_with(root) {
         Ok(())
@@ -558,6 +581,20 @@ fn should_read_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+fn is_image_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| {
+            extension.eq_ignore_ascii_case("png")
+                || extension.eq_ignore_ascii_case("jpg")
+                || extension.eq_ignore_ascii_case("jpeg")
+                || extension.eq_ignore_ascii_case("gif")
+                || extension.eq_ignore_ascii_case("webp")
+                || extension.eq_ignore_ascii_case("svg")
+        })
+        .unwrap_or(false)
+}
+
 fn walk_vault(
     root: &Path,
     current: &Path,
@@ -603,24 +640,37 @@ fn walk_vault(
                         directories.push(relative_path);
                     }
                     walk_vault(root, &path, files, directories, errors);
-                } else if should_read_file(&path) {
+                } else if should_read_file(&path) || is_image_file(&path) {
                     let relative_path = path
                         .strip_prefix(root)
                         .unwrap_or(&path)
                         .to_string_lossy()
                         .replace('\\', "/");
 
-                    match fs::read_to_string(&path) {
-                        Ok(content) => files.push(VaultFile {
+                    if is_image_file(&path) {
+                        files.push(VaultFile {
                             relative_path,
                             absolute_path: path.to_string_lossy().to_string(),
-                            content,
+                            // Binary attachments are indexed by path only. The
+                            // webview reads their base64 contents on demand.
+                            content: String::new(),
+                            binary: true,
                             modified_ms: modified_ms(&path),
-                        }),
-                        Err(error) => errors.push(VaultReadError {
-                            relative_path,
-                            message: error.to_string(),
-                        }),
+                        });
+                    } else {
+                        match fs::read_to_string(&path) {
+                            Ok(content) => files.push(VaultFile {
+                                relative_path,
+                                absolute_path: path.to_string_lossy().to_string(),
+                                content,
+                                binary: false,
+                                modified_ms: modified_ms(&path),
+                            }),
+                            Err(error) => errors.push(VaultReadError {
+                                relative_path,
+                                message: error.to_string(),
+                            }),
+                        }
                     }
                 }
             }
@@ -690,6 +740,7 @@ fn read_file(path: String) -> Result<VaultFile, String> {
             .unwrap_or_default(),
         absolute_path: path.to_string_lossy().to_string(),
         content,
+        binary: false,
         modified_ms: modified_ms(&path),
     })
 }
@@ -1137,7 +1188,9 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_relative_path, sanitize_segment};
+    use super::{ensure_inside, normalize_relative_path, sanitize_segment, walk_vault, VaultFile};
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn normalize_relative_path_rejects_absolute_and_traversal_paths() {
@@ -1150,7 +1203,60 @@ mod tests {
     #[test]
     fn normalize_relative_path_allows_safe_nested_paths_and_root() {
         assert_eq!(normalize_relative_path("").unwrap().to_string_lossy(), "");
-        assert_eq!(normalize_relative_path("Characters/Mara.md").unwrap().components().count(), 2);
+        assert_eq!(
+            normalize_relative_path("Characters/Mara.md")
+                .unwrap()
+                .components()
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn normalize_relative_path_allows_safe_filenames_with_double_dots() {
+        assert!(normalize_relative_path("attachments/reference..png").is_ok());
+        assert!(normalize_relative_path("attachments/portrait.v2.png").is_ok());
+    }
+
+    #[test]
+    fn ensure_inside_allows_new_files_under_missing_parent_directories() {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("worldnotion-path-test-{suffix}"));
+        fs::create_dir_all(&root).unwrap();
+
+        assert!(ensure_inside(&root, &root.join("attachments/hero.png")).is_ok());
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn walk_vault_indexes_images_without_reading_them_as_text() {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("worldnotion-image-index-test-{suffix}"));
+        fs::create_dir_all(root.join("attachments")).unwrap();
+        fs::write(root.join("Mara.md"), "# Mara").unwrap();
+        fs::write(root.join("attachments/hero.png"), [0_u8, 159, 146, 150]).unwrap();
+
+        let mut files: Vec<VaultFile> = Vec::new();
+        let mut directories = Vec::new();
+        let mut errors = Vec::new();
+        walk_vault(&root, &root, &mut files, &mut directories, &mut errors);
+
+        assert!(errors.is_empty());
+        assert!(files.iter().any(|file| {
+            file.relative_path == "attachments/hero.png" && file.content.is_empty()
+        }));
+        assert!(files
+            .iter()
+            .any(|file| file.relative_path == "Mara.md" && file.content == "# Mara"));
+
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

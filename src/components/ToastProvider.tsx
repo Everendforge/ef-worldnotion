@@ -32,9 +32,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<ToastEntry[]>([]);
   const [active, setActive] = useState<ToastEntry>();
 
-  const showToast = useCallback<ShowToast>((message, kind = "info") => {
-    setQueue((current) => [...current, { message, kind }]);
-  }, []);
+  const showToast = useCallback<ShowToast>(
+    (message, kind = "info") => {
+      setQueue((current) => {
+        const lastQueued = current.at(-1);
+        const matchesActive = active?.message === message && active.kind === kind;
+        const matchesQueued = lastQueued?.message === message && lastQueued.kind === kind;
+        return matchesActive || matchesQueued ? current : [...current, { message, kind }];
+      });
+    },
+    [active],
+  );
 
   useEffect(() => {
     if (active || queue.length === 0) return;

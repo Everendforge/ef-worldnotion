@@ -27,6 +27,10 @@ export function buildTree(
   hiddenRootFile?: string,
   ignoreFolderDescriptions = false,
 ): VaultTreeNode[] {
+  // Binary attachments are indexed so they can be resolved by Markdown and
+  // property pickers, but they are not editor documents and must not be
+  // exposed as blank, writable note tabs in the explorer.
+  const visibleFiles = files.filter((file) => !file.binary);
   const roots: VaultTreeNode[] = [];
   const folders = new Map<string, VaultTreeNode>();
   const descriptionFiles = new Set<string>();
@@ -46,7 +50,7 @@ export function buildTree(
       }
     });
 
-  files.forEach((file) => {
+  visibleFiles.forEach((file) => {
     if (!includeHiddenMetadata && isHiddenMetadata(file.relativePath)) return;
     const parentPath = dirname(file.relativePath);
     if (parentPath) {
@@ -61,7 +65,7 @@ export function buildTree(
     }
   });
 
-  files.forEach((file) => {
+  visibleFiles.forEach((file) => {
     if (!includeHiddenMetadata && isHiddenMetadata(file.relativePath)) return;
 
     const parentPath = dirname(file.relativePath);
@@ -102,7 +106,7 @@ export function buildTree(
     .sort((a, b) => a.localeCompare(b))
     .forEach((folderPath) => ensureFolder(folderPath));
 
-  files
+  visibleFiles
     .filter(
       (file) =>
         (includeHiddenMetadata || !isHiddenMetadata(file.relativePath)) &&

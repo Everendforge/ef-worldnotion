@@ -7,6 +7,8 @@ import type {
   VaultFile,
 } from "../domain";
 import { normalizeCoreBaseProperties } from "./taxonomyConfig";
+import { deserializePropertiesConfig } from "./propertiesSerializer";
+import { normalizeLocaleList, normalizeLocaleNames } from "./localization";
 
 function basenameWithoutExtension(path: string): string {
   const filename = path.split("/").pop() ?? path;
@@ -56,6 +58,23 @@ export function parseUniverseProfile(
     return {
       name: typeof parsed.name === "string" && parsed.name.trim() ? parsed.name.trim() : undefined,
       icon,
+      localization: parsed.localization?.primaryLocale
+        ? (() => {
+            const locales = normalizeLocaleList(
+              parsed.localization.primaryLocale,
+              Array.isArray(parsed.localization.locales)
+                ? parsed.localization.locales.filter(
+                    (locale): locale is string => typeof locale === "string",
+                  )
+                : [],
+            );
+            return {
+              primaryLocale: locales[0],
+              locales,
+              localeNames: normalizeLocaleNames(parsed.localization.localeNames, locales),
+            };
+          })()
+        : undefined,
     };
   } catch {
     findings.push(
@@ -78,10 +97,7 @@ export function parsePropertiesConfig(
   if (!propertiesFile) return undefined;
 
   try {
-    const parsed = JSON.parse(propertiesFile.content);
-    if (!parsed || typeof parsed !== "object") return undefined;
-
-    const config = parsed as PropertiesConfig;
+    const { config } = deserializePropertiesConfig(propertiesFile.content);
     if (
       !config.version ||
       !config.tags ||

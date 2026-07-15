@@ -2,9 +2,11 @@ import type { PropertiesConfig, PropertyDefinition } from "../editorTypes";
 import {
   conditionIsActive,
   getConfiguredFrontmatterOrder,
-  knownPropertyIds,
+  getFrontmatterPropertyValue,
+  getFrontmatterPropertyValues,
   listVisibleProperties,
   NON_INSPECTOR_PROPERTY_IDS,
+  listUnconfiguredProperties,
 } from "./propertiesConfig";
 
 export interface ValidationIssue {
@@ -51,12 +53,15 @@ export function listMissingPropertyFields(
 
   if (!config?.baseProperties) return missing;
 
-  const values: Record<string, unknown> = { type: entityType, ...frontmatterData };
+  const values: Record<string, unknown> = {
+    type: entityType,
+    ...getFrontmatterPropertyValues(frontmatterData, config),
+  };
   const visit = (property: PropertyDefinition) => {
     if (!conditionIsActive(property, values)) return;
     if (
       property.type !== "group" &&
-      !(property.id in frontmatterData) &&
+      getFrontmatterPropertyValue(frontmatterData, property.id, config) === undefined &&
       !CORE_FRONTMATTER_FIELDS.includes(property.id) &&
       !NON_INSPECTOR_PROPERTY_IDS.has(property.id) &&
       (property.required || property.defaultValue !== undefined)
@@ -85,18 +90,11 @@ export function detectOrphanedFields(
   entityType?: string,
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const knownIds = knownPropertyIds(config);
   const frontmatterKeys = Object.keys(frontmatterData);
 
-  frontmatterKeys.forEach((key) => {
-    if (!knownIds.has(key) && !NON_INSPECTOR_PROPERTY_IDS.has(key)) {
-      issues.push({
-        type: "extra",
-        fieldName: key,
-        value: frontmatterData[key],
-      });
-    }
-  });
+  listUnconfiguredProperties(frontmatterData, config).forEach(({ key, value }) =>
+    issues.push({ type: "extra", fieldName: key, value }),
+  );
 
   const expectedOrder = getConfiguredFrontmatterOrder(config, entityType, frontmatterKeys);
   const isOrderCorrect =

@@ -31,7 +31,10 @@ describe("settings persistence", () => {
     const settings = loadSettings();
 
     expect(settings.plugins.enabled["markdown-syntax-hiding"]).toBe(true);
+    expect(settings.plugins.enabled["ai-advisor"]).toBe(true);
     expect(settings.plugins.enabled["unity-adapter"]).toBe(false);
+    expect(settings.aiAdvisor.activeProviderId).toBe("chatgpt");
+    expect(settings.aiAdvisor.providers.length).toBeGreaterThanOrEqual(6);
   });
 
   it("persists simplified session state", () => {

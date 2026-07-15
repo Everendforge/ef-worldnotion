@@ -8,6 +8,7 @@ import {
   DEFAULT_PLUGIN_SETTINGS,
   type AppSettingsV4,
 } from "../editorTypes";
+import { DEFAULT_AI_ADVISOR_SETTINGS } from "../utils/aiProviders";
 import { createDefaultTaxonomyConfig } from "../domain";
 import { SettingsModal } from "./SettingsModal";
 import { DialogProvider } from "./DialogProvider";
@@ -21,6 +22,7 @@ function appSettings(overrides: Partial<AppSettingsV4> = {}): AppSettingsV4 {
     explorer: DEFAULT_EXPLORER_SETTINGS,
     graph: DEFAULT_GRAPH_SETTINGS,
     plugins: DEFAULT_PLUGIN_SETTINGS,
+    aiAdvisor: DEFAULT_AI_ADVISOR_SETTINGS,
     keybindings: DEFAULT_KEYBINDINGS,
     sessions: {},
     ...overrides,

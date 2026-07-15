@@ -76,4 +76,27 @@ describe("ToastProvider", () => {
   it("keeps error toasts on screen longer than success toasts", () => {
     expect(TOAST_DURATION_MS.error).toBeGreaterThan(TOAST_DURATION_MS.success);
   });
+
+  it("coalesces repeated identical save notifications", () => {
+    render(
+      <ToastProvider>
+        <ShowOnMount
+          messages={Array.from({ length: 20 }, () => [
+            "Properties configuration saved.",
+            "success",
+          ])}
+        />
+      </ToastProvider>,
+    );
+
+    act(() => {
+      screen.getByText("fire").click();
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("Properties configuration saved.");
+
+    act(() => {
+      vi.advanceTimersByTime(TOAST_DURATION_MS.success + 10);
+    });
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
 });

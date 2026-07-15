@@ -17,7 +17,10 @@ export type PropertyRowHandlers = {
   onDrop: (propertyId: string) => void;
   onToggleGroup: (propertyId: string) => void;
   onOpenPropertyEditor: (propertyId: string, anchorEl: HTMLElement) => void;
-  vaultIndexProps?: Pick<PropertyFieldRendererProps, "vaultIndex" | "onOpenEntity">;
+  vaultIndexProps?: Pick<
+    PropertyFieldRendererProps,
+    "vaultIndex" | "onOpenEntity" | "onRequestImage"
+  >;
 };
 
 export type PropertyRowProps = {
@@ -65,6 +68,7 @@ export function PropertyRow({
           type="button"
           className="property-row-more"
           title="Edit property"
+          aria-label={`Edit ${property.label || property.id}`}
           onClick={(event) => handlers.onOpenPropertyEditor(property.id, event.currentTarget)}
         >
           <MoreHorizontal size={13} />
@@ -137,6 +141,7 @@ export function PropertyRow({
           className="property-row-more"
           onClick={(event) => handlers.onOpenPropertyEditor(property.id, event.currentTarget)}
           title="Edit property"
+          aria-label={`Edit ${property.label || property.id}`}
         >
           <MoreHorizontal size={13} />
         </button>

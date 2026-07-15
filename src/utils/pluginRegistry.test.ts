@@ -7,6 +7,7 @@ import {
   DEFAULT_PLUGIN_SETTINGS,
   type AppSettingsV4,
 } from "../editorTypes";
+import { DEFAULT_AI_ADVISOR_SETTINGS } from "./aiProviders";
 import {
   getPluginDefinitions,
   isPluginEnabled,
@@ -23,6 +24,7 @@ function appSettings(overrides: Partial<AppSettingsV4> = {}): AppSettingsV4 {
     explorer: DEFAULT_EXPLORER_SETTINGS,
     graph: DEFAULT_GRAPH_SETTINGS,
     plugins: DEFAULT_PLUGIN_SETTINGS,
+    aiAdvisor: DEFAULT_AI_ADVISOR_SETTINGS,
     keybindings: DEFAULT_KEYBINDINGS,
     sessions: {},
     ...overrides,
@@ -32,6 +34,7 @@ function appSettings(overrides: Partial<AppSettingsV4> = {}): AppSettingsV4 {
 describe("plugin registry", () => {
   it("normalizes missing settings with defaults", () => {
     expect(normalizePluginSettings(undefined).enabled["markdown-syntax-hiding"]).toBe(true);
+    expect(normalizePluginSettings(undefined).enabled["ai-advisor"]).toBe(true);
     expect(normalizePluginSettings(undefined).enabled["unity-adapter"]).toBe(false);
   });
 
@@ -60,6 +63,12 @@ describe("plugin registry", () => {
 
     expect(next.plugins.enabled["document-header"]).toBe(false);
     expect(next.editor.documentHeaderEnabled).toBe(false);
+  });
+
+  it("allows the AI advisor to be disabled independently", () => {
+    const next = updatePluginEnabled(appSettings(), "ai-advisor", false);
+
+    expect(isPluginEnabled(next.plugins, "ai-advisor")).toBe(false);
   });
 
   it("ignores attempts to toggle planned adapters", () => {

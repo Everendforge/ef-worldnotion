@@ -27,6 +27,7 @@ export type ContextMenuAction =
   | "reveal"
   | "trash"
   | "editFolderDescription"
+  | "deleteFolderDescription"
   | "refresh"
   | "collapseAll"
   | "changeIcon";
@@ -44,6 +45,7 @@ export interface ContextMenuProps {
   revealLabel?: string;
   revealUniverseLabel?: string;
   trashLabel?: string;
+  hasFolderDescription?: boolean;
   onAction: (
     action: ContextMenuAction,
     targetPath: string,
@@ -64,6 +66,7 @@ export function ContextMenu({
   revealLabel = "Reveal in Finder",
   revealUniverseLabel = "Reveal Universe",
   trashLabel = "Move to Trash",
+  hasFolderDescription = false,
   onAction,
   onClose,
 }: ContextMenuProps) {
@@ -208,14 +211,26 @@ export function ContextMenu({
             <span>Move to Folder</span>
           </button>
           {targetKind === "folder" ? (
-            <button
-              type="button"
-              onClick={() => run("editFolderDescription")}
-              className="context-menu-item"
-            >
-              <FileText size={16} />
-              <span>Edit Folder Description</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => run("editFolderDescription")}
+                className="context-menu-item"
+              >
+                <FileText size={16} />
+                <span>{hasFolderDescription ? "Edit Folder Note" : "Create Folder Note"}</span>
+              </button>
+              {hasFolderDescription ? (
+                <button
+                  type="button"
+                  onClick={() => run("deleteFolderDescription")}
+                  className="context-menu-item danger"
+                >
+                  <Trash2 size={16} />
+                  <span>Delete Folder Note</span>
+                </button>
+              ) : null}
+            </>
           ) : null}
           <button type="button" onClick={() => run("toggleFavorite")} className="context-menu-item">
             <Star size={16} />

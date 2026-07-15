@@ -119,6 +119,18 @@ const PLUGIN_DEFINITIONS: PluginDefinition[] = [
     configurable: false,
     riskLevel: "medium",
   },
+  {
+    id: "ai-advisor",
+    name: "AI Advisor",
+    description:
+      "Opens isolated provider webviews for ChatGPT, Claude, Gemini, DeepSeek, and more.",
+    category: "integration",
+    status: "available",
+    scope: "worldnotion",
+    defaultEnabled: true,
+    configurable: true,
+    riskLevel: "high",
+  },
 ];
 
 const definitionsById = new Map(
@@ -211,6 +223,8 @@ export function pluginCategoryLabel(category: PluginCategory): string {
       return "Navigation";
     case "visual":
       return "Visual";
+    case "integration":
+      return "Integrations";
     case "runtime-adapter":
       return "Runtime Adapters";
   }

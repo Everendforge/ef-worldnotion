@@ -7,6 +7,8 @@ import {
   addPropertyToConfig,
   buildInspectorPropertySections,
   changePropertyType,
+  conditionIsActive,
+  createInspectorProperty,
   getConfiguredFrontmatterOrder,
   inferPropertyDefinition,
   listAllProperties,
@@ -75,8 +77,6 @@ describe("propertiesConfig", () => {
       "type",
       "status",
       "aliases",
-      "parentId",
-      "childrenIds",
       "lore-level",
       "identity",
       "place",
@@ -95,6 +95,37 @@ describe("propertiesConfig", () => {
         isPropertyVisible(property, { type: "character" }),
       ),
     ).toBe(true);
+  });
+
+  it("inherits group scopes and lets children restrict them", () => {
+    const config = applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE);
+    const characterIdentity = buildInspectorPropertySections(config, "character", {
+      type: "character",
+    })
+      .flatMap((section) => section.nodes)
+      .find((node) => node.property.id === "identity");
+    const itemIdentity = buildInspectorPropertySections(config, "item", { type: "item" })
+      .flatMap((section) => section.nodes)
+      .find((node) => node.property.id === "identity");
+
+    expect(characterIdentity?.children.map((child) => child.property.id)).toContain("role");
+    expect(itemIdentity?.children.map((child) => child.property.id)).not.toContain("role");
+    expect(listVisibleProperties(config, "location").map((property) => property.id)).not.toContain(
+      "identity",
+    );
+  });
+
+  it("combines condition properties with AND and accepted values with OR", () => {
+    const property = {
+      id: "reveal",
+      label: "Reveal",
+      type: "text" as const,
+      visibleWhen: { mood: ["calm", "hopeful"], status: ["canon"] },
+    };
+
+    expect(conditionIsActive(property, { mood: "hopeful", status: "canon" })).toBe(true);
+    expect(conditionIsActive(property, { mood: "tense", status: "canon" })).toBe(false);
+    expect(conditionIsActive(property, { mood: "calm", status: "draft" })).toBe(false);
   });
 
   it("does not treat hidden configured properties as unconfigured", () => {
@@ -191,15 +222,33 @@ describe("propertiesConfig", () => {
     ]);
   });
 
-  it("adds child properties without making YAML nested", () => {
+  it("creates empty sections in the schema without serializing empty YAML objects", () => {
+    const config = createInspectorProperty(
+      createDefaultTaxonomyConfig(),
+      "character",
+      "Identity notes",
+      "group",
+    );
+    const section = listAllProperties(config).find((property) => property.id === "identity-notes");
+    const raw = createEntityFrontmatter({
+      id: "mara",
+      name: "Mara",
+      type: "character",
+      propertiesConfig: config,
+    });
+
+    expect(section?.children).toEqual([]);
+    expect(parseFrontmatterRaw(raw)).not.toHaveProperty("identity-notes");
+  });
+
+  it("stores child properties in their group object", () => {
     const config = applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE);
     const withParent = upsertInspectorProperty(
       config,
       {
         id: "magic",
         label: "Magic",
-        type: "select",
-        options: [{ value: "yes", label: "Yes" }],
+        type: "group",
       },
       "character",
     );
@@ -209,7 +258,6 @@ describe("propertiesConfig", () => {
         id: "power-level",
         label: "Power level",
         type: "number",
-        visibleWhen: { magic: ["yes"] },
       },
       "character",
       "magic",
@@ -220,7 +268,17 @@ describe("propertiesConfig", () => {
     );
 
     expect(magic?.children?.map((child) => child.id)).toEqual(["power-level"]);
-    expect(listUnconfiguredProperties({ magic: "yes", "power-level": 3 }, withChild)).toEqual([]);
+    expect(listUnconfiguredProperties({ magic: { "power-level": 3 } }, withChild)).toEqual([]);
+    expect(
+      parseFrontmatterRaw(
+        updateFrontmatterProperties(
+          "---\ntype: character\n---",
+          { "power-level": 3 },
+          withChild,
+          "character",
+        ),
+      ),
+    ).toMatchObject({ magic: { "power-level": 3 } });
     expect(getConfiguredFrontmatterOrder(withChild, "character", ["power-level", "magic"])).toEqual(
       ["magic", "power-level"],
     );
@@ -286,6 +344,15 @@ describe("propertiesConfig", () => {
       {
         id: "magic",
         label: "Magic",
+        type: "group",
+      },
+      "character",
+    );
+    const withMagicKind = upsertInspectorProperty(
+      withMagic,
+      {
+        id: "magic-kind",
+        label: "Magic kind",
         type: "select",
         options: [
           { value: "elemental", label: "Elemental" },
@@ -295,12 +362,12 @@ describe("propertiesConfig", () => {
       "character",
     );
     const withSchool = upsertInspectorProperty(
-      withMagic,
+      withMagicKind,
       {
         id: "school",
         label: "School",
         type: "group",
-        visibleWhen: { magic: ["elemental"] },
+        visibleWhen: { "magic-kind": ["elemental"] },
       },
       "character",
       "magic",
@@ -314,7 +381,7 @@ describe("propertiesConfig", () => {
 
     const sections = buildInspectorPropertySections(withTechnique, "character", {
       type: "character",
-      magic: "elemental",
+      "magic-kind": "elemental",
     });
     const mainSection = sections.find((section) => section.id === "main");
     const magic = mainSection?.nodes.find((node) => node.property.id === "magic");
@@ -327,7 +394,7 @@ describe("propertiesConfig", () => {
       parentId: "magic",
       depth: 1,
       conditionActive: true,
-      conditionLabel: "Depends on Magic = elemental",
+      conditionLabel: "Depends on Magic kind = elemental",
     });
     expect(magic?.children[0].children[0]).toMatchObject({
       property: expect.objectContaining({ id: "technique" }),
@@ -339,7 +406,7 @@ describe("propertiesConfig", () => {
     ).toEqual(["magic", "school", "technique"]);
   });
 
-  it("separates Everend structural connectors from main creative properties", () => {
+  it("keeps Everend structural connectors out of inspector sections", () => {
     const config = applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE);
     const inspectorSections = buildInspectorPropertySections(config, "item", { type: "item" });
 
@@ -347,32 +414,33 @@ describe("propertiesConfig", () => {
       inspectorSections
         .find((section) => section.id === "main")
         ?.nodes.map((node) => node.property.id) ?? [];
-    // Creative properties (including custom groups) live in main; structural
-    // connectors are split out into their own section.
+    // Creative properties (including custom groups) live in main. Structural
+    // connectors remain core index data and are never editable inspector rows.
     expect(mainIds).toContain("type");
     expect(mainIds).toContain("status");
     expect(mainIds).toContain("aliases");
     expect(mainIds).toContain("lore-level");
     expect(mainIds).not.toContain("parentId");
     expect(mainIds).not.toContain("childrenIds");
-    expect(inspectorSections.find((section) => section.id === "structure")).toMatchObject({
-      kind: "structure",
-      title: "Structure",
-    });
     expect(
       inspectorSections
         .find((section) => section.id === "structure")
         ?.nodes.map((node) => node.property.id),
-    ).toEqual(["parentId", "childrenIds"]);
+    ).toEqual([]);
   });
 
   it("hides inactive conditional trays unless hidden conditional display is requested", () => {
     const config = applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE);
     const withMagic = upsertInspectorProperty(
       config,
+      { id: "magic", label: "Magic", type: "group" },
+      "character",
+    );
+    const withElements = upsertInspectorProperty(
+      withMagic,
       {
-        id: "magic",
-        label: "Magic",
+        id: "elements",
+        label: "Elements",
         type: "multiselect",
         options: [
           { value: "fire", label: "Fire" },
@@ -382,25 +450,27 @@ describe("propertiesConfig", () => {
       "character",
     );
     const withChild = upsertInspectorProperty(
-      withMagic,
+      withElements,
       {
         id: "pyromancy",
         label: "Pyromancy",
         type: "text",
-        visibleWhen: { magic: ["fire"] },
+        visibleWhen: { elements: ["fire"] },
       },
       "character",
       "magic",
     );
 
-    const inactive = buildInspectorPropertySections(withChild, "character", { magic: ["water"] });
+    const inactive = buildInspectorPropertySections(withChild, "character", {
+      elements: ["water"],
+    });
     const active = buildInspectorPropertySections(withChild, "character", {
-      magic: ["water", "fire"],
+      elements: ["water", "fire"],
     });
     const expanded = buildInspectorPropertySections(
       withChild,
       "character",
-      { magic: ["water"] },
+      { elements: ["water"] },
       { includeInactiveConditions: true },
     );
     const findChild = (sections: ReturnType<typeof buildInspectorPropertySections>) =>
@@ -476,7 +546,7 @@ describe("propertiesConfig", () => {
     ).toContain("technique");
   });
 
-  it("moves properties between root and group without changing frontmatter values", () => {
+  it("moves properties between root and group with a new canonical path", () => {
     const config = applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE);
     const withGroup = upsertInspectorProperty(
       config,
@@ -492,7 +562,10 @@ describe("propertiesConfig", () => {
     const magic = listAllProperties(movedIntoGroup).find((property) => property.id === "magic");
 
     expect(magic?.children?.map((child) => child.id)).toEqual(["power-level"]);
-    expect(listUnconfiguredProperties({ "power-level": 8 }, movedIntoGroup)).toEqual([]);
+    expect(listUnconfiguredProperties({ magic: { "power-level": 8 } }, movedIntoGroup)).toEqual([]);
+    expect(listUnconfiguredProperties({ "power-level": 8 }, movedIntoGroup)).toEqual([
+      { key: "power-level", value: 8, inferredType: "number" },
+    ]);
 
     const movedToRoot = moveInspectorProperty(movedIntoGroup, "character", "power-level", null);
     const rootPower = movedToRoot.customFields.definitions.find(

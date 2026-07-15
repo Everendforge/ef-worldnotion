@@ -205,9 +205,7 @@ export const COLLABORATIVE_TEMPLATE: PropertyTemplate = {
 /**
  * Worldbuilding template - modular narrative universe schema.
  *
- * The generated schema keeps frontmatter flat while presenting custom fields as
- * editable property trees. Root groups are concern-based so a property ID exists
- * once and can still appear for several entity types.
+ * In properties 3.0 every group becomes a YAML object keyed by its stable ID.
  */
 export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
   id: "worldbuilding",
@@ -235,7 +233,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
       type: "group",
       description: "Roles, homes, affiliations, ownership, and identity relationships",
       required: false,
-      visibleWhen: { type: ["character", "organization", "item"] },
+      appliesTo: ["character", "organization", "item"],
       children: [
         {
           id: "role",
@@ -243,7 +241,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
           type: "select",
           description: "Narrative or institutional function",
           required: false,
-          visibleWhen: { type: ["character", "organization"] },
+          appliesTo: ["character", "organization"],
           options: [
             { value: "protagonist", label: "Protagonist", color: "#2563eb" },
             { value: "antagonist", label: "Antagonist", color: "#dc2626" },
@@ -258,7 +256,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
           type: "entity-ref",
           description: "Organization, faction, house, or group connected to this note",
           required: false,
-          visibleWhen: { type: ["character"] },
+          appliesTo: ["character"],
           targetTypes: ["organization"],
         },
         {
@@ -267,7 +265,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
           type: "entity-ref",
           description: "Primary place connected to this entity",
           required: false,
-          visibleWhen: { type: ["character", "organization"] },
+          appliesTo: ["character", "organization"],
           targetTypes: ["location", "world"],
         },
         {
@@ -276,7 +274,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
           type: "entity-ref",
           description: "Current or notable owner",
           required: false,
-          visibleWhen: { type: ["item"] },
+          appliesTo: ["item"],
           targetTypes: ["character", "organization"],
         },
       ],
@@ -287,9 +285,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
       type: "group",
       description: "Spatial scope and location relationships",
       required: false,
-      visibleWhen: {
-        type: ["location", "world", "item", "event", "story", "arc", "scene", "quest"],
-      },
+      appliesTo: ["location", "world", "item", "event", "story", "arc", "scene", "quest"],
       children: [
         {
           id: "scale",
@@ -297,7 +293,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
           type: "select",
           description: "Physical or social scale",
           required: false,
-          visibleWhen: { type: ["location", "world"] },
+          appliesTo: ["location", "world"],
           options: [
             { value: "room", label: "Room", color: "#94a3b8" },
             { value: "building", label: "Building", color: "#64748b" },
@@ -312,7 +308,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
           type: "entity-ref",
           description: "Parent or surrounding location",
           required: false,
-          visibleWhen: { type: ["location"] },
+          appliesTo: ["location"],
           targetTypes: ["location", "world"],
         },
         {
@@ -321,7 +317,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
           type: "text",
           description: "Population estimate or known inhabitants",
           required: false,
-          visibleWhen: { type: ["location", "world"] },
+          appliesTo: ["location", "world"],
         },
         {
           id: "location",
@@ -329,7 +325,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
           type: "entity-ref",
           description: "Place where this event, story, scene, quest, or object belongs",
           required: false,
-          visibleWhen: { type: ["item", "event", "story", "arc", "scene", "quest"] },
+          appliesTo: ["item", "event", "story", "arc", "scene", "quest"],
           targetTypes: ["location", "world"],
         },
       ],
@@ -340,7 +336,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
       type: "group",
       description: "Story structure, timing, and participation",
       required: false,
-      visibleWhen: { type: ["character", "event", "story", "arc", "scene", "quest"] },
+      appliesTo: ["character", "event", "story", "arc", "scene", "quest"],
       children: [
         {
           id: "arc",
@@ -348,7 +344,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
           type: "select",
           description: "Narrative arc state",
           required: false,
-          visibleWhen: { type: ["character", "story", "arc", "scene", "quest"] },
+          appliesTo: ["character", "story", "arc", "scene", "quest"],
           options: [
             { value: "setup", label: "Setup", color: "#94a3b8" },
             { value: "rising", label: "Rising", color: "#3b82f6" },
@@ -363,7 +359,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
           type: "date",
           description: "In-world or planning date",
           required: false,
-          visibleWhen: { type: ["event", "scene"] },
+          appliesTo: ["event", "scene"],
         },
         {
           id: "participants",
@@ -371,7 +367,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
           type: "entity-ref-list",
           description: "Characters or organizations involved",
           required: false,
-          visibleWhen: { type: ["event", "story", "arc", "scene", "quest"] },
+          appliesTo: ["event", "story", "arc", "scene", "quest"],
           targetTypes: ["character", "organization"],
         },
       ],
@@ -382,7 +378,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
       type: "group",
       description: "Item materiality and rarity",
       required: false,
-      visibleWhen: { type: ["item"] },
+      appliesTo: ["item"],
       children: [
         {
           id: "rarity",
@@ -390,7 +386,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
           type: "select",
           description: "How common or legendary an item is",
           required: false,
-          visibleWhen: { type: ["item"] },
+          appliesTo: ["item"],
           options: [
             { value: "common", label: "Common", color: "#94a3b8" },
             { value: "uncommon", label: "Uncommon", color: "#10b981" },
@@ -405,7 +401,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
           type: "text",
           description: "Primary material, component, or substance",
           required: false,
-          visibleWhen: { type: ["item"] },
+          appliesTo: ["item"],
         },
       ],
     },
@@ -415,7 +411,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
       type: "group",
       description: "Ideas, rules, categories, cosmology, and abstract systems",
       required: false,
-      visibleWhen: { type: ["concept", "world", "cycle", "universe"] },
+      appliesTo: ["concept", "world", "cycle", "universe"],
       children: [
         {
           id: "theme",
@@ -423,7 +419,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
           type: "text",
           description: "Major idea, motif, or concept family",
           required: false,
-          visibleWhen: { type: ["concept", "world", "cycle", "universe"] },
+          appliesTo: ["concept", "world", "cycle", "universe"],
         },
         {
           id: "rules",
@@ -431,7 +427,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
           type: "text",
           description: "Important constraints, laws, or operating rules",
           required: false,
-          visibleWhen: { type: ["concept", "world", "cycle", "universe"] },
+          appliesTo: ["concept", "world", "cycle", "universe"],
         },
         {
           id: "category",
@@ -439,7 +435,7 @@ export const WORLDBUILDING_TEMPLATE: PropertyTemplate = {
           type: "select",
           description: "Worldbuilding category",
           required: false,
-          visibleWhen: { type: ["concept", "world", "cycle", "universe"] },
+          appliesTo: ["concept", "world", "cycle", "universe"],
           options: [
             { value: "character", label: "Character", color: "#3b82f6" },
             { value: "location", label: "Location", color: "#10b981" },
@@ -640,11 +636,34 @@ export function applyPropertyTemplate(
       []),
   ]);
 
+  const scopedTemplateFields = template.customFields.map((field) => {
+    const scopeForRoot = template.typeProperties
+      ? Object.entries(template.typeProperties)
+          .filter(([, ids]) => ids.includes(field.id))
+          .map(([typeId]) => typeId)
+      : undefined;
+    const applyScopes = (
+      property: CustomFieldDefinition,
+      inheritedScope?: string[],
+    ): CustomFieldDefinition => {
+      const { type: _legacyType, ...visibleWhen } = property.visibleWhen ?? {};
+      const appliesTo = property.appliesTo ?? property.visibleWhen?.type ?? inheritedScope;
+      return {
+        ...property,
+        ...(appliesTo?.length ? { appliesTo } : {}),
+        ...(Object.keys(visibleWhen).length ? { visibleWhen } : { visibleWhen: undefined }),
+        children: property.children?.map((child) =>
+          applyScopes(child as CustomFieldDefinition, appliesTo),
+        ),
+      };
+    };
+    return applyScopes(field, scopeForRoot);
+  });
   const newCustomFields = [
     ...(taxonomyConfig.customFields?.definitions || []).filter(
       (field) => !baseFieldIds.has(field.id),
     ),
-    ...template.customFields.filter((field) => !existingCustomFieldIds.has(field.id)),
+    ...scopedTemplateFields.filter((field) => !existingCustomFieldIds.has(field.id)),
   ];
   const templateRootFieldIds = template.customFields.map((field) => field.id);
   const templateKnownFieldIds = new Set(propertyTreeIds(template.customFields));

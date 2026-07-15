@@ -11,9 +11,11 @@ import {
   Keyboard,
   PanelLeft,
   Plug,
+  Plus,
   Settings,
   Sparkles,
   TextCursorInput,
+  Trash2,
   Upload,
   Wrench,
   X,
@@ -24,6 +26,7 @@ import {
   EDITOR_COMMANDS,
   EditorCommandId,
   EditorSettings,
+  AiAdvisorSettings,
   Keybinding,
   PluginCategory,
   PropertiesConfig,
@@ -33,7 +36,9 @@ import { createDefaultTaxonomyConfig } from "../domain";
 import { applyPropertyTemplate, WORLDBUILDING_TEMPLATE } from "../utils/propertyTemplates";
 import type { FrontmatterNormalizationItem } from "../utils/frontmatterNormalizer";
 import type { PropertyNormalizationItem } from "../utils/propertyNormalizer";
+import type { PropertyStructureMigrationPlan } from "../utils/propertyStructureMigration";
 import { THEMES, themeById } from "../themes";
+import { normalizeAiProviderUrl } from "../utils/aiProviders";
 import { PropertiesManager } from "./TaxonomyManager";
 import {
   getPluginDefinitions,
@@ -42,6 +47,13 @@ import {
   pluginCategoryLabel,
   updatePluginEnabled,
 } from "../utils/pluginRegistry";
+import {
+  customLocaleId,
+  localeDisplayName,
+  localeOptions,
+  normalizeLocaleList,
+  normalizeLocaleNames,
+} from "../utils/localization";
 import "../App.css";
 
 type SettingsModalProps = {
@@ -70,6 +82,13 @@ type SettingsModalProps = {
   onApplyPropertyNormalization?: (
     items: PropertyNormalizationItem[],
   ) => Promise<{ applied: number; skipped: number; errors: string[] }>;
+  onScanPropertyStructureMigration?: () =>
+    | PropertyStructureMigrationPlan
+    | undefined
+    | Promise<PropertyStructureMigrationPlan | undefined>;
+  onApplyPropertyStructureMigration?: (
+    plan: PropertyStructureMigrationPlan,
+  ) => Promise<{ applied: number; skipped: number; errors: string[] }>;
   onClose: () => void;
   onRevealUniverse?: () => void;
   onOpenUniverseNote?: () => void;
@@ -87,6 +106,113 @@ type SettingsModalProps = {
 function createStarterPropertiesConfig(mode: "template" | "blank" = "template") {
   const baseConfig = createDefaultTaxonomyConfig();
   return mode === "blank" ? baseConfig : applyPropertyTemplate(baseConfig, WORLDBUILDING_TEMPLATE);
+}
+
+function UniverseLanguageSettings({
+  value,
+  onChange,
+}: {
+  value?: NonNullable<UniverseProfile["localization"]>;
+  onChange: (value: NonNullable<UniverseProfile["localization"]>) => void;
+}) {
+  const [inventedLanguage, setInventedLanguage] = useState("");
+  const localization = value ?? { primaryLocale: "en", locales: ["en"] };
+  const locales = normalizeLocaleList(localization.primaryLocale, localization.locales);
+  const localeNames = normalizeLocaleNames(localization.localeNames, locales);
+  const options = useMemo(() => localeOptions(locales, localeNames), [localeNames, locales]);
+  const update = (nextPrimary: string, nextLocales: string[], nextNames = localeNames) => {
+    const normalizedLocales = normalizeLocaleList(nextPrimary, nextLocales);
+    onChange({
+      primaryLocale: normalizedLocales[0],
+      locales: normalizedLocales,
+      localeNames: normalizeLocaleNames(nextNames, normalizedLocales),
+    });
+  };
+
+  return (
+    <div className="locale-settings-fields">
+      <label>
+        <span>Primary language</span>
+        <select
+          value={locales[0]}
+          onChange={(event) =>
+            update(event.target.value, [
+              event.target.value,
+              ...locales.filter((locale) => locale !== event.target.value),
+            ])
+          }
+        >
+          {options.map((locale) => (
+            <option key={locale} value={locale}>
+              {localeDisplayName(locale, localeNames)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="locale-settings-list">
+        <span>Additional languages</span>
+        {locales.slice(1).length ? (
+          <ul>
+            {locales.slice(1).map((locale) => (
+              <li key={locale}>
+                <span>{localeDisplayName(locale, localeNames)}</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    update(
+                      locales[0],
+                      locales.filter((candidate) => candidate !== locale),
+                    )
+                  }
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>None yet.</p>
+        )}
+        <select
+          value=""
+          onChange={(event) => {
+            if (event.target.value) update(locales[0], [...locales, event.target.value]);
+          }}
+        >
+          <option value="">Add a real language…</option>
+          {options
+            .filter((locale) => !locales.includes(locale))
+            .map((locale) => (
+              <option key={locale} value={locale}>
+                {localeDisplayName(locale, localeNames)}
+              </option>
+            ))}
+        </select>
+      </div>
+      <div className="locale-invented-language">
+        <label>
+          <span>Invented language</span>
+          <input
+            value={inventedLanguage}
+            placeholder="e.g. Eldarin"
+            onChange={(event) => setInventedLanguage(event.target.value)}
+          />
+        </label>
+        <button
+          type="button"
+          disabled={!inventedLanguage.trim()}
+          onClick={() => {
+            const name = inventedLanguage.trim();
+            const locale = customLocaleId(name, locales);
+            update(locales[0], [...locales, locale], { ...localeNames, [locale]: name });
+            setInventedLanguage("");
+          }}
+        >
+          Add invented language
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function eventToShortcut(event: KeyboardEvent) {
@@ -166,7 +292,8 @@ type SettingsSection =
   | "shortcuts"
   | "tabs"
   | "explorer"
-  | "plugins";
+  | "plugins"
+  | "ai-advisor";
 
 const primaryFontOptions = [
   ["sans", "Sans serif"],
@@ -185,6 +312,8 @@ export function SettingsModal({
   onApplyFrontmatterNormalization,
   onScanPropertyNormalization,
   onApplyPropertyNormalization,
+  onScanPropertyStructureMigration,
+  onApplyPropertyStructureMigration,
   onClose,
   onRevealUniverse,
   onOpenUniverseNote,
@@ -200,6 +329,10 @@ export function SettingsModal({
   const [profileDraft, setProfileDraft] = useState<UniverseProfile>(() => ({
     name: universe?.profile?.name ?? universe?.name,
     icon: universe?.profile?.icon ?? { type: "preset", value: "book" },
+    localization: universe?.profile?.localization ?? {
+      primaryLocale: navigator.languages?.[0] ?? navigator.language ?? "en",
+      locales: [navigator.languages?.[0] ?? navigator.language ?? "en"],
+    },
   }));
   const [profileSaving, setProfileSaving] = useState(false);
   const [propertiesDraft, setPropertiesDraft] = useState<PropertiesConfig>(
@@ -219,7 +352,13 @@ export function SettingsModal({
   );
   const [propertyNormBusy, setPropertyNormBusy] = useState(false);
   const [propertyNormErrors, setPropertyNormErrors] = useState<string[]>([]);
+  const [structureMigration, setStructureMigration] = useState<PropertyStructureMigrationPlan>();
+  const [structureMigrationBusy, setStructureMigrationBusy] = useState(false);
+  const [structureMigrationErrors, setStructureMigrationErrors] = useState<string[]>([]);
   const [pluginQuery, setPluginQuery] = useState("");
+  const [newAiProviderName, setNewAiProviderName] = useState("");
+  const [newAiProviderUrl, setNewAiProviderUrl] = useState("");
+  const [aiProviderError, setAiProviderError] = useState("");
 
   useEffect(() => {
     if (initialSection) setActiveSection(initialSection);
@@ -285,6 +424,42 @@ export function SettingsModal({
     });
   }
 
+  function updateAiAdvisor(next: Partial<AiAdvisorSettings>) {
+    onChange({ ...settings, aiAdvisor: { ...settings.aiAdvisor, ...next } });
+  }
+
+  function updateAiProvider(id: string, next: Partial<AiAdvisorSettings["providers"][number]>) {
+    updateAiAdvisor({
+      providers: settings.aiAdvisor.providers.map((provider) =>
+        provider.id === id ? { ...provider, ...next } : provider,
+      ),
+    });
+  }
+
+  function addAiProvider() {
+    const name = newAiProviderName.trim();
+    const url = normalizeAiProviderUrl(newAiProviderUrl);
+    if (!name || !url) {
+      setAiProviderError("Enter a name and a valid http(s) URL.");
+      return;
+    }
+    const id = `custom-${Date.now()}`;
+    const providers = [...settings.aiAdvisor.providers, { id, name, url, enabled: true }];
+    updateAiAdvisor({ providers, activeProviderId: settings.aiAdvisor.activeProviderId || id });
+    setNewAiProviderName("");
+    setNewAiProviderUrl("");
+    setAiProviderError("");
+  }
+
+  function removeAiProvider(id: string) {
+    const providers = settings.aiAdvisor.providers.filter((provider) => provider.id !== id);
+    const activeProviderId =
+      settings.aiAdvisor.activeProviderId === id
+        ? (providers.find((provider) => provider.enabled)?.id ?? providers[0]?.id ?? "")
+        : settings.aiAdvisor.activeProviderId;
+    updateAiAdvisor({ providers, activeProviderId });
+  }
+
   async function scanNormalizationItems() {
     if (!onScanFrontmatterNormalization) return;
     setNormalizationBusy(true);
@@ -347,6 +522,34 @@ export function SettingsModal({
       setPropertyNormErrors([error instanceof Error ? error.message : String(error)]);
     } finally {
       setPropertyNormBusy(false);
+    }
+  }
+
+  async function scanStructureMigration() {
+    if (!onScanPropertyStructureMigration) return;
+    setStructureMigrationBusy(true);
+    setStructureMigrationErrors([]);
+    try {
+      setStructureMigration(await onScanPropertyStructureMigration());
+    } catch (error) {
+      setStructureMigrationErrors([error instanceof Error ? error.message : String(error)]);
+    } finally {
+      setStructureMigrationBusy(false);
+    }
+  }
+
+  async function applyStructureMigration() {
+    if (!onApplyPropertyStructureMigration || !structureMigration) return;
+    setStructureMigrationBusy(true);
+    setStructureMigrationErrors([]);
+    try {
+      const result = await onApplyPropertyStructureMigration(structureMigration);
+      setStructureMigrationErrors(result.errors);
+      if (!result.errors.length) setStructureMigration(undefined);
+    } catch (error) {
+      setStructureMigrationErrors([error instanceof Error ? error.message : String(error)]);
+    } finally {
+      setStructureMigrationBusy(false);
     }
   }
 
@@ -461,6 +664,14 @@ export function SettingsModal({
                 <Plug size={14} />
                 Plugins
               </button>
+              <button
+                className={activeSection === "ai-advisor" ? "active" : ""}
+                onClick={() => setActiveSection("ai-advisor")}
+                type="button"
+              >
+                <Sparkles size={14} />
+                AI Advisor
+              </button>
             </div>
           </nav>
 
@@ -516,6 +727,12 @@ export function SettingsModal({
                         placeholder={universe.name}
                       />
                     </label>
+                    <UniverseLanguageSettings
+                      value={profileDraft.localization}
+                      onChange={(localization) =>
+                        setProfileDraft((current) => ({ ...current, localization }))
+                      }
+                    />
                     <div className="icon-preset-row">
                       {[
                         ["book", BookOpen],
@@ -1034,6 +1251,81 @@ export function SettingsModal({
                     you choose.
                   </p>
                 </div>
+                {universe.propertiesConfig && universe.propertiesConfig.version !== "3.0" ? (
+                  <>
+                    <div className="universe-onboarding-card">
+                      <div>
+                        <h3>Upgrade property structure</h3>
+                        <p>
+                          Preview the move from flat 2.0 keys to nested 3.0 group objects. Nothing
+                          changes until you confirm the preview.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={scanStructureMigration}
+                        disabled={structureMigrationBusy}
+                      >
+                        {structureMigrationBusy ? "Scanning..." : "Preview upgrade"}
+                      </button>
+                    </div>
+
+                    {structureMigration ? (
+                      <div className="normalization-preview">
+                        <div className="normalization-actions">
+                          <span>
+                            {structureMigration.items.length} affected note
+                            {structureMigration.items.length === 1 ? "" : "s"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={applyStructureMigration}
+                            disabled={
+                              structureMigrationBusy ||
+                              structureMigration.items.some((item) => item.status !== "ready")
+                            }
+                          >
+                            Confirm upgrade to 3.0
+                          </button>
+                        </div>
+                        {structureMigration.items.length ? (
+                          structureMigration.items.map((item) => (
+                            <div key={item.path} className="normalization-row">
+                              <span className="normalization-row-main">
+                                <strong>{item.path}</strong>
+                                <small>
+                                  {item.moves.length
+                                    ? item.moves
+                                        .map(
+                                          (move) =>
+                                            `${move.fromPath.join(".")} → ${move.toPath.join(".")}`,
+                                        )
+                                        .join(" · ")
+                                    : item.conflicts.join(" · ")}
+                                </small>
+                              </span>
+                              <span className={`normalization-kind ${item.status}`}>
+                                {item.status.replace("-", " ")}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="muted">
+                            No note values need moving; only the schema will be upgraded.
+                          </p>
+                        )}
+                      </div>
+                    ) : null}
+
+                    {structureMigrationErrors.length ? (
+                      <div className="settings-error-list">
+                        {structureMigrationErrors.map((error, index) => (
+                          <p key={`${error}-${index}`}>{error}</p>
+                        ))}
+                      </div>
+                    ) : null}
+                  </>
+                ) : null}
                 <div className="universe-onboarding-card">
                   <div>
                     <h3>Add missing frontmatter</h3>
@@ -1306,82 +1598,192 @@ export function SettingsModal({
                   />
                 </label>
                 <div className="plugin-manager-list">
-                  {(["navigation", "editor", "visual", "runtime-adapter"] as PluginCategory[]).map(
-                    (category) => {
-                      const normalizedQuery = pluginQuery.trim().toLowerCase();
-                      const plugins = getPluginDefinitions().filter((plugin) => {
-                        const matchesCategory = plugin.category === category;
-                        const matchesQuery =
-                          !normalizedQuery ||
-                          plugin.name.toLowerCase().includes(normalizedQuery) ||
-                          plugin.description.toLowerCase().includes(normalizedQuery);
-                        return matchesCategory && matchesQuery;
-                      });
-                      if (!plugins.length) return null;
-                      return (
-                        <section key={category} className="plugin-category">
-                          <h4>{pluginCategoryLabel(category)}</h4>
-                          {plugins.map((plugin) => {
-                            const enabled = isPluginEnabled(
-                              settings.plugins,
-                              plugin.id,
-                              legacyPluginEnabled(settings.editor, plugin.id),
-                            );
-                            const badge =
-                              plugin.status === "planned"
-                                ? "Planned"
-                                : plugin.status === "core"
-                                  ? "Core"
-                                  : "Optional";
-                            return (
-                              <article key={plugin.id} className={`plugin-card ${plugin.status}`}>
-                                <div className="plugin-card-main">
-                                  <div className="plugin-card-title">
-                                    <strong>{plugin.name}</strong>
-                                    <span className={`plugin-badge ${plugin.status}`}>{badge}</span>
-                                    <span
-                                      className={`plugin-badge ${enabled ? "enabled" : "disabled"}`}
-                                    >
-                                      {enabled ? "Enabled" : "Disabled"}
-                                    </span>
-                                  </div>
-                                  <p>{plugin.description}</p>
-                                  {plugin.status === "planned" ? (
-                                    <small>
-                                      Documentation only for now. Engine adapters are not installed
-                                      or executed in v1.
-                                    </small>
-                                  ) : plugin.status === "core" ? (
-                                    <small>
-                                      Core plugin. Protected to keep editing and navigation behavior
-                                      stable.
-                                    </small>
-                                  ) : null}
+                  {(
+                    [
+                      "navigation",
+                      "editor",
+                      "visual",
+                      "integration",
+                      "runtime-adapter",
+                    ] as PluginCategory[]
+                  ).map((category) => {
+                    const normalizedQuery = pluginQuery.trim().toLowerCase();
+                    const plugins = getPluginDefinitions().filter((plugin) => {
+                      const matchesCategory = plugin.category === category;
+                      const matchesQuery =
+                        !normalizedQuery ||
+                        plugin.name.toLowerCase().includes(normalizedQuery) ||
+                        plugin.description.toLowerCase().includes(normalizedQuery);
+                      return matchesCategory && matchesQuery;
+                    });
+                    if (!plugins.length) return null;
+                    return (
+                      <section key={category} className="plugin-category">
+                        <h4>{pluginCategoryLabel(category)}</h4>
+                        {plugins.map((plugin) => {
+                          const enabled = isPluginEnabled(
+                            settings.plugins,
+                            plugin.id,
+                            legacyPluginEnabled(settings.editor, plugin.id),
+                          );
+                          const badge =
+                            plugin.status === "planned"
+                              ? "Planned"
+                              : plugin.status === "core"
+                                ? "Core"
+                                : "Optional";
+                          return (
+                            <article key={plugin.id} className={`plugin-card ${plugin.status}`}>
+                              <div className="plugin-card-main">
+                                <div className="plugin-card-title">
+                                  <strong>{plugin.name}</strong>
+                                  <span className={`plugin-badge ${plugin.status}`}>{badge}</span>
+                                  <span
+                                    className={`plugin-badge ${enabled ? "enabled" : "disabled"}`}
+                                  >
+                                    {enabled ? "Enabled" : "Disabled"}
+                                  </span>
                                 </div>
-                                <label className="plugin-toggle">
-                                  <input
-                                    type="checkbox"
-                                    checked={enabled}
-                                    disabled={!plugin.configurable || plugin.status === "planned"}
-                                    onChange={(event) =>
-                                      onChange(
-                                        updatePluginEnabled(
-                                          settings,
-                                          plugin.id,
-                                          event.target.checked,
-                                        ),
-                                      )
-                                    }
-                                  />
-                                  <span>{plugin.configurable ? "Active" : "Locked"}</span>
-                                </label>
-                              </article>
-                            );
-                          })}
-                        </section>
-                      );
-                    },
-                  )}
+                                <p>{plugin.description}</p>
+                                {plugin.status === "planned" ? (
+                                  <small>
+                                    Documentation only for now. Engine adapters are not installed or
+                                    executed in v1.
+                                  </small>
+                                ) : plugin.status === "core" ? (
+                                  <small>
+                                    Core plugin. Protected to keep editing and navigation behavior
+                                    stable.
+                                  </small>
+                                ) : null}
+                              </div>
+                              <label className="plugin-toggle">
+                                <input
+                                  type="checkbox"
+                                  checked={enabled}
+                                  disabled={!plugin.configurable || plugin.status === "planned"}
+                                  onChange={(event) =>
+                                    onChange(
+                                      updatePluginEnabled(
+                                        settings,
+                                        plugin.id,
+                                        event.target.checked,
+                                      ),
+                                    )
+                                  }
+                                />
+                                <span>{plugin.configurable ? "Active" : "Locked"}</span>
+                              </label>
+                            </article>
+                          );
+                        })}
+                      </section>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            {activeSection === "ai-advisor" ? (
+              <div className="settings-panel ai-advisor-settings-panel">
+                <div className="settings-page-title">
+                  <h3>AI Advisor providers</h3>
+                  <p>Choose which web providers appear in the Advisor tab.</p>
+                </div>
+                <div className="settings-security-note">
+                  <Sparkles size={16} />
+                  <p>
+                    WorldNotion stores only provider names, links, enabled state, and your selected
+                    provider. It does not store passwords, cookies, API keys, or chat content.
+                  </p>
+                </div>
+                <div className="ai-provider-config-list">
+                  {settings.aiAdvisor.providers.map((provider) => (
+                    <article key={provider.id} className="ai-provider-config-card">
+                      <div className="ai-provider-config-fields">
+                        <label>
+                          <span>Name</span>
+                          <input
+                            value={provider.name}
+                            onChange={(event) =>
+                              updateAiProvider(provider.id, { name: event.target.value })
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>Web link</span>
+                          <input
+                            value={provider.url}
+                            type="url"
+                            spellCheck={false}
+                            onChange={(event) =>
+                              updateAiProvider(provider.id, { url: event.target.value })
+                            }
+                          />
+                        </label>
+                        {!normalizeAiProviderUrl(provider.url) ? (
+                          <small className="settings-inline-error">
+                            Use a valid http(s) link before opening this provider.
+                          </small>
+                        ) : null}
+                        {provider.url.startsWith("http://") ? (
+                          <small className="settings-inline-warning">
+                            HTTP is unencrypted; use HTTPS except for local services.
+                          </small>
+                        ) : null}
+                      </div>
+                      <div className="ai-provider-config-actions">
+                        <label className="ai-provider-enabled-toggle">
+                          <input
+                            type="checkbox"
+                            checked={provider.enabled}
+                            onChange={(event) =>
+                              updateAiProvider(provider.id, { enabled: event.target.checked })
+                            }
+                          />
+                          Enabled
+                        </label>
+                        <button
+                          type="button"
+                          className="icon-button danger"
+                          title={`Remove ${provider.name || "provider"}`}
+                          aria-label={`Remove ${provider.name || "provider"}`}
+                          onClick={() => removeAiProvider(provider.id)}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                <div className="ai-provider-add-card">
+                  <div>
+                    <strong>Add provider</strong>
+                    <p>Any http(s) chat, research, or local web service can be added.</p>
+                  </div>
+                  <div className="ai-provider-add-fields">
+                    <input
+                      value={newAiProviderName}
+                      onChange={(event) => setNewAiProviderName(event.target.value)}
+                      placeholder="Provider name"
+                      aria-label="New provider name"
+                    />
+                    <input
+                      value={newAiProviderUrl}
+                      onChange={(event) => setNewAiProviderUrl(event.target.value)}
+                      placeholder="https://example.com/chat"
+                      type="url"
+                      spellCheck={false}
+                      aria-label="New provider URL"
+                    />
+                    <button type="button" onClick={addAiProvider}>
+                      <Plus size={15} />
+                      Add
+                    </button>
+                  </div>
+                  {aiProviderError ? (
+                    <small className="settings-inline-error">{aiProviderError}</small>
+                  ) : null}
                 </div>
               </div>
             ) : null}

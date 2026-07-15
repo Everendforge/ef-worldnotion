@@ -121,8 +121,57 @@ function createCoreBaseProperties(): BasePropertyDefinition[] {
   ];
 }
 
+function normalizePropertyScopes(
+  definitions: PropertyDefinition[],
+  knownTypeIds: Set<string>,
+  parentScope = knownTypeIds,
+): PropertyDefinition[] {
+  return definitions.map((definition) => {
+    const hasExplicitScope = definition.appliesTo !== undefined;
+    const appliesTo = hasExplicitScope
+      ? [...new Set(definition.appliesTo)].filter(
+          (typeId) => knownTypeIds.has(typeId) && parentScope.has(typeId),
+        )
+      : undefined;
+    const effectiveScope = appliesTo ? new Set(appliesTo) : parentScope;
+
+    return {
+      ...definition,
+      ...(hasExplicitScope ? { appliesTo } : {}),
+      children: definition.children?.length
+        ? normalizePropertyScopes(definition.children, knownTypeIds, effectiveScope)
+        : definition.children,
+    };
+  });
+}
+
 export function normalizeCoreBaseProperties(config: TaxonomyConfig): TaxonomyConfig {
-  const coreDefinitions = createCoreBaseProperties();
+  // `type` and `status` are selects whose options are authored by their
+  // dedicated registries. Materialize those options before structural
+  // validation so a normal property save never rejects the core fields.
+  const coreDefinitions = createCoreBaseProperties().map((definition) => {
+    if (definition.id === "type") {
+      return {
+        ...definition,
+        options: config.entityTypes.definitions.map((type) => ({
+          value: type.id,
+          label: type.label,
+          color: type.color,
+        })),
+      };
+    }
+    if (definition.id === "status") {
+      return {
+        ...definition,
+        options: config.statuses.definitions.map((status) => ({
+          value: status.id,
+          label: status.label,
+          color: status.color,
+        })),
+      };
+    }
+    return definition;
+  });
   const allowedIds = new Set<string>(PROTECTED_BASE_PROPERTY_IDS);
   const existingBaseDefinitions = config.baseProperties?.definitions ?? [];
   const movableDefinitions: CustomFieldDefinition[] = existingBaseDefinitions
@@ -156,7 +205,7 @@ export function normalizeCoreBaseProperties(config: TaxonomyConfig): TaxonomyCon
     (id) => !allowedIds.has(id) && !NON_PROPERTY_FIELD_IDS.has(id),
   );
 
-  return unwrapWorldbuildingDetailsGroup({
+  const normalized = unwrapWorldbuildingDetailsGroup({
     ...config,
     baseProperties: {
       definitions: coreDefinitions,
@@ -180,9 +229,33 @@ export function normalizeCoreBaseProperties(config: TaxonomyConfig): TaxonomyCon
       })),
     },
   });
+  const knownTypeIds = new Set(
+    normalized.entityTypes.definitions.map((definition) => definition.id),
+  );
+
+  return {
+    ...normalized,
+    baseProperties: normalized.baseProperties
+      ? {
+          ...normalized.baseProperties,
+          definitions: normalizePropertyScopes(
+            normalized.baseProperties.definitions,
+            knownTypeIds,
+          ) as BasePropertyDefinition[],
+        }
+      : normalized.baseProperties,
+    customFields: {
+      ...normalized.customFields,
+      definitions: normalizePropertyScopes(
+        normalized.customFields.definitions,
+        knownTypeIds,
+      ) as CustomFieldDefinition[],
+    },
+  };
 }
 
 function propertyAppliesToType(property: PropertyDefinition, entityType: string): boolean {
+  if (property.appliesTo) return property.appliesTo.includes(entityType);
   const typeCondition = property.visibleWhen?.type;
   return !typeCondition || typeCondition.includes(entityType);
 }
@@ -265,7 +338,7 @@ export function unwrapWorldbuildingDetailsGroup(config: TaxonomyConfig): Taxonom
 
 export function createDefaultTaxonomyConfig(): TaxonomyConfig {
   return {
-    version: "1.0",
+    version: "3.0",
     baseProperties: {
       definitions: createCoreBaseProperties(),
       visibleByDefault: [...VISIBLE_CORE_PROPERTY_IDS],
@@ -567,7 +640,7 @@ export function generateTaxonomyFromEntities(entities: TaxonomyEntityInput[]): T
     });
 
   return {
-    version: "1.0",
+    version: "3.0",
     tags: {
       rootNodes: buildTagHierarchy(Array.from(tagSet)),
       allowCustomTags: true,

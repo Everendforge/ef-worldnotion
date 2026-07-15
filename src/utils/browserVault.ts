@@ -25,6 +25,14 @@ export type BrowserDirectoryHandle = {
   requestPermission?: (descriptor?: { mode?: "read" | "readwrite" }) => Promise<PermissionState>;
 };
 
+function isIndexedTextFile(relativePath: string) {
+  return /\.(md|yaml|json)$/i.test(relativePath);
+}
+
+function isVaultImageFile(relativePath: string) {
+  return /\.(png|jpe?g|gif|webp|svg)$/i.test(relativePath);
+}
+
 export function browserPathParts(relativePath: string, options: { allowRoot?: boolean } = {}) {
   if (relativePath === "" && options.allowRoot) return [];
   if (!relativePath) throw new Error("Path is required.");
@@ -89,18 +97,19 @@ export async function readBrowserUniverse(root: BrowserDirectoryHandle): Promise
         continue;
       }
 
-      if (
-        !relativePath.endsWith(".md") &&
-        !relativePath.endsWith(".yaml") &&
-        !relativePath.endsWith(".json")
-      )
-        continue;
+      const isTextFile = isIndexedTextFile(relativePath);
+      const isImageFile = isVaultImageFile(relativePath);
+      if (!isTextFile && !isImageFile) continue;
 
       try {
         const file = await maybeFile.getFile();
         files.push({
           relativePath,
-          content: await file.text(),
+          // Images must be present in the index so Markdown references and
+          // image property pickers can find them. Do not decode their binary
+          // contents as text: previews read the File on demand instead.
+          content: isTextFile ? await file.text() : "",
+          binary: isImageFile || undefined,
           modifiedMs: file.lastModified,
         });
       } catch (error) {

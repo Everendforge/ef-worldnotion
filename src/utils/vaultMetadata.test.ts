@@ -71,7 +71,7 @@ describe("vault metadata parsers", () => {
     };
     const findings: ValidationFinding[] = [];
 
-    expect(parsePropertiesConfig([valid], findings)?.version).toBe("1.0");
+    expect(parsePropertiesConfig([valid], findings)?.version).toBe("2.0");
     expect(findings).toEqual([]);
   });
 

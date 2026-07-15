@@ -44,6 +44,8 @@ export interface CodeMirrorEditorProps {
   settings: EditorSettings;
   pluginSettings?: PluginSettings;
   documentName?: string;
+  /** Suppresses the generic CodeMirror title when a visual presentation owns it. */
+  showDocumentHeader?: boolean;
   projectName?: string;
   resolveWikilink?: (label: string) => ResolvedWikilink;
   resolveImage?: ImageResolver;
@@ -122,6 +124,7 @@ export function CodeMirrorEditor({
   settings,
   pluginSettings,
   documentName,
+  showDocumentHeader = true,
   projectName,
   resolveWikilink,
   resolveImage,
@@ -672,6 +675,7 @@ export function CodeMirrorEditor({
           markdown(),
           ...(isPluginEnabled(pluginSettings, "document-header", settings.documentHeaderEnabled) &&
           documentName &&
+          showDocumentHeader &&
           mode === "write"
             ? [
                 createDocumentHeaderPlugin({

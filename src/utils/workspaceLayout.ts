@@ -43,6 +43,7 @@ const PANEL_TITLES: Record<Exclude<DockPanelKind, "document">, string> = {
   links: "Links",
   backlinks: "Backlinks",
   inspector: "Inspector",
+  "ai-advisor": "AI Advisor",
 };
 
 export function documentDockTabId(path: string): string {
@@ -92,7 +93,12 @@ function createDockSplit(
 
 export function createDefaultWorkspaceLayout(
   tabs: Array<OpenTab | PersistedOpenTab> = [],
-  options: { activePath?: string; showGraph?: boolean; showInspector?: boolean } = {},
+  options: {
+    activePath?: string;
+    showGraph?: boolean;
+    showInspector?: boolean;
+    showAiAdvisor?: boolean;
+  } = {},
 ): WorkspaceLayoutV1 {
   const documentTabs = tabs.map((tab) => createDocumentDockTab(tab.path, tab.title));
   const activeDocumentId = options.activePath ? documentDockTabId(options.activePath) : undefined;
@@ -100,6 +106,7 @@ export function createDefaultWorkspaceLayout(
   const explorerGroup = createDockGroup(EXPLORER_GROUP_ID, [createPanelDockTab("explorer")]);
   const toolTabs = [
     ...(options.showInspector === false ? [] : [createPanelDockTab("inspector")]),
+    ...(options.showAiAdvisor === false ? [] : [createPanelDockTab("ai-advisor")]),
     ...(options.showGraph ? [createPanelDockTab("graph")] : []),
   ];
 
