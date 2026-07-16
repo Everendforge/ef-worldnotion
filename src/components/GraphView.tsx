@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY } from "d3-force";
+import { List, Search, X } from "lucide-react";
 import type { Simulation, SimulationLinkDatum } from "d3-force";
 import type { GraphSettings } from "../editorTypes";
 import type { GraphData, GraphLink, GraphNode } from "../utils/graphData";
@@ -71,8 +72,22 @@ export function GraphView({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: GraphNode } | null>(
     null,
   );
+  const [nodeBrowserOpen, setNodeBrowserOpen] = useState(false);
+  const [nodeSearch, setNodeSearch] = useState("");
   const canvasWidth = width ?? measuredSize.width;
   const canvasHeight = height ?? measuredSize.height;
+
+  const visibleBrowserNodes = useMemo(() => {
+    const normalizedQuery = nodeSearch.trim().toLocaleLowerCase();
+    return graphData.nodes
+      .filter((node) => {
+        if (!normalizedQuery) return true;
+        return [node.label, node.type, node.path, ...node.tags]
+          .filter(Boolean)
+          .some((value) => value?.toLocaleLowerCase().includes(normalizedQuery));
+      })
+      .sort((left, right) => left.label.localeCompare(right.label));
+  }, [graphData.nodes, nodeSearch]);
 
   const connectedNodeIds = useMemo(() => {
     const connected = new Set<string>();
@@ -355,6 +370,31 @@ export function GraphView({
     setContextMenu({ x: event.clientX, y: event.clientY, node: hitNode });
   }, []);
 
+  const openNode = useCallback(
+    (path: string) => {
+      setContextMenu(null);
+      setNodeBrowserOpen(false);
+      onNodeClick(path);
+    },
+    [onNodeClick],
+  );
+
+  const openLocalNode = useCallback(
+    (path: string) => {
+      setContextMenu(null);
+      onOpenLocalGraph(path);
+    },
+    [onOpenLocalGraph],
+  );
+
+  const revealNode = useCallback(
+    (path: string) => {
+      setContextMenu(null);
+      onRevealNode(path);
+    },
+    [onRevealNode],
+  );
+
   const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     const current = transformRef.current;
     const panStep = event.shiftKey ? 120 : 36;
@@ -577,6 +617,8 @@ export function GraphView({
         width={canvasWidth}
         height={canvasHeight}
         className="graph-canvas"
+        role="img"
+        aria-label="Interactive Flow Map. Click a node to open its note."
         onPointerMove={handlePointerMove}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
@@ -585,6 +627,76 @@ export function GraphView({
         onWheel={handleWheel}
         onContextMenu={handleContextMenu}
       />
+      <div className="graph-view-actions">
+        <button
+          type="button"
+          className={`graph-node-browser-toggle ${nodeBrowserOpen ? "active" : ""}`}
+          aria-haspopup="dialog"
+          aria-expanded={nodeBrowserOpen}
+          onClick={() => setNodeBrowserOpen((current) => !current)}
+          title="Browse Flow Map nodes"
+        >
+          <List size={14} />
+          <span>Nodes</span>
+          <small>{graphData.nodes.length}</small>
+        </button>
+      </div>
+      {nodeBrowserOpen ? (
+        <div
+          className="graph-node-browser"
+          role="dialog"
+          aria-label="Flow Map nodes"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="graph-node-browser-header">
+            <strong>Flow Map nodes</strong>
+            <button
+              type="button"
+              aria-label="Close Flow Map nodes"
+              onClick={() => setNodeBrowserOpen(false)}
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <label className="graph-node-browser-search">
+            <Search size={13} aria-hidden="true" />
+            <span className="sr-only">Filter Flow Map nodes</span>
+            <input
+              value={nodeSearch}
+              onChange={(event) => setNodeSearch(event.target.value)}
+              placeholder="Filter nodes"
+              aria-label="Filter Flow Map nodes"
+            />
+          </label>
+          <div className="graph-node-browser-list">
+            {visibleBrowserNodes.length > 0 ? (
+              visibleBrowserNodes.map((node) => (
+                <button
+                  key={node.id}
+                  type="button"
+                  className={`graph-node-browser-item ${activeNodeId === node.path ? "active" : ""}`}
+                  disabled={!node.path}
+                  onClick={() => node.path && openNode(node.path)}
+                  title={node.path ?? "This node has no note to open"}
+                >
+                  <span
+                    className="graph-node-browser-dot"
+                    style={{ backgroundColor: node.color ?? "#7c8a96" }}
+                  />
+                  <span className="graph-node-browser-copy">
+                    <strong>{node.label}</strong>
+                    <small>
+                      {node.type} · {node.degree} connections
+                    </small>
+                  </span>
+                </button>
+              ))
+            ) : (
+              <span className="graph-node-browser-empty">No matching nodes.</span>
+            )}
+          </div>
+        </div>
+      ) : null}
       {isEmpty ? (
         <div className="graph-empty-state">
           <strong>No graph nodes visible</strong>
@@ -601,21 +713,21 @@ export function GraphView({
           <button
             type="button"
             disabled={!contextMenu.node.path}
-            onClick={() => contextMenu.node.path && onNodeClick(contextMenu.node.path)}
+            onClick={() => contextMenu.node.path && openNode(contextMenu.node.path)}
           >
             Open
           </button>
           <button
             type="button"
             disabled={!contextMenu.node.path}
-            onClick={() => contextMenu.node.path && onOpenLocalGraph(contextMenu.node.path)}
+            onClick={() => contextMenu.node.path && openLocalNode(contextMenu.node.path)}
           >
             Open local graph
           </button>
           <button
             type="button"
             disabled={!contextMenu.node.path}
-            onClick={() => contextMenu.node.path && onRevealNode(contextMenu.node.path)}
+            onClick={() => contextMenu.node.path && revealNode(contextMenu.node.path)}
           >
             Reveal in explorer
           </button>

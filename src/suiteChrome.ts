@@ -10,12 +10,7 @@ export type SuiteSettings = {
 };
 
 export type SuiteUpdateStatus =
-  | "idle"
-  | "checking"
-  | "up-to-date"
-  | "available"
-  | "downloading"
-  | "error";
+  "idle" | "checking" | "up-to-date" | "available" | "downloading" | "error";
 
 export type SuiteUpdateControls = {
   appName: string;

@@ -40,13 +40,15 @@ describe("tree builder", () => {
     expect(world?.children.some((node) => node.path === "World/Cast.md")).toBe(false);
   });
 
-  it("can ignore folder note metadata and render folder notes as regular files", () => {
-    const tree = buildTree(files, ["World", "World/Cast"], false, "Demo.md", true);
+  it("renders folder notes inside their folder when embedding is disabled", () => {
+    const tree = buildTree(files, ["World", "World/Cast"], false, "Demo.md", false);
     const world = tree.find((node) => node.path === "World");
     const cast = world?.children.find((node) => node.path === "World/Cast");
 
     expect(cast?.hasDescription).toBeUndefined();
-    expect(world?.children.some((node) => node.path === "World/Cast.md")).toBe(true);
+    expect(cast?.children).toContainEqual(
+      expect.objectContaining({ path: "World/Cast.md", isFolderDescription: true }),
+    );
   });
 
   it("excludes hidden metadata and the hidden root file by default", () => {

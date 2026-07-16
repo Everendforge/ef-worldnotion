@@ -164,6 +164,8 @@ export type VaultTreeNode = {
   children: VaultTreeNode[];
   hasDescription?: boolean;
   descriptionPath?: string;
+  /** Folder note rendered as a child file when folder-note embedding is disabled. */
+  isFolderDescription?: boolean;
 };
 
 export type EntityTemplate = {
@@ -237,7 +239,7 @@ function createFinding(
 }
 
 export type IndexVaultOptions = {
-  ignoreFolderNoteMetadata?: boolean;
+  folderNotesEnabled?: boolean;
 };
 
 export function indexVault(
@@ -276,7 +278,7 @@ export function indexVault(
       directories,
       false,
       hiddenRootFile,
-      options.ignoreFolderNoteMetadata,
+      options.folderNotesEnabled,
     ),
     entities: entityIndex.entities,
     findings,

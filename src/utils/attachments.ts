@@ -1,5 +1,11 @@
 export const DEFAULT_ATTACHMENTS_FOLDER = "attachments";
 
+export type ImagePresentation = {
+  /** Percentage of the writing column occupied by the image. */
+  width?: number;
+  align?: "left" | "center" | "right";
+};
+
 const UNSAFE_CHARS = /[^a-zA-Z0-9._-]+/g;
 
 function splitExtension(fileName: string): { base: string; ext: string } {
@@ -50,8 +56,44 @@ export function encodeImagePath(path: string): string {
     .join("/");
 }
 
-/** Builds the standard Markdown image snippet for an inserted attachment. */
-export function imageMarkdown(relativePath: string, alt?: string): string {
+/**
+ * Reads WorldNotion image presentation metadata from a standard Markdown
+ * image title. Other image titles remain untouched by the renderer.
+ */
+export function parseImagePresentation(title?: string): ImagePresentation | undefined {
+  if (!title?.startsWith("wn:")) return undefined;
+
+  const values = new Map<string, string>();
+  for (const part of title.slice(3).split(";")) {
+    const [key, value] = part.split("=", 2).map((entry) => entry.trim());
+    if (key && value) values.set(key, value);
+  }
+  const rawWidth = Number(values.get("width"));
+  const width = Number.isFinite(rawWidth)
+    ? Math.min(100, Math.max(20, Math.round(rawWidth)))
+    : undefined;
+  const rawAlign = values.get("align");
+  const align =
+    rawAlign === "left" || rawAlign === "center" || rawAlign === "right" ? rawAlign : undefined;
+
+  return width || align ? { width, align } : undefined;
+}
+
+function imagePresentationTitle(presentation?: ImagePresentation): string | undefined {
+  if (!presentation?.width && !presentation?.align) return undefined;
+  const width = presentation.width
+    ? Math.min(100, Math.max(20, Math.round(presentation.width)))
+    : 100;
+  return `wn:width=${width};align=${presentation.align ?? "center"}`;
+}
+
+/** Builds a portable Markdown image snippet for an inserted attachment. */
+export function imageMarkdown(
+  relativePath: string,
+  alt?: string,
+  presentation?: ImagePresentation,
+): string {
   const label = (alt ?? splitExtension(relativePath.split("/").pop() ?? "").base).trim();
-  return `![${label}](${encodeImagePath(relativePath)})`;
+  const title = imagePresentationTitle(presentation);
+  return `![${label}](${encodeImagePath(relativePath)}${title ? ` "${title}"` : ""})`;
 }

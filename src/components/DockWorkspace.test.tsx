@@ -174,10 +174,10 @@ describe("DockWorkspace", () => {
     const { handlers } = renderDockWorkspace();
     mockDockGroupRects();
 
-    pointerDrag(screen.getByTitle("Drag AI Advisor"), { x: 760, y: 18 }, { x: 110, y: 300 });
+    pointerDrag(screen.getByTitle("Drag Inspector"), { x: 760, y: 18 }, { x: 110, y: 300 });
 
     expect(handlers.onMoveTab).toHaveBeenCalledWith({
-      tabId: panelDockTabId("ai-advisor"),
+      tabId: panelDockTabId("inspector"),
       sourceGroupId: "dock-tools",
       targetGroupId: "dock-explorer",
       position: "center",

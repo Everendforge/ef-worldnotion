@@ -49,6 +49,7 @@ export interface ContextMenuProps {
   revealUniverseLabel?: string;
   trashLabel?: string;
   hasFolderDescription?: boolean;
+  folderNotesEnabled?: boolean;
   onAction: (
     action: ContextMenuAction,
     targetPath: string,
@@ -71,6 +72,7 @@ export function ContextMenu({
   revealUniverseLabel = "Reveal Universe",
   trashLabel = "Move to Trash",
   hasFolderDescription = false,
+  folderNotesEnabled = true,
   onAction,
   onClose,
 }: ContextMenuProps) {
@@ -220,7 +222,7 @@ export function ContextMenu({
             <FolderInput size={16} />
             <span>Move to Folder</span>
           </button>
-          {targetKind === "folder" ? (
+          {targetKind === "folder" && folderNotesEnabled ? (
             <>
               <button
                 type="button"

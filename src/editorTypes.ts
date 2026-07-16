@@ -1,5 +1,5 @@
 export type EditorMode = "write" | "source";
-export type SourceViewMode = "raw" | "json";
+export type SourceViewMode = "raw" | "json" | "xml";
 export type EditorPageStyle = "theme" | "white" | "warm-paper" | "system" | "custom";
 export type ThemeId =
   | "worldnotion-light"
@@ -69,7 +69,6 @@ export type PluginId =
   | "footnotes"
   | "table-tools"
   | "code-folding"
-  | "markdown-syntax-hiding"
   | "font-family-rendering"
   | "image-rendering"
   | "document-header"
@@ -122,7 +121,8 @@ export type EditorSettings = {
   customPageColor: string;
   writeFontFamily: string;
   sourceFontFamily: string;
-  hideMarkdownSyntaxInWrite: boolean;
+  /** Controls whether Write mode exposes portable Markdown syntax. */
+  writeStructureMode: "visible" | "processed";
   persistTabs: boolean;
   reuseOpenTabs: boolean;
   dockTabScale: number;
@@ -272,7 +272,7 @@ export type ExplorerFavorite = {
   label: string;
 };
 
-export type ExplorerSection = "allFiles" | "favorites" | "ecosystem";
+export type ExplorerSection = "allFiles" | "favorites" | "ecosystem" | "images";
 
 export type RecentUniverseProfile = {
   name?: string;
@@ -288,7 +288,10 @@ export type ExplorerSettings = {
   activeSection: ExplorerSection;
   confirmDragMove: boolean;
   showHiddenEverend: boolean;
-  ignoreFolderNoteMetadata: boolean;
+  /** Keeps folder descriptions embedded on their folders instead of listing them as note children. */
+  folderNotesEnabled: boolean;
+  /** Images live in the Images explorer section unless this is explicitly enabled. */
+  showImagesInAllFiles: boolean;
   customIcons?: Record<string, string>;
   focusedFoldersByUniverse?: Record<string, string>;
 };
@@ -544,12 +547,12 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   writeFontFamily:
     'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   sourceFontFamily: '"SFMono-Regular", Consolas, monospace',
-  hideMarkdownSyntaxInWrite: true,
+  writeStructureMode: "processed",
   persistTabs: true,
   reuseOpenTabs: true,
   dockTabScale: 1.25,
   confirmCloseDirtyTab: true,
-  showPaperShadow: true, // Paper style enabled by default
+  showPaperShadow: false,
   // Navigation & Visualization features (Phase 1 & 2) - enabled by default
   commandPaletteEnabled: true,
   quickSwitcherEnabled: true,
@@ -570,7 +573,8 @@ export const DEFAULT_EXPLORER_SETTINGS: ExplorerSettings = {
   activeSection: "allFiles",
   confirmDragMove: false,
   showHiddenEverend: false,
-  ignoreFolderNoteMetadata: false,
+  folderNotesEnabled: true,
+  showImagesInAllFiles: false,
   customIcons: {},
   focusedFoldersByUniverse: {},
 };
@@ -602,14 +606,13 @@ export const DEFAULT_PLUGIN_SETTINGS: PluginSettings = {
     footnotes: true,
     "table-tools": true,
     "code-folding": true,
-    "markdown-syntax-hiding": true,
     "font-family-rendering": true,
     "image-rendering": true,
     "document-header": true,
     "unity-adapter": false,
     "godot-adapter": false,
     "unreal-adapter": false,
-    "ai-advisor": true,
+    "ai-advisor": false,
   },
 };
 

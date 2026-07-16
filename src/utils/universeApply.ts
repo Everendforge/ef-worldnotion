@@ -14,7 +14,10 @@ import {
 import { createOpenTabFromFile } from "./tabUtils";
 import { normalizeDocumentTabGroups, updateGroupsForPathChange } from "./documentTabGroups";
 import {
+  activateDockTab,
   createDefaultWorkspaceLayout,
+  layoutHasPanel,
+  panelDockTabId,
   syncLayoutWithOpenTabs,
   updateLayoutForPathChange,
 } from "./workspaceLayout";
@@ -120,13 +123,19 @@ export function planUniverseWorkspaceState(
           ? restoredSession.activePath
           : undefined;
 
+  const restoredLayout =
+    currentRootPath !== readRootPath &&
+    restoredSession?.layout &&
+    layoutHasPanel(restoredSession.layout, "inspector")
+      ? activateDockTab(restoredSession.layout, panelDockTabId("inspector"))
+      : restoredSession?.layout;
+
   const baseLayout =
     currentRootPath === readRootPath && workspaceLayout
       ? pathChange
         ? updateLayoutForPathChange(workspaceLayout, pathChange)
         : workspaceLayout
-      : (restoredSession?.layout ??
-        createDefaultWorkspaceLayout(restoredTabs, { activePath: nextPath }));
+      : (restoredLayout ?? createDefaultWorkspaceLayout(restoredTabs, { activePath: nextPath }));
 
   const baseGroups =
     currentRootPath === readRootPath && documentTabGroups

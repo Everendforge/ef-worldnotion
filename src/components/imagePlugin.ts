@@ -7,12 +7,13 @@ import {
   ViewUpdate,
   WidgetType,
 } from "@codemirror/view";
-import { isStructuralChange, selectionTouches } from "./pluginUtils";
+import { isStructuralChange } from "./pluginUtils";
+import { parseImagePresentation, type ImagePresentation } from "../utils/attachments";
 
 // Standard Markdown image: ![alt](path). Path stops at the first ")".
 // Inline image syntax cannot span lines. Keeping the match single-line is
 // required because the live-preview widget is a Decoration.replace range.
-const IMAGE_MD_REGEX = /!\[([^\]\n]*)\]\(([^)\s\n]+)(?:\s+"[^"\n]*")?\)/g;
+const IMAGE_MD_REGEX = /!\[([^\]\n]*)\]\(([^)\s\n]+)(?:\s+"([^"\n]*)")?\)/g;
 
 export type ImageResolver = (rawPath: string) => Promise<string | null>;
 
@@ -25,6 +26,7 @@ class ImageWidget extends WidgetType {
   constructor(
     readonly rawPath: string,
     readonly alt: string,
+    readonly presentation: ImagePresentation | undefined,
     private readonly resolve: ImageResolver,
   ) {
     super();
@@ -33,13 +35,21 @@ class ImageWidget extends WidgetType {
   // Reuse the existing DOM across rebuilds while the source is unchanged, so
   // the image is not reloaded (and does not flicker) on every keystroke.
   eq(other: ImageWidget) {
-    return other.rawPath === this.rawPath && other.alt === this.alt;
+    return (
+      other.rawPath === this.rawPath &&
+      other.alt === this.alt &&
+      other.presentation?.width === this.presentation?.width &&
+      other.presentation?.align === this.presentation?.align
+    );
   }
 
   toDOM(view: EditorView): HTMLElement {
     const container = document.createElement("span");
-    container.className = "cm-image-widget cm-image-loading";
+    container.className = `cm-image-widget cm-image-loading cm-image-align-${this.presentation?.align ?? "center"}`;
     container.setAttribute("data-image-path", this.rawPath);
+    if (this.presentation?.width) {
+      container.style.setProperty("--cm-image-width", `${this.presentation.width}%`);
+    }
 
     const img = document.createElement("img");
     img.alt = this.alt || this.rawPath;
@@ -79,11 +89,13 @@ class ImageWidget extends WidgetType {
   }
 }
 
-export function imagePlugin(options: { resolve: ImageResolver }) {
+export function imagePlugin(options: {
+  resolve: ImageResolver;
+  presentation?: "visible" | "processed";
+}) {
   function getDecorations(view: EditorView): DecorationSet {
     const decorations: Range<Decoration>[] = [];
-    const selectionFrom = view.state.selection.main.from;
-    const selectionTo = view.state.selection.main.to;
+    if (options.presentation === "visible") return Decoration.none;
 
     for (const { from, to } of view.visibleRanges) {
       const text = view.state.doc.sliceString(from, to);
@@ -96,13 +108,11 @@ export function imagePlugin(options: { resolve: ImageResolver }) {
         const start = from + match.index;
         const end = start + match[0].length;
 
-        // Keep the raw markup visible while editing that span.
-        if (selectionTouches(selectionFrom, selectionTo, start, end)) continue;
-
         const alt = match[1]?.trim() ?? "";
+        const presentation = parseImagePresentation(match[3]);
         decorations.push(
           Decoration.replace({
-            widget: new ImageWidget(rawPath, alt, options.resolve),
+            widget: new ImageWidget(rawPath, alt, presentation, options.resolve),
           }).range(start, end),
         );
       }

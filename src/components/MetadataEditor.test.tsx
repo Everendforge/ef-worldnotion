@@ -54,6 +54,54 @@ function entity(overrides: Partial<Entity> = {}): Entity {
 }
 
 describe("MetadataEditor inspector", () => {
+  it("silently normalizes property order and does not show an order warning", async () => {
+    const config = applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE);
+    const onUpdateRawYaml = vi.fn();
+
+    render(
+      <MetadataEditor
+        entity={entity()}
+        propertiesConfig={config}
+        rawYaml={"---\nstatus: draft\ntype: character\n---"}
+        onUpdate={vi.fn()}
+        onUpdateRawYaml={onUpdateRawYaml}
+      />,
+    );
+
+    await waitFor(() => expect(onUpdateRawYaml).toHaveBeenCalledTimes(1));
+    expect(Object.keys(parseFrontmatterRaw(onUpdateRawYaml.mock.calls[0]?.[0]))).toEqual([
+      "type",
+      "status",
+    ]);
+    expect(screen.queryByText(/Wrong order/i)).toBeNull();
+    expect(screen.queryByText(/Auto-reorder/i)).toBeNull();
+  });
+
+  it("keeps missing-field actions working after order normalization is hidden", async () => {
+    const config = applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE);
+    const onUpdateRawYaml = vi.fn();
+
+    render(
+      <MetadataEditor
+        entity={entity()}
+        propertiesConfig={config}
+        rawYaml={"---\ntype: character\nstatus: draft\n---"}
+        onUpdate={vi.fn()}
+        onUpdateRawYaml={onUpdateRawYaml}
+      />,
+    );
+
+    expect(screen.queryByText(/Wrong order/i)).toBeNull();
+    const addAll = screen.getByRole("button", { name: "Add all" });
+    fireEvent.click(addAll);
+
+    await waitFor(() => expect(onUpdateRawYaml).toHaveBeenCalledTimes(1));
+    expect(Object.keys(parseFrontmatterRaw(onUpdateRawYaml.mock.calls[0]?.[0]))).toEqual(
+      expect.arrayContaining(["id", "type", "name", "status", "tags", "aliases"]),
+    );
+    expect(screen.getByText(/Missing fields/)).toBeTruthy();
+  });
+
   it("shows visible and hidden properties in the inspector context menu", () => {
     const config = applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE);
 
@@ -88,6 +136,25 @@ describe("MetadataEditor inspector", () => {
     );
 
     expect(screen.getByText("Role")).toBeTruthy();
+  });
+
+  it("keeps property filtering out of the inspector", () => {
+    const config = applyPropertyTemplate(createDefaultTaxonomyConfig(), WORLDBUILDING_TEMPLATE);
+
+    render(
+      <MetadataEditor
+        entity={entity()}
+        propertiesConfig={config}
+        rawYaml={"---\ntype: character\nstatus: draft\n---"}
+        onUpdate={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("textbox", { name: "Filter properties" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Property filter match" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Show hidden" })).toBeTruthy();
+    expect(screen.getByText("Role")).toBeTruthy();
+    expect(screen.getByText("Lore Level")).toBeTruthy();
   });
 
   it("adds an existing schema property to the note via the add-property picker", () => {

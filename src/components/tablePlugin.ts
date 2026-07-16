@@ -1,6 +1,5 @@
 import { EditorState, Range, StateField } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, WidgetType } from "@codemirror/view";
-import { selectionTouches } from "./pluginUtils";
 
 type TableAlignment = "left" | "center" | "right";
 
@@ -143,10 +142,7 @@ class TableWidget extends WidgetType {
 
 function tableDecorations(state: EditorState): DecorationSet {
   const decorations: Range<Decoration>[] = [];
-  const selection = state.selection.main;
-
   for (const tableData of tablesInDocument(state)) {
-    if (selectionTouches(selection.from, selection.to, tableData.from, tableData.to)) continue;
     decorations.push(
       Decoration.replace({
         block: true,

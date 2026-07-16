@@ -62,6 +62,15 @@ function renderPanel(
 }
 
 describe("ExplorerPanel virtualization", () => {
+  it("offers the Images section after Ecosystem", () => {
+    const onSectionChange = vi.fn();
+    renderPanel([], "", { onSectionChange });
+
+    fireEvent.click(screen.getByTitle("Images"));
+
+    expect(onSectionChange).toHaveBeenCalledWith("images");
+  });
+
   it("renders every row for small trees", () => {
     const { container } = renderPanel(makeRows(50));
     expect(container.querySelectorAll(".tree-node").length).toBe(50);
@@ -120,14 +129,47 @@ describe("ExplorerPanel virtualization", () => {
       onSelectPath,
     });
 
-    expect(screen.getByText("Character")).toBeInTheDocument();
-    expect(screen.getByText("Location")).toBeInTheDocument();
+    expect(screen.getAllByText("Character").length).toBeGreaterThan(1);
+    expect(screen.getAllByText("Location").length).toBeGreaterThan(1);
     expect(screen.getByText("Mara")).toBeInTheDocument();
     expect(screen.getByText("Iron Keep")).toBeInTheDocument();
     expect(screen.queryByText("cast/main")).not.toBeInTheDocument();
     expect(screen.queryByText("places/fortress")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Iron Keep" }));
     expect(onSelectPath).toHaveBeenCalledWith("Places/Iron.md");
+  });
+
+  it("filters ecosystem entities and groups them by a property", () => {
+    const mara = makeEntity({ tags: ["cast/main"] });
+    const keep = makeEntity({
+      id: "iron-keep",
+      name: "Iron Keep",
+      path: "Places/Iron.md",
+      type: "location",
+    });
+    renderPanel([], "", {
+      activeSection: "ecosystem",
+      index: makeVaultIndex({ entities: [mara, keep] }),
+      ecosystemGroups: new Map([
+        ["character", [mara]],
+        ["location", [keep]],
+      ]),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add property filter" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Property filter 1" }), {
+      target: { value: "type" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Property value 1" }), {
+      target: { value: "location" },
+    });
+    fireEvent.change(screen.getByRole("combobox", { name: "Ecosystem group by" }), {
+      target: { value: "status" },
+    });
+
+    expect(screen.queryByRole("button", { name: "Mara" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Iron Keep" })).toBeInTheDocument();
+    expect(screen.getByText("draft")).toBeInTheDocument();
   });
 
   it("adds an item to the bulk selection with Ctrl-click", () => {

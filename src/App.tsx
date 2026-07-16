@@ -23,6 +23,7 @@ import {
   ExternalLink,
   Files,
   GitPullRequest,
+  SlidersHorizontal,
 } from "lucide-react";
 import "./App.css";
 import forgeLogoOnDark from "./assets/everend-forge-logo-on-dark.png";
@@ -46,6 +47,7 @@ import { ExplorerPanel, type ExplorerTreeAction } from "./components/ExplorerPan
 import { ImagePreviewDialog } from "./components/ImagePreviewDialog";
 import { InspectorPanel } from "./components/InspectorPanel";
 import { JsonReader } from "./components/JsonReader";
+import { XmlReader } from "./components/XmlReader";
 import { LazyPanelFallback } from "./components/LazyPanelFallback";
 import { UniverseIconFrame } from "./components/UniverseIconFrame";
 import { DockWorkspace, type DockMoveRequest } from "./components/DockWorkspace";
@@ -110,6 +112,7 @@ import {
   deleteVariant,
   insertVariantBlock,
   removeVariantBlocks,
+  readNoteVariants,
   resolveVariantFrontmatter,
   resolveVariantId,
   updateVariantsInRawYaml,
@@ -152,6 +155,8 @@ import {
   nextAdjacentTabPath,
   pendingCloseQueueFromDirtyPaths,
   updateOpenTabsForPathChange,
+  isJsonPath,
+  isXmlPath,
 } from "./utils/tabUtils";
 import {
   DOCUMENT_TAB_GROUP_COLORS,
@@ -225,6 +230,7 @@ import {
   selectEntityTypeColors,
   selectEntityTagColors,
   selectFavoriteItems,
+  selectImageTree,
   selectVisibleTree,
 } from "./utils/explorerSelectors";
 import { selectLiveEntity } from "./utils/liveEntity";
@@ -296,6 +302,7 @@ const AiAdvisorPanel = lazy(() =>
 type LoadState = "idle" | "loading" | "ready" | "error";
 type AppView = "home" | "workspace";
 type ActiveWorkspacePreset = WorkspaceLayoutPreset | "custom";
+type TogglePanelKind = "explorer" | "inspector" | "links" | "backlinks" | "graph" | "ai-advisor";
 type PointerDragItem = {
   path: string;
   kind: "file" | "folder";
@@ -432,7 +439,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   const inspectorSaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const propertiesOnboardingPromptedRef = useRef<Set<string>>(new Set());
   const propertiesSaveFingerprintRef = useRef<string | undefined>(undefined);
-  const ignoreFolderNoteMetadataBootstrappedRef = useRef(false);
+  const folderNotesEnabledBootstrappedRef = useRef(false);
 
   // Font detection hook
   const { fonts } = useFonts();
@@ -458,6 +465,11 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     y: number;
     groupId: string;
   }>();
+  const {
+    menu: dockPanelMenuOpen,
+    setMenu: setDockPanelMenuOpen,
+    close: closeDockPanelMenu,
+  } = useDismissableMenu<boolean>();
   const { menu: documentGroupContextMenu, setMenu: setDocumentGroupContextMenu } =
     useDismissableMenu<{
       x: number;
@@ -536,7 +548,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   };
 
   function insertActiveVariantBlock() {
-    if (!activeTab || activeVariantId === BASE_VARIANT_ID) return;
+    if (!activeTab) return;
     const opening = `\n\n<!-- everend:variant id="${activeVariantId}" -->\n`;
     const block = `${opening}\n<!-- /everend:variant -->`;
     if (editorViewRef.current && activeTab.mode === "write") {
@@ -669,13 +681,13 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   }, []);
 
   useEffect(() => {
-    if (!ignoreFolderNoteMetadataBootstrappedRef.current) {
-      ignoreFolderNoteMetadataBootstrappedRef.current = true;
+    if (!folderNotesEnabledBootstrappedRef.current) {
+      folderNotesEnabledBootstrappedRef.current = true;
       return;
     }
     if (!index) return;
     void refreshUniverse();
-  }, [settings.explorer.ignoreFolderNoteMetadata]);
+  }, [settings.explorer.folderNotesEnabled]);
 
   const selectedEntity = useMemo(() => {
     return selectLiveEntity(index, selectedPath, tabs);
@@ -711,19 +723,25 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     ? settings.explorer.focusedFoldersByUniverse?.[index.rootPath]
     : undefined;
   const visibleTree = useMemo(() => {
+    if (activeExplorerSection === "images") {
+      return selectImageTree(index, query, focusedFolderPath);
+    }
     return selectVisibleTree(
       index,
       query,
       settings.explorer.showHiddenEverend,
       focusedFolderPath,
-      settings.explorer.ignoreFolderNoteMetadata,
+      settings.explorer.folderNotesEnabled,
+      !settings.explorer.showImagesInAllFiles,
     );
   }, [
+    activeExplorerSection,
     focusedFolderPath,
     index,
     query,
-    settings.explorer.ignoreFolderNoteMetadata,
+    settings.explorer.folderNotesEnabled,
     settings.explorer.showHiddenEverend,
+    settings.explorer.showImagesInAllFiles,
   ]);
   const visibleExplorerRows = useMemo(
     () => flattenVisibleExplorerTree(visibleTree, expandedPaths, focusedFolderPath),
@@ -731,13 +749,12 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   );
   const folderDescriptionPaths = useMemo(() => {
     const paths = new Set<string>();
-    function collect(nodes: VaultIndex["tree"]) {
-      nodes.forEach((node) => {
-        if (node.descriptionPath) paths.add(node.descriptionPath);
-        if (node.children.length) collect(node.children);
-      });
-    }
-    if (index) collect(index.tree);
+    if (!index) return paths;
+    index.directories.forEach((folderPath) => {
+      const descriptionPath = folderDescriptionPath(folderPath);
+      if (index.files.some((file) => file.relativePath === descriptionPath))
+        paths.add(descriptionPath);
+    });
     return paths;
   }, [index]);
   const explorerFocusBreadcrumb = useMemo(() => {
@@ -1154,21 +1171,11 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
         }
 
         const folderPath = parentPath ? `${parentPath}/${name}` : name;
-        const descriptionPath = parentPath ? `${parentPath}/${name}.md` : `${name}.md`;
-        const descriptionContent = folderDescriptionContent(name);
-
         const vault = vaultHandleFor(index.rootPath, browserRoot);
         await createVaultFolder(vault, folderPath);
-        await saveVaultFile(
-          vault,
-          descriptionPath,
-          descriptionContent,
-          "Could not create folder description.",
-        );
-
-        const nextIndex = await refreshUniverse(descriptionPath);
+        await refreshUniverse();
         setExpandedPaths((prev) => new Set(prev).add(folderPath));
-        selectPathAfterRefresh(descriptionPath, nextIndex);
+        selectFolder(folderPath);
         showToast(`Created folder: ${name}`, "success");
       } else if (action === "rename" && targetKind !== "empty") {
         const currentName = pathName(targetPath);
@@ -1222,14 +1229,22 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
           });
           setContextMenu(null);
         }
-      } else if (action === "editFolderDescription" && targetKind === "folder") {
+      } else if (
+        action === "editFolderDescription" &&
+        targetKind === "folder" &&
+        settings.explorer.folderNotesEnabled
+      ) {
         const { descriptionPath, hasDescription } = folderDescriptionInfo(index, targetPath);
         if (hasDescription) {
           selectPath(descriptionPath);
         } else {
           await createFolderDescription(targetPath);
         }
-      } else if (action === "deleteFolderDescription" && targetKind === "folder") {
+      } else if (
+        action === "deleteFolderDescription" &&
+        targetKind === "folder" &&
+        settings.explorer.folderNotesEnabled
+      ) {
         await deleteFolderDescription(targetPath);
       } else if (action === "reveal") {
         await revealExplorerPath(targetKind === "empty" ? undefined : targetPath);
@@ -1941,7 +1956,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     pathChange?: PathChangeSet,
   ) {
     const nextIndex = indexVault(readResult, {
-      ignoreFolderNoteMetadata: settings.explorer.ignoreFolderNoteMetadata,
+      folderNotesEnabled: settings.explorer.folderNotesEnabled,
     });
     setIndex(nextIndex);
     setView("workspace");
@@ -2038,7 +2053,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     const readResult = await readCurrentUniverse();
     if (!readResult) return;
     const nextIndex = indexVault(readResult, {
-      ignoreFolderNoteMetadata: settings.explorer.ignoreFolderNoteMetadata,
+      folderNotesEnabled: settings.explorer.folderNotesEnabled,
     });
     setIndex(nextIndex);
     setView("workspace");
@@ -2365,10 +2380,11 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
         tab.path === path
           ? {
               ...tab,
-              mode: tab.path.toLowerCase().endsWith(".json") ? "source" : mode,
+              mode: isJsonPath(tab.path) || isXmlPath(tab.path) ? "source" : mode,
               sourceView:
                 mode === "source"
-                  ? (tab.sourceView ?? (tab.path.toLowerCase().endsWith(".json") ? "json" : "raw"))
+                  ? (tab.sourceView ??
+                    (isJsonPath(tab.path) ? "json" : isXmlPath(tab.path) ? "xml" : "raw"))
                   : tab.sourceView,
             }
           : tab,
@@ -3435,7 +3451,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
       ecosystemGroups={ecosystemGroups}
       ecosystemEntityColors={ecosystemEntityColors}
       entityTagColors={entityTagColors}
-      folderNotesEnabled={!settings.explorer.ignoreFolderNoteMetadata}
+      folderNotesEnabled={settings.explorer.folderNotesEnabled}
       customIcons={settings.explorer.customIcons}
       pointerDragActive={Boolean(pointerDragItem?.active)}
       templatesExpanded={templatesExpanded}
@@ -3482,8 +3498,16 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     const documentOutline = outlineForTab(documentTab);
     const documentCurrentHeader =
       documentTab.path === activeTabPath ? currentHeaderForLine(documentTab, cursorLine) : null;
-    const isJsonDocument = documentTab.path.toLowerCase().endsWith(".json");
-    const sourceView = documentTab.sourceView ?? (isJsonDocument ? "json" : "raw");
+    const isJsonDocument = isJsonPath(documentTab.path);
+    const isXmlDocument = isXmlPath(documentTab.path);
+    const sourceView =
+      documentTab.sourceView ?? (isJsonDocument ? "json" : isXmlDocument ? "xml" : "raw");
+    const activeVariantLabel =
+      documentTab.path === activeTabPath
+        ? readNoteVariants(
+            parseFrontmatterRaw(rawToEditorParts(documentTab.rawMarkdown).frontmatterRaw),
+          )[activeVariantId]?.label
+        : undefined;
 
     return (
       <section
@@ -3499,7 +3523,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
               type="button"
               className={documentTab.mode === "write" ? "active" : ""}
               onClick={() => setTabMode(documentTab.path, "write")}
-              disabled={!documentTab || isJsonDocument}
+              disabled={!documentTab || isJsonDocument || isXmlDocument}
             >
               Write
             </button>
@@ -3513,22 +3537,24 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
             </button>
           </div>
           {documentTab.mode === "source" ? (
-            <div className="source-view-toggle" aria-label="Source view">
-              <button
-                type="button"
-                className={sourceView === "raw" ? "active" : ""}
-                onClick={() => setTabSourceView(documentTab.path, "raw")}
+            <label className="source-view-select-wrap">
+              <span className="sr-only">Source view</span>
+              <select
+                className="source-view-select"
+                aria-label="Source view"
+                value={sourceView}
+                onChange={(event) =>
+                  setTabSourceView(
+                    documentTab.path,
+                    event.target.value as NonNullable<OpenTab["sourceView"]>,
+                  )
+                }
               >
-                Raw
-              </button>
-              <button
-                type="button"
-                className={sourceView === "json" ? "active" : ""}
-                onClick={() => setTabSourceView(documentTab.path, "json")}
-              >
-                JSON
-              </button>
-            </div>
+                <option value="raw">Raw</option>
+                <option value="json">JSON</option>
+                <option value="xml">XML</option>
+              </select>
+            </label>
           ) : null}
           <button
             type="button"
@@ -3633,6 +3659,8 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
         >
           {documentTab.mode === "source" && sourceView === "json" ? (
             <JsonReader value={documentTab.rawMarkdown} />
+          ) : documentTab.mode === "source" && sourceView === "xml" ? (
+            <XmlReader value={documentTab.rawMarkdown} />
           ) : (
             <Suspense fallback={<LazyPanelFallback label="Loading editor..." />}>
               {(() => {
@@ -3681,6 +3709,9 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
                 onChange={(value) => updateRawMarkdownForPath(documentTab.path, value)}
                 activeVariantId={
                   documentTab.path === activeTabPath ? activeVariantId : BASE_VARIANT_ID
+                }
+                activeVariantLabel={
+                  documentTab.path === activeTabPath ? activeVariantLabel : undefined
                 }
                 theme={settings.theme}
                 mode={documentTab.mode}
@@ -3736,6 +3767,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
                   void openUrl(url);
                 }}
                 onRequestUrl={() => promptUser("Insert link", "https://example.com", "https://")}
+                onOpenSource={() => setTabMode(documentTab.path, "source")}
                 onCursorMove={() => {
                   if (documentTab.path !== activeTabPath) return;
                   if (editorViewRef.current) {
@@ -3781,6 +3813,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
           <h2>Folder: {pathName(selectedExplorerTarget.path) || "Root"}</h2>
           <p>View or create a note to describe this folder's contents.</p>
           {(() => {
+            if (!settings.explorer.folderNotesEnabled) return null;
             const { descriptionPath, hasDescription } = folderDescriptionInfo(
               index,
               selectedExplorerTarget.path,
@@ -4045,7 +4078,6 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   }
 
   function handleDockResize(splitId: string, ratio: number) {
-    setActiveWorkspacePreset("custom");
     setWorkspaceLayout((current) => resizeDockSplit(current, { splitId, ratio }));
   }
 
@@ -4062,13 +4094,23 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     return "Custom";
   }
 
-  function toggleDockPanel(
-    kind: "explorer" | "inspector" | "links" | "backlinks" | "graph" | "ai-advisor" | "outline",
-  ) {
+  function toggleDockPanel(kind: TogglePanelKind | "outline") {
     if (kind === "ai-advisor" && !aiAdvisorEnabled) return;
     setActiveWorkspacePreset("custom");
     setWorkspaceLayout((current) => togglePanelInLayout(current, kind));
   }
+
+  const panelMenuItems: Array<{ kind: TogglePanelKind; label: string; open: boolean }> = [
+    { kind: "explorer", label: "Explorer", open: isExplorerPanelOpen },
+    { kind: "inspector", label: "Inspector", open: isInspectorPanelOpen },
+    { kind: "links", label: "Links", open: isLinksPanelOpen },
+    { kind: "backlinks", label: "Backlinks", open: isBacklinksPanelOpen },
+    { kind: "graph", label: "Flow Map", open: isGraphPanelOpen },
+    ...(aiAdvisorEnabled
+      ? [{ kind: "ai-advisor" as const, label: "AI Advisor", open: isAiAdvisorPanelOpen }]
+      : []),
+  ];
+  const openPanelCount = panelMenuItems.filter((item) => item.open).length;
 
   function setDockPanelInContextGroup(kind: Exclude<DockPanelKind, "document" | "outline">) {
     if (!dockPanelContextMenu) return;
@@ -4196,65 +4238,67 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
             <ChevronDown size={13} />
           </label>
 
-          <div className="dock-command-group dock-panel-toggle-group" aria-label="Panels">
+          <div className="dock-panel-menu-anchor">
             <button
               type="button"
-              className={isExplorerPanelOpen ? "active" : ""}
-              onClick={() => toggleDockPanel("explorer")}
-              title="Toggle Explorer"
+              className={`topbar-menu-trigger dock-panel-menu-toggle ${dockPanelMenuOpen ? "active" : ""}`}
+              onClick={() => setDockPanelMenuOpen((current) => !current)}
+              aria-haspopup="dialog"
+              aria-expanded={Boolean(dockPanelMenuOpen)}
+              title="Show workspace panels"
             >
-              Explorer
+              <SlidersHorizontal size={14} />
+              <span>View</span>
+              <small>{openPanelCount}</small>
             </button>
-            <button
-              type="button"
-              className={isInspectorPanelOpen ? "active" : ""}
-              onClick={() => toggleDockPanel("inspector")}
-              title="Toggle Inspector"
-            >
-              Inspector
-            </button>
-            <button
-              type="button"
-              className={isLinksPanelOpen ? "active" : ""}
-              onClick={() => toggleDockPanel("links")}
-              title="Toggle Links"
-            >
-              Links
-            </button>
-            <button
-              type="button"
-              className={isBacklinksPanelOpen ? "active" : ""}
-              onClick={() => toggleDockPanel("backlinks")}
-              title="Toggle Backlinks"
-            >
-              Backlinks
-            </button>
-            <button
-              type="button"
-              className={isGraphPanelOpen ? "active" : ""}
-              onClick={() => toggleDockPanel("graph")}
-              title="Toggle Flow Map"
-            >
-              Flow Map
-            </button>
-            {aiAdvisorEnabled ? (
-              <button
-                type="button"
-                className={isAiAdvisorPanelOpen ? "active" : ""}
-                onClick={() => toggleDockPanel("ai-advisor")}
-                title="Toggle AI Advisor"
+            {dockPanelMenuOpen ? (
+              <div
+                className="topbar-menu-popover dock-panel-menu"
+                role="dialog"
+                aria-label="View workspace panels"
+                onMouseDown={(event) => event.stopPropagation()}
               >
-                AI Advisor
-              </button>
+                <div className="dock-panel-menu-header">
+                  <strong>View</strong>
+                  <button
+                    type="button"
+                    className="dock-panel-menu-close"
+                    aria-label="Close workspace panels"
+                    onClick={closeDockPanelMenu}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                <div className="dock-panel-menu-options" role="group" aria-label="Toggle panels">
+                  {panelMenuItems.map((item) => (
+                    <button
+                      key={item.kind}
+                      type="button"
+                      className={`dock-panel-menu-option ${item.open ? "active" : ""}`}
+                      aria-pressed={item.open}
+                      onClick={() => toggleDockPanel(item.kind)}
+                    >
+                      <span className="dock-panel-menu-check">
+                        {item.open ? <Check size={12} /> : null}
+                      </span>
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="dock-panel-menu-divider" />
+                <button
+                  type="button"
+                  className={`dock-panel-menu-option dock-panel-menu-action ${showCanonChanges ? "active" : ""}`}
+                  onClick={() => {
+                    setShowCanonChanges(true);
+                    closeDockPanelMenu();
+                  }}
+                >
+                  <GitPullRequest size={14} />
+                  <span>Review changes</span>
+                </button>
+              </div>
             ) : null}
-            <button
-              type="button"
-              className={showCanonChanges ? "active" : ""}
-              onClick={() => setShowCanonChanges(true)}
-              title="Review manual changes from other Everend apps"
-            >
-              <GitPullRequest size={14} /> Changes
-            </button>
           </div>
 
           <button
@@ -4496,6 +4540,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
               ? folderDescriptionInfo(index, contextMenu.targetPath).hasDescription
               : false
           }
+          folderNotesEnabled={settings.explorer.folderNotesEnabled}
           onAction={handleContextMenuAction}
           onClose={() => setContextMenu(null)}
         />

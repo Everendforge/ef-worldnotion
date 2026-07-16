@@ -33,8 +33,7 @@ function appSettings(overrides: Partial<AppSettingsV4> = {}): AppSettingsV4 {
 
 describe("plugin registry", () => {
   it("normalizes missing settings with defaults", () => {
-    expect(normalizePluginSettings(undefined).enabled["markdown-syntax-hiding"]).toBe(true);
-    expect(normalizePluginSettings(undefined).enabled["ai-advisor"]).toBe(true);
+    expect(normalizePluginSettings(undefined).enabled["ai-advisor"]).toBe(false);
     expect(normalizePluginSettings(undefined).enabled["table-tools"]).toBe(true);
     expect(normalizePluginSettings(undefined).enabled["unity-adapter"]).toBe(false);
   });

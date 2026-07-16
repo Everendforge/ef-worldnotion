@@ -25,7 +25,7 @@ export function buildTree(
   directories: string[] = [],
   includeHiddenMetadata = false,
   hiddenRootFile?: string,
-  ignoreFolderDescriptions = false,
+  folderNotesEnabled = true,
 ): VaultTreeNode[] {
   // Image attachments are first-class explorer items: they can be selected,
   // previewed, moved, and deleted. Other binary file kinds are not indexed.
@@ -73,11 +73,7 @@ export function buildTree(
       const folderName = fileName.replace(/\.md$/, "");
       const potentialFolderPath = parentPath ? `${parentPath}/${folderName}` : folderName;
 
-      if (
-        !ignoreFolderDescriptions &&
-        folderPaths.has(potentialFolderPath) &&
-        isFolderDescriptionFile(file, folderName)
-      ) {
+      if (folderPaths.has(potentialFolderPath) && isFolderDescriptionFile(file, folderName)) {
         descriptionFiles.add(file.relativePath);
       }
     }
@@ -132,8 +128,18 @@ export function buildTree(
     const parentPath = dirname(folder.path);
     const expectedDescPath = parentPath ? `${parentPath}/${folderName}.md` : `${folderName}.md`;
     if (descriptionFiles.has(expectedDescPath)) {
-      folder.hasDescription = true;
-      folder.descriptionPath = expectedDescPath;
+      if (folderNotesEnabled) {
+        folder.hasDescription = true;
+        folder.descriptionPath = expectedDescPath;
+      } else {
+        folder.children.push({
+          name: `${folderName}.md`,
+          path: expectedDescPath,
+          kind: "file",
+          children: [],
+          isFolderDescription: true,
+        });
+      }
     }
   });
 

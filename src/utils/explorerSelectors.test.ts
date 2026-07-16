@@ -9,6 +9,7 @@ import {
   selectEntityTypeColors,
   selectEntityTagColors,
   selectFavoriteItems,
+  selectImageTree,
   selectVisibleTree,
 } from "./explorerSelectors";
 
@@ -160,10 +161,35 @@ describe("explorer selectors", () => {
       directories: ["World"],
     });
 
-    const visible = selectVisibleTree(withFolderNote, "", true, undefined, true);
+    const visible = selectVisibleTree(withFolderNote, "", true, undefined, false);
 
-    expect(visible.map((item) => item.path)).toEqual(["World", "World.md"]);
+    expect(visible.map((item) => item.path)).toEqual(["World"]);
     expect(visible.find((item) => item.path === "World")?.hasDescription).toBeUndefined();
+    expect(visible.find((item) => item.path === "World")?.children).toContainEqual(
+      expect.objectContaining({ path: "World.md", isFolderDescription: true }),
+    );
+  });
+
+  it("hides image-only folders from All Files and groups images in a dedicated tree", () => {
+    const withImages = index({
+      files: [
+        { relativePath: "World/Ada.md", content: "" },
+        { relativePath: "attachments/hero.png", content: "", binary: true },
+        { relativePath: "Art/maps/world.webp", content: "", binary: true },
+      ],
+      directories: ["World", "attachments", "Art", "Art/maps"],
+    });
+
+    expect(
+      selectVisibleTree(withImages, "", false, undefined, true, true).map((item) => item.path),
+    ).toEqual(["World"]);
+    expect(selectImageTree(withImages, "").map((item) => item.path)).toEqual([
+      "Art",
+      "attachments",
+    ]);
+    expect(selectImageTree(withImages, "hero").map((item) => item.path)).toEqual([
+      "attachments/hero.png",
+    ]);
   });
 
   it("filters favorites to files and folders still present in the vault", () => {

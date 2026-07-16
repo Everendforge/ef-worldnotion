@@ -13,12 +13,18 @@ import {
   type PathChangeSet,
 } from "./pathUtils";
 
-function isJsonPath(path: string) {
+export function isJsonPath(path: string) {
   return path.toLowerCase().endsWith(".json");
 }
 
+export function isXmlPath(path: string) {
+  return path.toLowerCase().endsWith(".xml");
+}
+
 function defaultSourceView(path: string): SourceViewMode {
-  return isJsonPath(path) ? "json" : "raw";
+  if (isJsonPath(path)) return "json";
+  if (isXmlPath(path)) return "xml";
+  return "raw";
 }
 
 export function createOpenTabFromFile(
@@ -26,7 +32,7 @@ export function createOpenTabFromFile(
   mode: OpenTab["mode"],
   sourceView?: SourceViewMode,
 ): OpenTab {
-  const opensAsJson = isJsonPath(file.relativePath);
+  const opensAsStructuredSource = isJsonPath(file.relativePath) || isXmlPath(file.relativePath);
   return {
     path: file.relativePath,
     title: fileTitle(file.relativePath),
@@ -35,7 +41,7 @@ export function createOpenTabFromFile(
     savedMarkdown: file.content,
     modifiedMs: file.modifiedMs,
     dirty: false,
-    mode: opensAsJson ? "source" : mode,
+    mode: opensAsStructuredSource ? "source" : mode,
     sourceView: sourceView ?? defaultSourceView(file.relativePath),
     isTemplate: file.relativePath.startsWith(".everend/templates/"),
   };

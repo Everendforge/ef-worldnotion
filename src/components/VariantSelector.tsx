@@ -1,4 +1,4 @@
-import { FilePlus2, Plus, Trash2 } from "lucide-react";
+import { FilePlus2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { PropertiesConfig } from "../editorTypes";
 import {
@@ -83,37 +83,48 @@ export function VariantSelector({
 
   return (
     <div className="variant-selector">
-      <label>
-        <span>Variant</span>
-        <select value={selected} onChange={(event) => onSelect(event.target.value)}>
+      <div className="variant-selector-controls">
+        <select
+          className="variant-selector-title"
+          aria-label="Variant"
+          value={selected}
+          onChange={(event) => onSelect(event.target.value)}
+        >
           {Object.entries(variants).map(([id, variant]) => (
             <option key={id} value={id}>
               {variant.label}
             </option>
           ))}
         </select>
-      </label>
-      <button
-        type="button"
-        title="Create variant"
-        aria-label="Create variant"
-        onClick={beginCreate}
-      >
-        <Plus size={14} />
-      </button>
-      <button type="button" title="Rename variant" onClick={beginRename}>
-        Rename
-      </button>
-      {selected !== BASE_VARIANT_ID ? (
-        <>
-          <button
-            type="button"
-            title="Add variant text block"
-            aria-label="Add variant text block"
-            onClick={onInsertBlock}
-          >
-            <FilePlus2 size={14} />
-          </button>
+        <button
+          type="button"
+          title="Create variant"
+          aria-label="Create variant"
+          onClick={beginCreate}
+        >
+          <Plus size={14} />
+        </button>
+        <button
+          type="button"
+          title="Rename variant"
+          aria-label="Rename variant"
+          onClick={beginRename}
+        >
+          <Pencil size={14} />
+        </button>
+        <button
+          type="button"
+          title={
+            selected === BASE_VARIANT_ID ? "Add base variant section" : "Add variant text section"
+          }
+          aria-label={
+            selected === BASE_VARIANT_ID ? "Add base variant section" : "Add variant text section"
+          }
+          onClick={onInsertBlock}
+        >
+          <FilePlus2 size={14} />
+        </button>
+        {selected !== BASE_VARIANT_ID ? (
           <button
             type="button"
             className="variant-selector-delete"
@@ -123,8 +134,8 @@ export function VariantSelector({
           >
             <Trash2 size={14} />
           </button>
-        </>
-      ) : null}
+        ) : null}
+      </div>
       {editMode ? (
         <form className="variant-selector-form" onSubmit={submitLabel}>
           <label>

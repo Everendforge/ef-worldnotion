@@ -22,7 +22,7 @@ describe("settings persistence", () => {
     expect(loadSettings().recentUniverses).toEqual(["C:/Vault"]);
   });
 
-  it("adds plugin defaults when loading older settings", () => {
+  it("defaults older settings to processed Writing without the retired syntax plugin", () => {
     localStorage.setItem(
       SETTINGS_KEY,
       JSON.stringify({ theme: "worldnotion-light", recentUniverses: [] }),
@@ -30,11 +30,43 @@ describe("settings persistence", () => {
 
     const settings = loadSettings();
 
-    expect(settings.plugins.enabled["markdown-syntax-hiding"]).toBe(true);
-    expect(settings.plugins.enabled["ai-advisor"]).toBe(true);
+    expect(settings.editor.writeStructureMode).toBe("processed");
+    expect(settings.plugins.enabled["ai-advisor"]).toBe(false);
     expect(settings.plugins.enabled["unity-adapter"]).toBe(false);
     expect(settings.aiAdvisor.activeProviderId).toBe("chatgpt");
     expect(settings.aiAdvisor.providers.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("migrates a disabled legacy syntax setting to visible structures", () => {
+    localStorage.setItem(
+      SETTINGS_KEY,
+      JSON.stringify({ editor: { hideMarkdownSyntaxInWrite: false } }),
+    );
+
+    expect(loadSettings().editor.writeStructureMode).toBe("visible");
+  });
+
+  it("uses the legacy plugin opt-out when settings disagree", () => {
+    localStorage.setItem(
+      SETTINGS_KEY,
+      JSON.stringify({
+        editor: { hideMarkdownSyntaxInWrite: true },
+        plugins: { enabled: { "markdown-syntax-hiding": false } },
+      }),
+    );
+
+    expect(loadSettings().editor.writeStructureMode).toBe("visible");
+  });
+
+  it("migrates the legacy folder-note setting and defaults images out of All Files", () => {
+    localStorage.setItem(
+      SETTINGS_KEY,
+      JSON.stringify({ explorer: { ignoreFolderNoteMetadata: true } }),
+    );
+
+    const settings = loadSettings();
+    expect(settings.explorer.folderNotesEnabled).toBe(false);
+    expect(settings.explorer.showImagesInAllFiles).toBe(false);
   });
 
   it("persists simplified session state", () => {

@@ -409,9 +409,6 @@ export function SettingsModal({
 
   function updateEditorWithPluginMirror(next: Partial<EditorSettings>) {
     const pluginEnabled = { ...settings.plugins.enabled };
-    if (typeof next.hideMarkdownSyntaxInWrite === "boolean") {
-      pluginEnabled["markdown-syntax-hiding"] = next.hideMarkdownSyntaxInWrite;
-    }
     if (typeof next.documentHeaderEnabled === "boolean") {
       pluginEnabled["document-header"] = next.documentHeaderEnabled;
     }
@@ -745,7 +742,15 @@ export function SettingsModal({
                 </div>
 
                 <div className={`forge-update-status ${suiteSettings.update.status}`} role="status">
-                  <RefreshCw size={18} className={suiteSettings.update.status === "checking" || suiteSettings.update.status === "downloading" ? "spinning" : ""} />
+                  <RefreshCw
+                    size={18}
+                    className={
+                      suiteSettings.update.status === "checking" ||
+                      suiteSettings.update.status === "downloading"
+                        ? "spinning"
+                        : ""
+                    }
+                  />
                   <div>
                     <strong>
                       {suiteSettings.update.status === "checking"
@@ -767,7 +772,8 @@ export function SettingsModal({
                           ? "Keep the Suite open while the update is downloaded and verified."
                           : suiteSettings.update.status === "up-to-date"
                             ? "No newer signed release is available for this installation."
-                            : suiteSettings.update.error ?? "The updater is ready to contact the release server."}
+                            : (suiteSettings.update.error ??
+                              "The updater is ready to contact the release server.")}
                     </p>
                   </div>
                 </div>
@@ -777,10 +783,18 @@ export function SettingsModal({
                     <div className="forge-update-progress-header">
                       <span>Download progress</span>
                       <strong>
-                        {suiteSettings.update.progress === undefined ? "Preparing..." : `${suiteSettings.update.progress}%`}
+                        {suiteSettings.update.progress === undefined
+                          ? "Preparing..."
+                          : `${suiteSettings.update.progress}%`}
                       </strong>
                     </div>
-                    <div className="forge-update-progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={suiteSettings.update.progress}>
+                    <div
+                      className="forge-update-progress-track"
+                      role="progressbar"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={suiteSettings.update.progress}
+                    >
                       <span style={{ width: `${suiteSettings.update.progress ?? 8}%` }} />
                     </div>
                     {suiteSettings.update.contentLength ? (
@@ -804,13 +818,20 @@ export function SettingsModal({
                   <button
                     type="button"
                     onClick={suiteSettings.update.onCheck}
-                    disabled={suiteSettings.update.status === "checking" || suiteSettings.update.status === "downloading"}
+                    disabled={
+                      suiteSettings.update.status === "checking" ||
+                      suiteSettings.update.status === "downloading"
+                    }
                   >
                     <RefreshCw size={14} />
                     Check for updates
                   </button>
                   {suiteSettings.update.status === "available" ? (
-                    <button type="button" className="primary-action" onClick={suiteSettings.update.onInstall}>
+                    <button
+                      type="button"
+                      className="primary-action"
+                      onClick={suiteSettings.update.onInstall}
+                    >
                       Download and install
                     </button>
                   ) : null}
@@ -1037,16 +1058,19 @@ export function SettingsModal({
                     />
                   </label>
                   <label>
-                    <span>Hide Markdown syntax in Write</span>
-                    <input
-                      type="checkbox"
-                      checked={settings.editor.hideMarkdownSyntaxInWrite}
+                    <span>Writing structures</span>
+                    <select
+                      value={settings.editor.writeStructureMode}
                       onChange={(event) =>
-                        updateEditorWithPluginMirror({
-                          hideMarkdownSyntaxInWrite: event.target.checked,
+                        updateEditor({
+                          writeStructureMode: event.target
+                            .value as EditorSettings["writeStructureMode"],
                         })
                       }
-                    />
+                    >
+                      <option value="processed">Processed — no raw Markdown</option>
+                      <option value="visible">Show Markdown structures</option>
+                    </select>
                   </label>
                   <label>
                     <span>Font size</span>
@@ -1674,16 +1698,32 @@ export function SettingsModal({
                   />
                 </label>
                 <label>
-                  <span>Ignore folder note metadata</span>
+                  <span>Enable folder notes</span>
                   <input
                     type="checkbox"
-                    checked={settings.explorer.ignoreFolderNoteMetadata}
+                    checked={settings.explorer.folderNotesEnabled}
                     onChange={(event) =>
                       onChange({
                         ...settings,
                         explorer: {
                           ...settings.explorer,
-                          ignoreFolderNoteMetadata: event.target.checked,
+                          folderNotesEnabled: event.target.checked,
+                        },
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Show images in All Files</span>
+                  <input
+                    type="checkbox"
+                    checked={settings.explorer.showImagesInAllFiles}
+                    onChange={(event) =>
+                      onChange({
+                        ...settings,
+                        explorer: {
+                          ...settings.explorer,
+                          showImagesInAllFiles: event.target.checked,
                         },
                       })
                     }

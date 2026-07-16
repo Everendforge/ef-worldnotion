@@ -106,7 +106,7 @@ export function createDefaultWorkspaceLayout(
   const explorerGroup = createDockGroup(EXPLORER_GROUP_ID, [createPanelDockTab("explorer")]);
   const toolTabs = [
     ...(options.showInspector === false ? [] : [createPanelDockTab("inspector")]),
-    ...(options.showAiAdvisor === false ? [] : [createPanelDockTab("ai-advisor")]),
+    ...(options.showAiAdvisor ? [createPanelDockTab("ai-advisor")] : []),
     ...(options.showGraph ? [createPanelDockTab("graph")] : []),
   ];
 
@@ -116,7 +116,7 @@ export function createDefaultWorkspaceLayout(
         "horizontal",
         0.72,
         documentGroup,
-        createDockGroup(TOOLS_GROUP_ID, toolTabs, toolTabs[toolTabs.length - 1]?.id),
+        createDockGroup(TOOLS_GROUP_ID, toolTabs, toolTabs[0]?.id),
       )
     : documentGroup;
 
@@ -168,6 +168,7 @@ export function createWorkspaceLayoutPreset(
     activePath: options.activePath,
     showGraph: false,
     showInspector: true,
+    showAiAdvisor: false,
   });
 }
 

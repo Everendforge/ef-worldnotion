@@ -11,21 +11,30 @@ import {
 import {
   ChevronDown,
   ChevronRight,
+  Check,
   FileEdit,
   FileText,
   Files,
+  Filter,
   Folder,
   FolderOpen,
-  Hash,
   Image,
   Layers,
   Plus,
   Search,
+  SlidersHorizontal,
   Star,
   Target,
+  X,
 } from "lucide-react";
 import type { Entity, VaultIndex } from "../domain";
 import type { ExplorerSection, ExplorerFavorite } from "../editorTypes";
+import {
+  getFrontmatterPropertyValue,
+  listAllProperties,
+  NON_INSPECTOR_PROPERTY_IDS,
+  type VisiblePropertyDefinition,
+} from "../utils/propertiesConfig";
 import type { VisibleExplorerRow } from "../utils/explorerSelectors";
 import { getIconComponent } from "./IconPicker";
 import { isImagePath } from "../utils/vaultImages";
@@ -37,6 +46,47 @@ type ExplorerFocusCrumb = {
   label: string;
   path?: string;
 };
+
+type EcosystemPropertyFilter = {
+  id: number;
+  propertyId: string;
+  value: string;
+};
+
+type EcosystemPropertyOption = Pick<VisiblePropertyDefinition, "id" | "label">;
+
+const ECOSYSTEM_BASE_PROPERTIES: EcosystemPropertyOption[] = [
+  { id: "type", label: "Type" },
+  { id: "status", label: "Status" },
+  { id: "tags", label: "Tags" },
+  { id: "name", label: "Name" },
+  { id: "path", label: "Path" },
+];
+
+function propertyText(value: unknown): string {
+  if (Array.isArray(value)) return value.map(propertyText).join(", ");
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function entityPropertyValue(entity: Entity, propertyId: string, index: VaultIndex): unknown {
+  if (propertyId === "path") return entity.path;
+  return getFrontmatterPropertyValue(
+    { ...entity, ...entity.customProperties },
+    propertyId,
+    index.propertiesConfig,
+  );
+}
+
+function propertyValuesForGroup(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    const values = value.map(propertyText).filter(Boolean);
+    return values.length ? values : ["Empty"];
+  }
+  const text = propertyText(value).trim();
+  return [text || "Unset"];
+}
 
 export type ExplorerPanelProps = {
   index: VaultIndex;
@@ -123,6 +173,11 @@ export function ExplorerPanel({
 }: ExplorerPanelProps) {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(680);
+  const [ecosystemTypeFilter, setEcosystemTypeFilter] = useState("all");
+  const [ecosystemGroupBy, setEcosystemGroupBy] = useState("type");
+  const [ecosystemMatchMode, setEcosystemMatchMode] = useState<"all" | "any">("all");
+  const [ecosystemFilters, setEcosystemFilters] = useState<EcosystemPropertyFilter[]>([]);
+  const nextEcosystemFilterId = useRef(1);
   const sidebarMainRef = useRef<HTMLDivElement>(null);
   const scrollFrameRef = useRef<number>(undefined);
   const shouldVirtualize = visibleRows.length > VIRTUALIZE_AFTER;
@@ -130,6 +185,78 @@ export function ExplorerPanel({
     () => new Map(index.propertiesConfig?.entityTypes.definitions.map((type) => [type.id, type])),
     [index.propertiesConfig],
   );
+  const ecosystemPropertyOptions = useMemo(() => {
+    const options = new Map<string, EcosystemPropertyOption>();
+    ECOSYSTEM_BASE_PROPERTIES.forEach((property) => options.set(property.id, property));
+    listAllProperties(index.propertiesConfig)
+      .filter((property) => !NON_INSPECTOR_PROPERTY_IDS.has(property.id))
+      .forEach((property) =>
+        options.set(property.id, { id: property.id, label: property.label ?? property.id }),
+      );
+    return Array.from(options.values()).sort((first, second) =>
+      (first.label ?? first.id).localeCompare(second.label ?? second.id),
+    );
+  }, [index.propertiesConfig]);
+  const ecosystemEntities = useMemo(() => {
+    const entities = Array.from(
+      new Map(
+        Array.from(ecosystemGroups.values())
+          .flat()
+          .map((entity) => [entity.path, entity]),
+      ).values(),
+    );
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const activeFilters = ecosystemFilters.filter(
+      (filter) => filter.propertyId !== "all" || filter.value.trim(),
+    );
+    return entities.filter((entity) => {
+      const matchesQuery =
+        !normalizedQuery ||
+        [entity.name, entity.path, entity.type, entity.status, ...entity.tags]
+          .join(" ")
+          .toLocaleLowerCase()
+          .includes(normalizedQuery);
+      const matchesType = ecosystemTypeFilter === "all" || entity.type === ecosystemTypeFilter;
+      const filterResults = activeFilters.map((filter) => {
+        const value =
+          filter.propertyId === "all"
+            ? [
+                entity.name,
+                entity.path,
+                entity.type,
+                entity.status,
+                entity.tags,
+                entity.aliases,
+                entity.customProperties,
+              ]
+                .map(propertyText)
+                .join(" ")
+            : propertyText(entityPropertyValue(entity, filter.propertyId, index));
+        return (
+          !filter.value.trim() ||
+          value.toLocaleLowerCase().includes(filter.value.trim().toLocaleLowerCase())
+        );
+      });
+      const matchesProperties =
+        filterResults.length === 0 ||
+        (ecosystemMatchMode === "all" ? filterResults.every(Boolean) : filterResults.some(Boolean));
+      return matchesQuery && matchesType && matchesProperties;
+    });
+  }, [ecosystemFilters, ecosystemGroups, ecosystemMatchMode, ecosystemTypeFilter, index, query]);
+  const filteredEcosystemGroups = useMemo(() => {
+    const groups = new Map<string, Entity[]>();
+    ecosystemEntities.forEach((entity) => {
+      const values =
+        ecosystemGroupBy === "type"
+          ? [entity.type]
+          : propertyValuesForGroup(entityPropertyValue(entity, ecosystemGroupBy, index));
+      [...new Set(values)].forEach((value) => {
+        if (!groups.has(value)) groups.set(value, []);
+        groups.get(value)!.push(entity);
+      });
+    });
+    return groups;
+  }, [ecosystemEntities, ecosystemGroupBy, index]);
 
   useEffect(() => {
     const element = sidebarMainRef.current;
@@ -181,14 +308,16 @@ export function ExplorerPanel({
 
   return (
     <aside className="sidebar dock-panel-body">
-      <label className="search-box">
-        <Search size={15} />
-        <input
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Search files"
-        />
-      </label>
+      <div className="explorer-search-panel">
+        <label className="search-box">
+          <Search size={15} />
+          <input
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="Search files"
+          />
+        </label>
+      </div>
 
       <nav className="explorer-sections">
         <button
@@ -213,7 +342,15 @@ export function ExplorerPanel({
           onClick={() => onSectionChange("ecosystem")}
           title="Ecosystem"
         >
-          <Hash size={16} />
+          <SlidersHorizontal size={16} />
+        </button>
+        <button
+          type="button"
+          className={activeSection === "images" ? "active" : ""}
+          onClick={() => onSectionChange("images")}
+          title="Images"
+        >
+          <Image size={16} />
         </button>
       </nav>
 
@@ -295,31 +432,180 @@ export function ExplorerPanel({
 
         {activeSection === "ecosystem" ? (
           <section className="sidebar-section ecosystem-view">
-            <h2>Ecosystem</h2>
+            <div className="ecosystem-view-heading">
+              <div>
+                <h2>Ecosystem</h2>
+                <span className="ecosystem-result-summary">
+                  {ecosystemEntities.length} of {Array.from(ecosystemGroups.values()).flat().length}{" "}
+                  notes
+                </span>
+              </div>
+              {ecosystemFilters.length || ecosystemTypeFilter !== "all" || query.trim() ? (
+                <button
+                  type="button"
+                  className="ecosystem-clear-button"
+                  onClick={() => {
+                    setEcosystemFilters([]);
+                    setEcosystemTypeFilter("all");
+                    setEcosystemMatchMode("all");
+                    onQueryChange("");
+                  }}
+                  title="Clear ecosystem filters"
+                >
+                  <X size={13} />
+                  Clear
+                </button>
+              ) : null}
+            </div>
+            <div className="ecosystem-filter-panel">
+              <div className="ecosystem-filter-controls">
+                <label className="ecosystem-filter-control">
+                  <span>Type</span>
+                  <select
+                    aria-label="Ecosystem type filter"
+                    value={ecosystemTypeFilter}
+                    onChange={(event) => setEcosystemTypeFilter(event.target.value)}
+                  >
+                    <option value="all">All types</option>
+                    {Array.from(entityTypesById.entries())
+                      .sort(([, first], [, second]) => first.label.localeCompare(second.label))
+                      .map(([typeId, type]) => (
+                        <option key={typeId} value={typeId}>
+                          {type.label}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label className="ecosystem-filter-control">
+                  <span>Group by</span>
+                  <select
+                    aria-label="Ecosystem group by"
+                    value={ecosystemGroupBy}
+                    onChange={(event) => setEcosystemGroupBy(event.target.value)}
+                  >
+                    <option value="type">Type</option>
+                    {ecosystemPropertyOptions
+                      .filter((property) => property.id !== "type")
+                      .map((property) => (
+                        <option key={property.id} value={property.id}>
+                          {property.label ?? property.id}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                {ecosystemFilters.length > 1 ? (
+                  <label className="ecosystem-filter-control">
+                    <span>Match</span>
+                    <select
+                      aria-label="Ecosystem filter match"
+                      value={ecosystemMatchMode}
+                      onChange={(event) =>
+                        setEcosystemMatchMode(event.target.value as "all" | "any")
+                      }
+                    >
+                      <option value="all">All filters</option>
+                      <option value="any">Any filter</option>
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+              <div className="ecosystem-filter-list">
+                {ecosystemFilters.map((filter) => (
+                  <div className="ecosystem-filter-row" key={filter.id}>
+                    <Filter size={13} aria-hidden="true" />
+                    <select
+                      aria-label={`Property filter ${filter.id}`}
+                      value={filter.propertyId}
+                      onChange={(event) =>
+                        setEcosystemFilters((current) =>
+                          current.map((candidate) =>
+                            candidate.id === filter.id
+                              ? { ...candidate, propertyId: event.target.value }
+                              : candidate,
+                          ),
+                        )
+                      }
+                    >
+                      <option value="all">Any property</option>
+                      {ecosystemPropertyOptions.map((property) => (
+                        <option key={property.id} value={property.id}>
+                          {property.label ?? property.id}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      aria-label={`Property value ${filter.id}`}
+                      value={filter.value}
+                      onChange={(event) =>
+                        setEcosystemFilters((current) =>
+                          current.map((candidate) =>
+                            candidate.id === filter.id
+                              ? { ...candidate, value: event.target.value }
+                              : candidate,
+                          ),
+                        )
+                      }
+                      placeholder="contains..."
+                    />
+                    <button
+                      type="button"
+                      className="ecosystem-filter-remove"
+                      aria-label={`Remove property filter ${filter.id}`}
+                      onClick={() =>
+                        setEcosystemFilters((current) =>
+                          current.filter((candidate) => candidate.id !== filter.id),
+                        )
+                      }
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="ecosystem-add-filter-button"
+                  onClick={() => {
+                    const id = nextEcosystemFilterId.current;
+                    nextEcosystemFilterId.current += 1;
+                    setEcosystemFilters((current) => [
+                      ...current,
+                      { id, propertyId: "all", value: "" },
+                    ]);
+                  }}
+                >
+                  <Plus size={13} />
+                  Add property filter
+                </button>
+              </div>
+            </div>
             <div className="ecosystem-groups">
-              {ecosystemGroups.size > 0 ? (
-                Array.from(ecosystemGroups.entries())
-                  .sort(([a], [b]) => {
-                    if (a === "_untyped") return 1;
-                    if (b === "_untyped") return -1;
-                    return a.localeCompare(b);
-                  })
-                  .map(([typeId, entities]) => {
-                    const type = entityTypesById.get(typeId);
-                    const typeLabel = typeId === "_untyped" ? "Sin tipo" : (type?.label ?? typeId);
+              {filteredEcosystemGroups.size > 0 ? (
+                Array.from(filteredEcosystemGroups.entries())
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([groupId, entities]) => {
+                    const type =
+                      ecosystemGroupBy === "type" ? entityTypesById.get(groupId) : undefined;
+                    const groupLabel =
+                      ecosystemGroupBy === "type" && groupId === "_untyped"
+                        ? "Sin tipo"
+                        : ecosystemGroupBy === "type"
+                          ? (type?.label ?? groupId)
+                          : groupId;
 
                     return (
-                      <div key={typeId} className="ecosystem-group">
+                      <div key={groupId} className="ecosystem-group">
                         <div className="ecosystem-group-header">
-                          {type?.color ? (
+                          {type?.color && ecosystemGroupBy === "type" ? (
                             <span
                               className="ecosystem-group-color"
                               style={{ backgroundColor: type.color }}
                             />
-                          ) : (
+                          ) : ecosystemGroupBy === "type" ? (
                             <Layers size={14} />
+                          ) : (
+                            <Check size={14} />
                           )}
-                          <span className="ecosystem-group-name">{typeLabel}</span>
+                          <span className="ecosystem-group-name">{groupLabel}</span>
                           <span className="ecosystem-group-count">{entities.length}</span>
                         </div>
                         <div className="ecosystem-group-items">
@@ -348,14 +634,17 @@ export function ExplorerPanel({
                     );
                   })
               ) : (
-                <p className="muted">No entities yet.</p>
+                <p className="muted">
+                  {ecosystemEntities.length ? "No matching entities." : "No entities yet."}
+                </p>
               )}
             </div>
           </section>
         ) : null}
 
-        {activeSection === "allFiles" ? (
+        {activeSection === "allFiles" || activeSection === "images" ? (
           <section className="sidebar-section">
+            {activeSection === "images" ? <h2>Images</h2> : null}
             <div
               className={`tree-list ${pointerDragActive ? "is-pointer-dragging" : ""}`}
               data-tree-root-drop="true"
@@ -407,7 +696,9 @@ export function ExplorerPanel({
                   {virtualWindow.after > 0 ? <div style={{ height: virtualWindow.after }} /> : null}
                 </>
               ) : (
-                <p className="muted">No files yet.</p>
+                <p className="muted">
+                  {activeSection === "images" ? "No images yet." : "No files yet."}
+                </p>
               )}
             </div>
           </section>
@@ -541,11 +832,11 @@ const ExplorerTreeRow = memo(function ExplorerTreeRow({
       <div
         role="button"
         tabIndex={0}
-        draggable={false}
+        draggable={row.kind === "file" && isImagePath(row.path)}
         data-tree-node="true"
         data-tree-drop-path={row.kind === "folder" ? row.path : undefined}
         aria-pressed={multiSelectedPaths.has(row.path)}
-        className={`tree-button ${selectedPath === row.path ? "active" : ""} ${multiSelectedPaths.has(row.path) ? "multi-selected" : ""} ${row.hasDescription ? "has-description" : ""} ${isOpen ? "is-open" : ""} ${pointerDragTargetPath === row.path ? "tree-drop-into" : ""} ${isDragOver && dropPosition ? `tree-drop-${dropPosition}` : ""}`}
+        className={`tree-button ${selectedPath === row.path ? "active" : ""} ${multiSelectedPaths.has(row.path) ? "multi-selected" : ""} ${row.hasDescription ? "has-description" : ""} ${row.isFolderDescription ? "is-folder-description" : ""} ${isOpen ? "is-open" : ""} ${pointerDragTargetPath === row.path ? "tree-drop-into" : ""} ${isDragOver && dropPosition ? `tree-drop-${dropPosition}` : ""}`}
         style={{ paddingLeft: `${7 + Math.min(row.depth, 10) * 16}px` }}
         onClick={activateNode}
         onKeyDown={(event) => {
@@ -560,13 +851,19 @@ const ExplorerTreeRow = memo(function ExplorerTreeRow({
           onContextMenu(event, row.path, row.kind);
         }}
         onPointerDown={(event) => {
+          if (row.kind === "file" && isImagePath(row.path)) return;
           if (event.button !== 0 || (event.target as HTMLElement).closest("button")) return;
           onPointerDragStart(row.path, row.kind, event.clientX, event.clientY);
         }}
         onDragStart={(event) => {
           event.dataTransfer.setData("text/plain", row.path);
           event.dataTransfer.setData("application/worldnotion-kind", row.kind);
-          event.dataTransfer.effectAllowed = "move";
+          if (row.kind === "file" && isImagePath(row.path)) {
+            event.dataTransfer.setData("application/worldnotion-image", row.path);
+            event.dataTransfer.effectAllowed = "copy";
+          } else {
+            event.dataTransfer.effectAllowed = "move";
+          }
         }}
         onDragOver={(event) => {
           event.preventDefault();
@@ -638,6 +935,8 @@ const ExplorerTreeRow = memo(function ExplorerTreeRow({
           ) : (
             <Folder size={14} />
           )
+        ) : row.isFolderDescription ? (
+          <FileEdit size={14} className="tree-folder-note-indicator" aria-label="Folder note" />
         ) : isImagePath(row.path) ? (
           <Image size={14} />
         ) : (

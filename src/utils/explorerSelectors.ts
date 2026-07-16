@@ -2,6 +2,8 @@ import type { ExplorerFavorite, TagHierarchyNode } from "../editorTypes";
 import type { Entity, VaultIndex, VaultTreeNode } from "../domain";
 import { buildTree } from "./treeBuilder";
 import { pathName } from "./pathUtils";
+import { DEFAULT_ATTACHMENTS_FOLDER } from "./attachments";
+import { isImagePath } from "./vaultImages";
 
 export type VisibleExplorerRow = VaultTreeNode & {
   depth: number;
@@ -43,18 +45,59 @@ export function selectVisibleTree(
   query: string,
   showHiddenEverend: boolean,
   focusedFolderPath?: string,
-  ignoreFolderNoteMetadata = false,
+  folderNotesEnabled = true,
+  excludeImages = false,
 ): VaultTreeNode[] {
   if (!index) return [];
-  const tree = showHiddenEverend
-    ? buildTree(
-        index.files,
-        index.directories,
-        true,
-        `${pathName(index.rootPath)}.md`,
-        ignoreFolderNoteMetadata,
-      )
-    : index.tree;
+  const visibleFiles = excludeImages
+    ? index.files.filter((file) => !isImagePath(file.relativePath))
+    : index.files;
+  const visibleDirectories = excludeImages
+    ? index.directories.filter((directory) => {
+        if (directory === DEFAULT_ATTACHMENTS_FOLDER) return false;
+        const descendants = index.files.filter((file) =>
+          file.relativePath.startsWith(`${directory}/`),
+        );
+        return (
+          descendants.length === 0 ||
+          visibleFiles.some((file) => file.relativePath.startsWith(`${directory}/`))
+        );
+      })
+    : index.directories;
+  const tree =
+    showHiddenEverend || !folderNotesEnabled || excludeImages
+      ? buildTree(
+          visibleFiles,
+          visibleDirectories,
+          showHiddenEverend,
+          `${pathName(index.rootPath)}.md`,
+          folderNotesEnabled,
+        )
+      : index.tree;
+  const focusedRoot = focusedFolderPath ? findTreeNode(tree, focusedFolderPath) : undefined;
+  const scopedTree = focusedFolderPath ? (focusedRoot ? [focusedRoot] : tree) : tree;
+  if (!query.trim()) return scopedTree;
+
+  const normalized = query.toLowerCase();
+  const files: VaultTreeNode[] = [];
+  const folders: VaultTreeNode[] = [];
+  collectSearchMatches(scopedTree, normalized, files, folders);
+  return [...files, ...folders];
+}
+
+/** Builds an explorer tree containing only image attachments and their folders. */
+export function selectImageTree(
+  index: VaultIndex | undefined,
+  query: string,
+  focusedFolderPath?: string,
+): VaultTreeNode[] {
+  if (!index) return [];
+  const tree = buildTree(
+    index.files.filter((file) => isImagePath(file.relativePath)),
+    [],
+    false,
+    `${pathName(index.rootPath)}.md`,
+  );
   const focusedRoot = focusedFolderPath ? findTreeNode(tree, focusedFolderPath) : undefined;
   const scopedTree = focusedFolderPath ? (focusedRoot ? [focusedRoot] : tree) : tree;
   if (!query.trim()) return scopedTree;

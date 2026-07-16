@@ -30,6 +30,41 @@ function appSettings(overrides: Partial<AppSettingsV4> = {}): AppSettingsV4 {
 }
 
 describe("SettingsModal", () => {
+  it("changes the Writing structure presentation from Editor settings", () => {
+    const onChange = vi.fn();
+    const settings = appSettings();
+
+    render(<SettingsModal settings={settings} onChange={onChange} onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Editor" }));
+    fireEvent.change(screen.getByLabelText("Writing structures"), { target: { value: "visible" } });
+
+    expect(onChange).toHaveBeenCalledWith({
+      ...settings,
+      editor: { ...settings.editor, writeStructureMode: "visible" },
+    });
+  });
+
+  it("updates Explorer folder-note and image visibility settings", () => {
+    const onChange = vi.fn();
+    const settings = appSettings();
+
+    render(<SettingsModal settings={settings} onChange={onChange} onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Explorer" }));
+    fireEvent.click(screen.getByLabelText("Enable folder notes"));
+
+    expect(onChange).toHaveBeenCalledWith({
+      ...settings,
+      explorer: { ...settings.explorer, folderNotesEnabled: false },
+    });
+    fireEvent.click(screen.getByLabelText("Show images in All Files"));
+    expect(onChange).toHaveBeenCalledWith({
+      ...settings,
+      explorer: { ...settings.explorer, showImagesInAllFiles: true },
+    });
+  });
+
   it("updates the dock tab scale from the tabs settings", () => {
     const onChange = vi.fn();
     const settings = appSettings();
@@ -84,13 +119,13 @@ describe("SettingsModal", () => {
     expect(screen.getByText("Unity Adapter")).toBeInTheDocument();
     expect(screen.getAllByText("Planned").length).toBeGreaterThan(0);
 
-    const syntaxToggle = screen.getAllByLabelText("Active", { selector: "input" })[0];
-    fireEvent.click(syntaxToggle);
+    const fontToggle = screen.getAllByLabelText("Active", { selector: "input" })[0];
+    fireEvent.click(fontToggle);
 
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
         plugins: expect.objectContaining({
-          enabled: expect.objectContaining({ "markdown-syntax-hiding": false }),
+          enabled: expect.objectContaining({ "font-family-rendering": false }),
         }),
       }),
     );

@@ -1,7 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
-  ArrowRightLeft,
   ChevronDown,
   ChevronRight,
   Eye,
@@ -169,10 +168,25 @@ export function MetadataEditor({
     () => orphanedFields.filter((i) => i.type === "extra"),
     [orphanedFields],
   );
-  const misorderedFields = useMemo(
-    () => orphanedFields.filter((i) => i.type === "misorder"),
-    [orphanedFields],
-  );
+  // Property order is a storage invariant, not an Inspector issue. Normalize
+  // it as soon as the note/configuration reaches the editor so users never
+  // have to repair it manually (and never see a transient order warning).
+  const normalizedFrontmatter = useMemo(() => {
+    if (!propertiesConfig || !onUpdateRawYaml || Object.keys(rawFrontmatterData).length === 0) {
+      return null;
+    }
+
+    const currentKeys = Object.keys(rawFrontmatterData);
+    const expectedOrder = getConfiguredFrontmatterOrder(propertiesConfig, entity.type, currentKeys);
+    const isAlreadyOrdered = currentKeys.every((key, index) => key === expectedOrder[index]);
+    return isAlreadyOrdered ? null : reorderFrontmatter(rawYaml, expectedOrder);
+  }, [entity.type, onUpdateRawYaml, propertiesConfig, rawFrontmatterData, rawYaml]);
+
+  useEffect(() => {
+    if (normalizedFrontmatter && normalizedFrontmatter !== rawYaml) {
+      onUpdateRawYaml?.(normalizedFrontmatter);
+    }
+  }, [normalizedFrontmatter, onUpdateRawYaml, rawYaml]);
 
   // Determine which properties to show
   const visibleProperties = useMemo(() => {
@@ -523,17 +537,6 @@ export function MetadataEditor({
       ),
     );
     setDraggedPropertyId(null);
-  };
-
-  const handleAutoReorder = () => {
-    const frontmatterKeys = Object.keys(frontmatterData);
-    const expectedOrder = getConfiguredFrontmatterOrder(
-      propertiesConfig,
-      entity.type,
-      frontmatterKeys,
-    );
-    const reorderedYaml = reorderFrontmatter(rawYaml, expectedOrder);
-    onUpdateRawYaml?.(reorderedYaml);
   };
 
   /** Sensible initial value for a missing schema field: entity fallback for core fields, defaultValue/empty otherwise. */
@@ -1008,44 +1011,6 @@ export function MetadataEditor({
                             Delete
                           </button>
                         )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Misorder fields */}
-              {misorderedFields.length > 0 && (
-                <div className="metadata-issue-group">
-                  <div className="metadata-issue-header">
-                    <h4 className="metadata-issue-group-title metadata-issue-misorder">
-                      <AlertCircle size={14} /> Wrong order ({misorderedFields.length})
-                    </h4>
-                    <button
-                      type="button"
-                      className="metadata-action-primary"
-                      onClick={handleAutoReorder}
-                      title="Reorder fields to match schema"
-                    >
-                      <ArrowRightLeft size={13} />
-                      Auto-reorder
-                    </button>
-                  </div>
-                  <p className="field-hint">
-                    Fields should follow the schema order for consistency.
-                  </p>
-                  {misorderedFields.map((field) => (
-                    <div
-                      key={field.fieldName}
-                      className="metadata-orphaned-item metadata-issue-misorder-item"
-                    >
-                      <div className="metadata-orphaned-content">
-                        <div className="metadata-orphaned-header">
-                          <strong className="metadata-orphaned-name">{field.fieldName}</strong>
-                          <span className="metadata-orphaned-type">
-                            Position {field.actualPosition} → {field.expectedPosition}
-                          </span>
-                        </div>
                       </div>
                     </div>
                   ))}

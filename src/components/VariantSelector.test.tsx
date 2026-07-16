@@ -43,4 +43,19 @@ describe("VariantSelector", () => {
     expect(onSelect).toHaveBeenCalledWith("adulta");
     expect(onUpdateRawYaml).not.toHaveBeenCalled();
   });
+
+  it("uses the selected variant name as the dropdown heading", () => {
+    render(
+      <VariantSelector
+        rawYaml={
+          "---\nvariants:\n  base:\n    label: Canon\n  adulta:\n    label: Mara adulta\n---"
+        }
+        activeVariantId="adulta"
+        onSelect={vi.fn()}
+        onUpdateRawYaml={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("combobox", { name: "Variant" })).toHaveValue("adulta");
+  });
 });

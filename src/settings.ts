@@ -24,10 +24,20 @@ export function loadSettings(): AppSettingsV4 {
         ? [parsed.recentUniverse]
         : [];
     const parsedExplorer: Partial<AppSettingsV4["explorer"]> = parsed.explorer ?? {};
+    const legacyExplorer = (parsed.explorer ?? {}) as Record<string, unknown>;
     const activeSection =
-      parsedExplorer.activeSection === "favorites" || parsedExplorer.activeSection === "ecosystem"
+      parsedExplorer.activeSection === "favorites" ||
+      parsedExplorer.activeSection === "ecosystem" ||
+      parsedExplorer.activeSection === "images"
         ? parsedExplorer.activeSection
         : "allFiles";
+    const folderNotesEnabled =
+      typeof legacyExplorer.folderNotesEnabled === "boolean"
+        ? legacyExplorer.folderNotesEnabled
+        : legacyExplorer.ignoreFolderNoteMetadata === true
+          ? false
+          : true;
+    const showImagesInAllFiles = legacyExplorer.showImagesInAllFiles === true;
 
     const mergedKeybindings = (() => {
       if (!parsed.keybindings?.length) return DEFAULT_KEYBINDINGS;
@@ -41,13 +51,31 @@ export function loadSettings(): AppSettingsV4 {
       }));
     })();
 
+    const legacyEditor = (parsed.editor ?? {}) as Record<string, unknown>;
+    const legacyPluginEnabled = (parsed.plugins?.enabled as Record<string, unknown> | undefined)?.[
+      "markdown-syntax-hiding"
+    ];
+    const writeStructureMode =
+      legacyEditor.writeStructureMode === "visible" ||
+      legacyEditor.writeStructureMode === "processed"
+        ? legacyEditor.writeStructureMode
+        : legacyEditor.hideMarkdownSyntaxInWrite === false || legacyPluginEnabled === false
+          ? "visible"
+          : "processed";
+
     return {
       theme: normalizeThemeId(parsed.theme),
       recentUniverse: parsed.recentUniverse,
       recentUniverses,
       recentUniverseProfiles: parsed.recentUniverseProfiles ?? {},
-      editor: { ...DEFAULT_EDITOR_SETTINGS, ...(parsed.editor ?? {}) },
-      explorer: { ...DEFAULT_EXPLORER_SETTINGS, ...parsedExplorer, activeSection },
+      editor: { ...DEFAULT_EDITOR_SETTINGS, ...(parsed.editor ?? {}), writeStructureMode },
+      explorer: {
+        ...DEFAULT_EXPLORER_SETTINGS,
+        ...parsedExplorer,
+        activeSection,
+        folderNotesEnabled,
+        showImagesInAllFiles,
+      },
       graph: { ...DEFAULT_GRAPH_SETTINGS, ...(parsed.graph ?? {}) },
       plugins: normalizePluginSettings(parsed.plugins ?? DEFAULT_PLUGIN_SETTINGS),
       aiAdvisor: normalizeAiAdvisorSettings(parsed.aiAdvisor ?? DEFAULT_AI_ADVISOR_SETTINGS),
@@ -76,6 +104,28 @@ export function saveSettings(settings: AppSettingsV4) {
 
 function settingsReplacer(key: string, value: unknown): unknown {
   if (!value || typeof value !== "object") return value;
+
+  if (key === "editor") {
+    const { hideMarkdownSyntaxInWrite: _legacySyntaxSetting, ...editor } = value as Record<
+      string,
+      unknown
+    >;
+    return editor;
+  }
+
+  if (key === "plugins") {
+    const plugins = value as { enabled?: Record<string, unknown> };
+    const { "markdown-syntax-hiding": _legacySyntaxPlugin, ...enabled } = plugins.enabled ?? {};
+    return { ...plugins, enabled };
+  }
+
+  if (key === "explorer") {
+    const { ignoreFolderNoteMetadata: _legacyFolderNotes, ...explorer } = value as Record<
+      string,
+      unknown
+    >;
+    return explorer;
+  }
 
   if (key === "editorState") {
     const flattened: Record<string, unknown> = {};

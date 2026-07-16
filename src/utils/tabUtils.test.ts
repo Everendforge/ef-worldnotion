@@ -69,6 +69,24 @@ describe("tab utilities", () => {
     });
   });
 
+  it("opens XML files in source mode with the XML reader selected", () => {
+    const openTab = createOpenTabFromFile(
+      {
+        relativePath: "data/world.xml",
+        absolutePath: "/vault/data/world.xml",
+        content: "<world />",
+        modifiedMs: 123,
+      },
+      "write",
+    );
+
+    expect(openTab).toMatchObject({
+      path: "data/world.xml",
+      mode: "source",
+      sourceView: "xml",
+    });
+  });
+
   it("serializes only persisted session fields", () => {
     const session = serializeWorkspaceSession("C:/vault", "A.md", [tab("A.md", true)]);
 

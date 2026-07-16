@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 describe("tablePlugin", () => {
-  it("renders wide GFM tables as an editable grid and preserves column alignment", () => {
+  it("renders wide GFM tables as a processed grid and preserves column alignment", () => {
     const view = new EditorView({
       state: EditorState.create({
         doc: MILITIA_TABLE,
@@ -38,7 +38,7 @@ describe("tablePlugin", () => {
 
     widget?.click();
 
-    expect(view.dom.querySelector(".cm-table-widget")).toBeNull();
+    expect(view.dom.querySelector(".cm-table-widget")).not.toBeNull();
     expect(view.state.selection.main.head).toBe(0);
   });
 });

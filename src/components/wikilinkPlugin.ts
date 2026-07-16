@@ -2,7 +2,6 @@ import { Range } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from "@codemirror/view";
 import {
   isStructuralChange,
-  selectionTouches,
   createSyntaxHiddenDecoration,
   createStyledDecoration,
 } from "./pluginUtils";
@@ -18,11 +17,11 @@ export function wikilinkPlugin(options: {
   resolveWikilink?: (label: string) => ResolvedWikilink;
   onOpenWikilink?: (targetPath: string, label: string) => void;
   onMissingWikilink?: (label: string) => void;
+  presentation?: "visible" | "processed";
 }) {
   function getDecorations(view: EditorView): DecorationSet {
     const decorations: Range<Decoration>[] = [];
-    const selectionFrom = view.state.selection.main.from;
-    const selectionTo = view.state.selection.main.to;
+    if (options.presentation === "visible") return Decoration.none;
 
     for (const { from, to } of view.visibleRanges) {
       const text = view.state.doc.sliceString(from, to);
@@ -37,11 +36,7 @@ export function wikilinkPlugin(options: {
 
         const start = from + match.index;
         const end = start + match[0].length;
-        const visibleFrom = hasAlias ? start + 2 + match[1].length + 1 : start + 2;
-        const isAtRightVisualEdge =
-          selectionFrom === selectionTo && selectionFrom > visibleFrom && selectionFrom === end;
-        const isSelected =
-          selectionTouches(selectionFrom, selectionTo, start, end) || isAtRightVisualEdge;
+        const isSelected = false;
 
         const resolved = options.resolveWikilink?.(rawTarget) ?? {
           label: alias || rawTarget,
@@ -90,13 +85,6 @@ export function wikilinkPlugin(options: {
           // Closing brackets ]]
           const closeHidden = createSyntaxHiddenDecoration(end - 2, end);
           if (closeHidden) decorations.push(closeHidden);
-        } else {
-          // When editing: show everything with muted syntax
-          const editDecoration = createStyledDecoration(start, end, "cm-wikilink-editing", {
-            "data-wikilink": rawTarget,
-            "data-wikilink-status": resolved.status,
-          });
-          if (editDecoration) decorations.push(editDecoration);
         }
       }
     }

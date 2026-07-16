@@ -42,12 +42,17 @@ describe("workspace layout utilities", () => {
     expect(documentPathsInLayout(layout)).toEqual(["A.md", "B.md"]);
     expect(layoutHasPanel(layout, "explorer")).toBe(true);
     expect(layoutHasPanel(layout, "inspector")).toBe(true);
-    expect(layoutHasPanel(layout, "ai-advisor")).toBe(true);
+    expect(layoutHasPanel(layout, "ai-advisor")).toBe(false);
     expect(layoutHasPanel(layout, "graph")).toBe(true);
     const serialized = JSON.stringify(layout.root);
-    expect(serialized.indexOf(panelDockTabId("inspector"))).toBeLessThan(
-      serialized.indexOf(panelDockTabId("ai-advisor")),
-    );
+    expect(serialized).toContain(`"activeTabId":"${panelDockTabId("inspector")}"`);
+    expect(serialized).not.toContain(panelDockTabId("ai-advisor"));
+  });
+
+  it("only includes AI Advisor when the layout explicitly requests it", () => {
+    const layout = createDefaultWorkspaceLayout([], { showAiAdvisor: true });
+
+    expect(layoutHasPanel(layout, "ai-advisor")).toBe(true);
   });
 
   it("reorders document tabs inside a group", () => {

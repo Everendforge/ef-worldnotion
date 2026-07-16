@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   encodeImagePath,
   imageMarkdown,
+  parseImagePresentation,
   sanitizeAttachmentName,
   uniqueAttachmentPath,
 } from "./attachments";
@@ -39,5 +40,16 @@ describe("encodeImagePath / imageMarkdown", () => {
   it("builds standard markdown with a derived alt", () => {
     expect(imageMarkdown("attachments/hero.png")).toBe("![hero](attachments/hero.png)");
     expect(imageMarkdown("attachments/hero.png", "Hero")).toBe("![Hero](attachments/hero.png)");
+  });
+
+  it("stores optional image layout in a portable Markdown title", () => {
+    expect(imageMarkdown("attachments/hero.png", "Hero", { width: 60, align: "right" })).toBe(
+      '![Hero](attachments/hero.png "wn:width=60;align=right")',
+    );
+    expect(parseImagePresentation("wn:width=60;align=right")).toEqual({
+      width: 60,
+      align: "right",
+    });
+    expect(parseImagePresentation("A normal title")).toBeUndefined();
   });
 });

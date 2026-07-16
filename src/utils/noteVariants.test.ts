@@ -5,6 +5,7 @@ import {
   addVariant,
   deleteVariant,
   hasVariantOverride,
+  insertVariantBlock,
   readNoteVariants,
   removeVariantBlocks,
   renameVariant,
@@ -98,5 +99,11 @@ describe("note variants", () => {
         readNoteVariants(frontmatter),
       )[0]?.message,
     ).toMatch(/unknown/i);
+  });
+
+  it("can create a dedicated base variant section", () => {
+    expect(insertVariantBlock("Shared", BASE_VARIANT_ID)).toContain(
+      '<!-- everend:variant id="base" -->',
+    );
   });
 });

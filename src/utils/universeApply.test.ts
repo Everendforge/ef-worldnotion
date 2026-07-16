@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { OpenTab, WorkspaceSession } from "../editorTypes";
 import type { VaultFile, VaultIndex } from "../domain";
 import { planUniverseWorkspaceState } from "./universeApply";
-import { documentPathsInLayout } from "./workspaceLayout";
+import {
+  activateDockTab,
+  createDefaultWorkspaceLayout,
+  documentPathsInLayout,
+  panelDockTabId,
+} from "./workspaceLayout";
 
 function file(relativePath: string, modifiedMs = 1): VaultFile {
   return {
@@ -103,6 +108,31 @@ describe("universe apply planner", () => {
       modifiedMs: 4,
     });
     expect(documentPathsInLayout(plan.layout)).toEqual(["Notes.md"]);
+  });
+
+  it("restores the inspector as the default tool tab for legacy sessions", () => {
+    const persistedLayout = activateDockTab(
+      createDefaultWorkspaceLayout([tab("Notes.md")]),
+      panelDockTabId("ai-advisor"),
+    );
+    const plan = planUniverseWorkspaceState({
+      nextIndex: index([file("Notes.md")]),
+      readRootPath: "C:/Vault",
+      currentRootPath: undefined,
+      tabs: [],
+      sessions: {
+        "C:/Vault": {
+          rootPath: "C:/Vault",
+          tabs: [{ path: "Notes.md", title: "Notes", mode: "write", isTemplate: false }],
+          layout: persistedLayout,
+        },
+      },
+      persistTabs: true,
+    });
+
+    expect(JSON.stringify(plan.layout.root)).toContain(
+      `"activeTabId":"${panelDockTabId("inspector")}"`,
+    );
   });
 
   it("prefers explicit preferred paths over active, selected, and session paths", () => {

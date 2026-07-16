@@ -19,6 +19,7 @@ import { fontFamilyPlugin } from "./fontFamilyPlugin";
 import { imagePlugin, type ImageResolver } from "./imagePlugin";
 import { createDocumentHeaderPlugin } from "./documentHeaderPlugin";
 import { createVariantContentPlugin } from "./variantContentPlugin";
+import { StructureActionsMenu } from "./StructureActionsMenu";
 import {
   EditorMode,
   EditorSettings,
@@ -31,7 +32,9 @@ import {
 import { isDarkTheme, selectionColorForTheme } from "../themes";
 import { isPluginEnabled } from "../utils/pluginRegistry";
 import { imageMarkdown } from "../utils/attachments";
+import { isImagePath } from "../utils/vaultImages";
 import { tableInsertion } from "../utils/markdownEditing";
+import { structureAt, type StructuredElement } from "../utils/structuredMarkdown";
 
 function imageFilesFromTransfer(data: DataTransfer | null): File[] {
   if (!data) return [];
@@ -66,6 +69,9 @@ export interface CodeMirrorEditorProps {
   onEditorReady?: (view: EditorView) => void;
   /** Local presentation selection used only by Write-mode decorations. */
   activeVariantId?: string;
+  activeVariantLabel?: string;
+  /** Leaves Writing and opens the portable Markdown source editor. */
+  onOpenSource?: () => void;
 }
 
 type SlashMenuState = {
@@ -80,6 +86,13 @@ type WikilinkMenuState = {
   from: number;
   to: number;
   query: string;
+  x: number;
+  y: number;
+  visual?: boolean;
+};
+
+type StructureMenuState = {
+  element: StructuredElement;
   x: number;
   y: number;
 };
@@ -145,16 +158,20 @@ export function CodeMirrorEditor({
   onCursorMove,
   onEditorReady,
   activeVariantId,
+  activeVariantLabel,
+  onOpenSource,
 }: CodeMirrorEditorProps) {
   const [editorView, setEditorView] = useState<EditorView | null>(null);
   const [slashMenu, setSlashMenu] = useState<SlashMenuState>();
   const [slashIndex, setSlashIndex] = useState(0);
   const [wikilinkMenu, setWikilinkMenu] = useState<WikilinkMenuState>();
   const [wikilinkIndex, setWikilinkIndex] = useState(0);
+  const [structureMenu, setStructureMenu] = useState<StructureMenuState>();
 
   // Debounce timers for menu detection (100ms debounce)
   const slashMenuDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const wikilinkMenuDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const processedWriting = mode === "write" && settings.writeStructureMode === "processed";
   const handleChange = useCallback(
     (newValue: string) => {
       onChange(newValue);
@@ -309,10 +326,10 @@ export function CodeMirrorEditor({
     setSlashMenu(undefined);
   }
 
-  function applyWikilinkSuggestion(note: NoteSuggestion) {
+  function applyWikilinkTarget(target: string, alias = target) {
     if (!editorView || !wikilinkMenu) return;
-    const insert = `[[${note.label}|${note.label}]]`;
-    const aliasFrom = wikilinkMenu.from + 2 + note.label.length + 1;
+    const insert = `[[${target}|${alias}]]`;
+    const aliasFrom = wikilinkMenu.from + 2 + target.length + 1;
     const trailing = editorView.state.doc.sliceString(
       wikilinkMenu.to,
       Math.min(editorView.state.doc.length, wikilinkMenu.to + 2),
@@ -320,10 +337,58 @@ export function CodeMirrorEditor({
     const replaceTo = trailing === "]]" ? wikilinkMenu.to + 2 : wikilinkMenu.to;
     editorView.dispatch({
       changes: { from: wikilinkMenu.from, to: replaceTo, insert },
-      selection: { anchor: aliasFrom, head: aliasFrom + note.label.length },
+      selection: { anchor: aliasFrom, head: aliasFrom + alias.length },
     });
     editorView.focus();
     setWikilinkMenu(undefined);
+  }
+
+  function applyWikilinkSuggestion(note: NoteSuggestion) {
+    applyWikilinkTarget(note.label, note.label);
+  }
+
+  function showVisualWikilinkPicker(view: EditorView, position: number) {
+    const coords = view.coordsAtPos(position);
+    setWikilinkMenu({
+      from: position,
+      to: position,
+      query: "",
+      x: coords?.left ?? 0,
+      y: (coords?.bottom ?? 0) + 8,
+      visual: true,
+    });
+    setWikilinkIndex(0);
+  }
+
+  function replaceStructuredElement(element: StructuredElement, replacement: string) {
+    if (!editorView) return;
+    editorView.dispatch({
+      changes: { from: element.from, to: element.to, insert: replacement },
+      selection: { anchor: element.from + replacement.length },
+    });
+    editorView.focus();
+  }
+
+  function structureAtEvent(view: EditorView, event: MouseEvent): StructureMenuState | undefined {
+    const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
+    if (position === null) return undefined;
+    const element = structureAt(view.state.doc, position);
+    if (!element) return undefined;
+    const coords = view.coordsAtPos(element.from);
+    return {
+      element,
+      x: coords?.right ?? event.clientX,
+      y: (coords?.top ?? event.clientY) - 4,
+    };
+  }
+
+  function openStructureMenu(view: EditorView, event: MouseEvent) {
+    if (!processedWriting) return false;
+    const next = structureAtEvent(view, event);
+    if (!next) return false;
+    event.preventDefault();
+    setStructureMenu({ ...next, x: event.clientX, y: event.clientY });
+    return true;
   }
 
   function handleMenuKey(event: KeyboardEvent) {
@@ -472,6 +537,7 @@ export function CodeMirrorEditor({
       clearTimeout(wikilinkMenuDebounceRef.current);
     }
 
+    if (wikilinkMenu?.visual) return;
     if (mode !== "write") {
       setWikilinkMenu(undefined);
       return;
@@ -702,7 +768,13 @@ export function CodeMirrorEditor({
         extensions={[
           markdown(),
           ...(mode === "write" && activeVariantId
-            ? [createVariantContentPlugin(activeVariantId)]
+            ? [
+                createVariantContentPlugin(
+                  activeVariantId,
+                  activeVariantLabel,
+                  settings.writeStructureMode,
+                ),
+              ]
             : []),
           ...(isPluginEnabled(pluginSettings, "document-header", settings.documentHeaderEnabled) &&
           documentName &&
@@ -726,30 +798,77 @@ export function CodeMirrorEditor({
               ]
             : []),
           ...(mode === "write" && isPluginEnabled(pluginSettings, "wikilinks")
-            ? [wikilinkPlugin({ resolveWikilink, onOpenWikilink, onMissingWikilink })]
+            ? [
+                wikilinkPlugin({
+                  resolveWikilink,
+                  onOpenWikilink,
+                  onMissingWikilink,
+                  presentation: settings.writeStructureMode,
+                }),
+              ]
             : []),
-          ...(mode === "write" && isPluginEnabled(pluginSettings, "footnotes")
-            ? [footnotePlugin()]
+          ...(processedWriting && isPluginEnabled(pluginSettings, "footnotes")
+            ? [footnotePlugin({ presentation: "processed" })]
             : []),
-          ...(mode === "write" && isPluginEnabled(pluginSettings, "table-tools")
+          ...(processedWriting && isPluginEnabled(pluginSettings, "table-tools")
             ? [tablePlugin()]
             : []),
-          ...(mode === "write" &&
-          isPluginEnabled(
-            pluginSettings,
-            "markdown-syntax-hiding",
-            settings.hideMarkdownSyntaxInWrite,
-          )
-            ? [markdownSyntaxPlugin]
-            : []),
-          ...(mode === "write" && isPluginEnabled(pluginSettings, "font-family-rendering")
+          ...(processedWriting ? [markdownSyntaxPlugin] : []),
+          ...(processedWriting && isPluginEnabled(pluginSettings, "font-family-rendering")
             ? [fontFamilyPlugin]
             : []),
-          ...(mode === "write" && resolveImage && isPluginEnabled(pluginSettings, "image-rendering")
-            ? [imagePlugin({ resolve: resolveImage })]
+          ...(processedWriting && resolveImage && isPluginEnabled(pluginSettings, "image-rendering")
+            ? [imagePlugin({ resolve: resolveImage, presentation: "processed" })]
             : []),
           ...(settings.lineWrap ? [EditorView.lineWrapping] : []),
           CodeMirrorState.tabSize.of(settings.tabSize),
+          ...(processedWriting
+            ? [
+                EditorView.inputHandler.of((view, from, to, text) => {
+                  const previous = from > 0 ? view.state.doc.sliceString(from - 1, from) : "";
+                  if (text === "[[" || (text === "[" && previous === "[")) {
+                    const hasAutoClosingBracket =
+                      view.state.doc.sliceString(from, from + 1) === "]";
+                    const start = text === "[[" ? from : from - 1;
+                    view.dispatch({
+                      changes: {
+                        from: start,
+                        to: hasAutoClosingBracket ? from + 1 : to,
+                        insert: "",
+                      },
+                      selection: { anchor: start },
+                    });
+                    showVisualWikilinkPicker(view, start);
+                    return true;
+                  }
+                  if (text === "**" || (text === "*" && previous === "*")) {
+                    const start = text === "**" ? from : from - 1;
+                    const placeholder = "bold text";
+                    const replacement = `**${placeholder}**`;
+                    view.dispatch({
+                      changes: { from: start, to, insert: replacement },
+                      selection: { anchor: start + 2, head: start + 2 + placeholder.length },
+                    });
+                    return true;
+                  }
+                  if (text === " ") {
+                    const line = view.state.doc.lineAt(from);
+                    if (view.state.doc.sliceString(line.from, from) === "#") {
+                      const placeholder = "Heading";
+                      view.dispatch({
+                        changes: { from: line.from, to, insert: `# ${placeholder}` },
+                        selection: {
+                          anchor: line.from + 2,
+                          head: line.from + 2 + placeholder.length,
+                        },
+                      });
+                      return true;
+                    }
+                  }
+                  return false;
+                }),
+              ]
+            : []),
           Prec.highest(
             keymap.of([
               {
@@ -865,6 +984,10 @@ export function CodeMirrorEditor({
               {
                 key: "Escape",
                 run: () => {
+                  if (structureMenu) {
+                    setStructureMenu(undefined);
+                    return true;
+                  }
                   if (wikilinkMenu) {
                     setWikilinkMenu(undefined);
                     return true;
@@ -921,6 +1044,9 @@ export function CodeMirrorEditor({
             mousedown(event, view) {
               return openUrlAtEvent(event, view);
             },
+            contextmenu(event, view) {
+              return openStructureMenu(view, event);
+            },
             paste(event, view) {
               const files = imageFilesFromTransfer(event.clipboardData);
               if (!files.length || !onInsertImageFile) return false;
@@ -929,6 +1055,25 @@ export function CodeMirrorEditor({
               return true;
             },
             drop(event, view) {
+              const existingImagePath = event.dataTransfer?.getData(
+                "application/worldnotion-image",
+              );
+              if (existingImagePath && isImagePath(existingImagePath)) {
+                event.preventDefault();
+                const dropPos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+                const pos = dropPos ?? view.state.selection.main.head;
+                const alt = existingImagePath
+                  .split("/")
+                  .pop()
+                  ?.replace(/\.[^.]+$/, "")
+                  .replace(/[[\]]/g, "");
+                const snippet = `${imageMarkdown(existingImagePath, alt)}\n`;
+                view.dispatch({
+                  changes: { from: pos, insert: snippet },
+                  selection: { anchor: pos + snippet.length },
+                });
+                return true;
+              }
               const files = imageFilesFromTransfer(event.dataTransfer);
               if (!files.length || !onInsertImageFile) return false;
               event.preventDefault();
@@ -1020,6 +1165,27 @@ export function CodeMirrorEditor({
           width: "100%",
         }}
       />
+      {structureMenu ? (
+        <StructureActionsMenu
+          {...structureMenu}
+          onDismiss={() => setStructureMenu(undefined)}
+          onReplace={replaceStructuredElement}
+          onOpenSource={() => {
+            setStructureMenu(undefined);
+            onOpenSource?.();
+          }}
+          onOpenWikilink={(target) => {
+            const resolved = resolveWikilink?.(target);
+            if (resolved?.targetPath) onOpenWikilink?.(resolved.targetPath, target);
+            else onMissingWikilink?.(target);
+            setStructureMenu(undefined);
+          }}
+          onOpenUrl={(url) => {
+            onOpenUrl?.(url);
+            setStructureMenu(undefined);
+          }}
+        />
+      ) : null}
       {slashMenu && filteredSlashCommands.length ? (
         <div className="slash-menu" style={{ left: slashMenu.x, top: slashMenu.y }}>
           {filteredSlashCommands.map((command) => (
@@ -1043,11 +1209,40 @@ export function CodeMirrorEditor({
           ))}
         </div>
       ) : null}
-      {wikilinkMenu && filteredNoteSuggestions.length ? (
+      {wikilinkMenu ? (
         <div
           className="slash-menu note-suggestion-menu"
           style={{ left: wikilinkMenu.x, top: wikilinkMenu.y }}
         >
+          {wikilinkMenu.visual ? (
+            <input
+              autoFocus
+              aria-label="Search notes for wikilink"
+              placeholder="Search notes"
+              value={wikilinkMenu.query}
+              onChange={(event) => {
+                setWikilinkMenu((current) =>
+                  current ? { ...current, query: event.target.value } : current,
+                );
+                setWikilinkIndex(0);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  const suggestion =
+                    filteredNoteSuggestions[wikilinkIndex] ?? filteredNoteSuggestions[0];
+                  if (suggestion) applyWikilinkSuggestion(suggestion);
+                  else if (wikilinkMenu.query.trim())
+                    applyWikilinkTarget(wikilinkMenu.query.trim());
+                }
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  setWikilinkMenu(undefined);
+                  editorView?.focus();
+                }
+              }}
+            />
+          ) : null}
           {filteredNoteSuggestions.map((note) => (
             <button
               key={note.path}
@@ -1065,6 +1260,11 @@ export function CodeMirrorEditor({
               <small>{note.path}</small>
             </button>
           ))}
+          {wikilinkMenu.visual && !filteredNoteSuggestions.length && wikilinkMenu.query.trim() ? (
+            <button type="button" onClick={() => applyWikilinkTarget(wikilinkMenu.query.trim())}>
+              <span>Create reference “{wikilinkMenu.query.trim()}”</span>
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>

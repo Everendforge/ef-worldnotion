@@ -211,16 +211,18 @@ export function InspectorPanel({
               )
             ) : (
               <>
-                <VariantSelector
-                  rawYaml={editableFrontmatter || "---\n\n---"}
-                  config={propertiesConfig}
-                  type={entity.type}
-                  activeVariantId={activeVariantId}
-                  onSelect={(id) => onSelectVariant?.(id)}
-                  onUpdateRawYaml={(yaml) => onChangeFrontmatter(yaml)}
-                  onInsertBlock={onInsertVariantBlock}
-                  onDeleteVariant={onDeleteVariant}
-                />
+                <div className="variant-selector-shell">
+                  <VariantSelector
+                    rawYaml={editableFrontmatter || "---\n\n---"}
+                    config={propertiesConfig}
+                    type={entity.type}
+                    activeVariantId={activeVariantId}
+                    onSelect={(id) => onSelectVariant?.(id)}
+                    onUpdateRawYaml={(yaml) => onChangeFrontmatter(yaml)}
+                    onInsertBlock={onInsertVariantBlock}
+                    onDeleteVariant={onDeleteVariant}
+                  />
+                </div>
                 <div className="inspector-subviews" role="tablist" aria-label="Note inspector">
                   <button
                     type="button"

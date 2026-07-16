@@ -9,7 +9,6 @@ import {
 } from "@codemirror/view";
 import {
   isStructuralChange,
-  selectionTouches as sharedSelectionTouches,
   marker as sharedMarker,
   syntaxMarker as sharedSyntaxMarker,
 } from "./pluginUtils";
@@ -75,7 +74,6 @@ function lineClass(className: string, from: number) {
 // Use shared utilities from pluginUtils
 const marker = sharedMarker;
 const syntaxMarker = sharedSyntaxMarker;
-const selectionTouches = sharedSelectionTouches;
 
 // Calculate indentation level - handles both spaces and tabs
 function calculateIndentLevel(indentStr: string): number {
@@ -144,13 +142,7 @@ function isListContinuation(text: string, prevListLevel: number): boolean {
   return currentLevel >= expectedMinLevel && text.trim().length > 0;
 }
 
-function addInlineMatches(
-  text: string,
-  from: number,
-  selectionFrom: number,
-  selectionTo: number,
-  decorations: Range<Decoration>[],
-) {
+function addInlineMatches(text: string, from: number, decorations: Range<Decoration>[]) {
   let matchCount = 0;
 
   let boldMatch: RegExpExecArray | null;
@@ -163,12 +155,7 @@ function addInlineMatches(
     const openFrom = from + boldMatch.index;
     const contentFrom = openFrom + boldMatch[1].length;
     const contentTo = contentFrom + boldMatch[2].length;
-    const active = selectionTouches(
-      selectionFrom,
-      selectionTo,
-      openFrom,
-      contentTo + boldMatch[1].length,
-    );
+    const active = false;
     const m1 = syntaxMarker(openFrom, contentFrom, active);
     if (m1) decorations.push(m1);
     const m2 = marker(contentFrom, contentTo, "cm-md-bold");
@@ -187,12 +174,7 @@ function addInlineMatches(
     const openFrom = from + italicMatch.index + italicMatch[1].length;
     const contentFrom = openFrom + italicMatch[2].length;
     const contentTo = contentFrom + italicMatch[3].length;
-    const active = selectionTouches(
-      selectionFrom,
-      selectionTo,
-      openFrom,
-      contentTo + italicMatch[2].length,
-    );
+    const active = false;
     const m1 = syntaxMarker(openFrom, contentFrom, active);
     if (m1) decorations.push(m1);
     const m2 = marker(contentFrom, contentTo, "cm-md-italic");
@@ -211,7 +193,7 @@ function addInlineMatches(
     const openFrom = from + codeMatch.index;
     const contentFrom = openFrom + 1;
     const contentTo = contentFrom + codeMatch[1].length;
-    const active = selectionTouches(selectionFrom, selectionTo, openFrom, contentTo + 1);
+    const active = false;
     const m1 = syntaxMarker(openFrom, contentFrom, active);
     if (m1) decorations.push(m1);
     const m2 = marker(contentFrom, contentTo, "cm-md-inline-code");
@@ -229,7 +211,7 @@ function addInlineMatches(
     matchCount++;
     const linkFrom = from + linkMatch.index;
     const linkTo = linkFrom + linkMatch[0].length;
-    const active = selectionTouches(selectionFrom, selectionTo, linkFrom, linkTo);
+    const active = false;
     const m1 = syntaxMarker(linkFrom, linkFrom + 1, active);
     if (m1) decorations.push(m1);
     const m2 = marker(
@@ -246,9 +228,6 @@ function addInlineMatches(
 
 function getDecorations(view: EditorView): DecorationSet {
   const decorations: Range<Decoration>[] = [];
-  const selectionFrom = view.state.selection.main.from;
-  const selectionTo = view.state.selection.main.to;
-
   for (const { from, to } of view.visibleRanges) {
     let position = from;
     let lastListLevel = -1;
@@ -264,7 +243,7 @@ function getDecorations(view: EditorView): DecorationSet {
         const level = Math.min(heading[1].length, 6);
         const markerFrom = line.from;
         const markerTo = line.from + heading[0].length;
-        const markerActive = selectionTouches(selectionFrom, selectionTo, markerFrom, markerTo);
+        const markerActive = false;
 
         if (line.number > 1) {
           decorations.push(
@@ -293,8 +272,7 @@ function getDecorations(view: EditorView): DecorationSet {
           decorations.push(lineClass(lineClasses.join(" "), line.from));
 
           // Only show syntax when cursor is in the marker itself
-          const cursorInMarker =
-            selectionFrom > listItem.markerStart && selectionFrom <= listItem.markerEnd;
+          const cursorInMarker = false;
 
           if (!cursorInMarker) {
             decorations.push(
@@ -322,13 +300,13 @@ function getDecorations(view: EditorView): DecorationSet {
       if (quote) {
         lastListLevel = -1;
         // Show syntax while cursor is in the marker (>) only, hide when writing content
-        const markerActive = selectionFrom >= line.from && selectionFrom <= line.from + 1;
+        const markerActive = false;
         decorations.push(lineClass("cm-md-quote-line", line.from));
         const m1 = syntaxMarker(line.from, line.from + quote[0].length, markerActive);
         if (m1) decorations.push(m1);
       }
 
-      addInlineMatches(text, line.from, selectionFrom, selectionTo, decorations);
+      addInlineMatches(text, line.from, decorations);
       if (line.to + 1 > to) break;
       position = line.to + 1;
     }

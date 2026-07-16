@@ -301,9 +301,9 @@ async function assertBrowserPathAvailable(root: BrowserDirectoryHandle, relative
     const errorName = (error as { name?: string } | undefined)?.name;
     if (errorName === "NotFoundError") return;
     if (errorName === "TypeMismatchError") {
-      throw new Error(`Target path already exists: ${relativePath}`);
+      throw new Error(`Target path already exists: ${relativePath}`, { cause: error });
     }
-    throw error;
+    throw new Error(`Could not inspect target path: ${relativePath}`, { cause: error });
   }
   throw new Error(`Target path already exists: ${relativePath}`);
 }

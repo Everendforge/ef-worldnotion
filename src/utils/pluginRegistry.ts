@@ -43,17 +43,6 @@ const PLUGIN_DEFINITIONS: PluginDefinition[] = [
     riskLevel: "medium",
   },
   {
-    id: "markdown-syntax-hiding",
-    name: "Markdown Syntax Hiding",
-    description: "Softens Markdown markers in Write mode for cleaner prose editing.",
-    category: "visual",
-    status: "available",
-    scope: "worldnotion",
-    defaultEnabled: true,
-    configurable: true,
-    riskLevel: "low",
-  },
-  {
     id: "font-family-rendering",
     name: "Font Family Rendering",
     description: "Renders portable font-family spans in Write mode.",
@@ -138,7 +127,7 @@ const PLUGIN_DEFINITIONS: PluginDefinition[] = [
     category: "integration",
     status: "available",
     scope: "worldnotion",
-    defaultEnabled: true,
+    defaultEnabled: false,
     configurable: true,
     riskLevel: "high",
   },
@@ -204,12 +193,6 @@ export function updatePluginEnabled(
     },
   };
 
-  if (pluginId === "markdown-syntax-hiding") {
-    return {
-      ...nextSettings,
-      editor: { ...nextSettings.editor, hideMarkdownSyntaxInWrite: enabled },
-    };
-  }
   if (pluginId === "document-header") {
     return {
       ...nextSettings,
@@ -220,7 +203,6 @@ export function updatePluginEnabled(
 }
 
 export function legacyPluginEnabled(editor: EditorSettings, pluginId: PluginId): boolean {
-  if (pluginId === "markdown-syntax-hiding") return editor.hideMarkdownSyntaxInWrite;
   if (pluginId === "document-header") return editor.documentHeaderEnabled;
   if (pluginId === "code-folding") return editor.codeFoldingEnabled;
   return true;
