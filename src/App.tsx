@@ -35,10 +35,12 @@ import { IconPicker, type IconName } from "./components/IconPicker";
 import { OutlineGuide } from "./components/OutlineGuide";
 import { FontSelector } from "./components/FontSelector";
 import { InputDialog } from "./components/InputDialog";
+import { InheritAppearanceDialog } from "./components/InheritAppearanceDialog";
 import { useToast } from "./components/ToastProvider";
 import { useAppDialogs } from "./components/DialogProvider";
 import { useDismissableMenu } from "./hooks/useDismissableMenu";
 import { useInputDialog } from "./hooks/useInputDialog";
+import { useInheritAppearanceDialog } from "./hooks/useInheritAppearanceDialog";
 import { useMissingRecentPaths } from "./hooks/useMissingRecentPaths";
 import { useWorkspaceState } from "./hooks/useWorkspaceState";
 import { SaveStatusIndicator } from "./components/SaveStatusIndicator";
@@ -72,12 +74,18 @@ import {
   UniverseProfile,
   indexVault,
   joinMarkdown,
+  splitMarkdown,
   dirname,
   slugify,
   createDefaultTaxonomyConfig,
 } from "./domain";
 import { isDarkTheme, themeById, themeForStyleCommand, toggledThemeMode } from "./themes";
-import { parseFrontmatterRaw, updateFrontmatterProperties } from "./utils/propertiesConfig";
+import {
+  frontmatterDataToRaw,
+  parseFrontmatterRaw,
+  removeFrontmatterProperty,
+  updateFrontmatterProperties,
+} from "./utils/propertiesConfig";
 import { serializePropertiesConfig, validatePropertiesConfig } from "./utils/propertiesSerializer";
 import { addCustomFieldToSchema } from "./utils/propertiesSerializer";
 import { applyPropertyTemplate, WORLDBUILDING_TEMPLATE } from "./utils/propertyTemplates";
@@ -106,6 +114,12 @@ import {
   vaultHandleFor,
 } from "./utils/vaultFileOps";
 import { isImagePath, resolveNoteImageUrl, setBrowserVaultRoot } from "./utils/vaultImages";
+import {
+  VAULT_APPEARANCE_SETTINGS_PATH,
+  applyVaultAppearanceSettings,
+  serializeVaultAppearance,
+  serializeVaultAppearanceSettings,
+} from "./utils/vaultAppearanceSettings";
 import { getEntityTypeDefinition, getPresentationRoleValue } from "./utils/entityPresentation";
 import {
   BASE_VARIANT_ID,
@@ -440,6 +454,8 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   const inspectorSaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const propertiesOnboardingPromptedRef = useRef<Set<string>>(new Set());
   const propertiesSaveFingerprintRef = useRef<string | undefined>(undefined);
+  /** Serialized appearance last known to match `.everend/settings.json` on disk for the open universe. */
+  const vaultAppearanceOnDiskRef = useRef<string | undefined>(undefined);
   const folderNotesEnabledBootstrappedRef = useRef(false);
 
   // Font detection hook
@@ -486,6 +502,8 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     settings.recentUniverses,
   );
   const { inputDialog, promptUser, closeInputDialog } = useInputDialog();
+  const { inheritAppearanceDialog, chooseAppearanceSource, closeInheritAppearanceDialog } =
+    useInheritAppearanceDialog();
 
   const { showToast } = useToast();
   const { confirmDialog } = useAppDialogs();
@@ -650,6 +668,27 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     document.documentElement.dataset.theme = suiteChrome?.suiteSettings?.style ?? settings.theme;
     saveSettings(settings);
   }, [settings, suiteChrome?.suiteSettings?.style]);
+
+  useEffect(() => {
+    if (!index?.rootPath) return;
+    const rootPath = index.rootPath;
+    const content = serializeVaultAppearanceSettings(settings);
+    if (vaultAppearanceOnDiskRef.current === content) return;
+    const timer = setTimeout(() => {
+      vaultAppearanceOnDiskRef.current = content;
+      void saveVaultFile(
+        vaultHandleFor(rootPath, browserRoot),
+        VAULT_APPEARANCE_SETTINGS_PATH,
+        content,
+        "Could not save universe appearance settings.",
+      ).catch(() => {
+        if (vaultAppearanceOnDiskRef.current === content) {
+          vaultAppearanceOnDiskRef.current = undefined;
+        }
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [settings, index?.rootPath, browserRoot]);
 
   useEffect(() => {
     document.body.style.setProperty("zoom", String(appZoom));
@@ -851,7 +890,14 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
       const targetFolder = folderTarget?.dataset.treeDropPath ?? (rootTarget ? "" : undefined);
       if (targetFolder === undefined) return;
       if (targetFolder === dragItem.path || targetFolder.startsWith(`${dragItem.path}/`)) return;
-      void moveExplorerPath(dragItem.path, targetFolder, dragItem.kind);
+      const isMultiDrag =
+        explorerSelection.length > 1 &&
+        explorerSelection.some((item) => item.path === dragItem.path);
+      if (isMultiDrag) {
+        void moveExplorerSelection(targetFolder);
+      } else {
+        void moveExplorerPath(dragItem.path, targetFolder, dragItem.kind);
+      }
     }
 
     document.addEventListener("pointermove", handlePointerMove);
@@ -860,7 +906,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
       document.removeEventListener("pointermove", handlePointerMove);
       document.removeEventListener("pointerup", handlePointerUp);
     };
-  }, [pointerDragItem]);
+  }, [pointerDragItem, explorerSelection]);
 
   useEffect(() => {
     function handleUndo(event: KeyboardEvent) {
@@ -1247,6 +1293,10 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
         settings.explorer.folderNotesEnabled
       ) {
         await deleteFolderDescription(targetPath);
+      } else if (action === "convertFolderDescriptionToNote" && targetKind === "folder") {
+        await convertFolderDescriptionToNote(targetPath);
+      } else if (action === "convertNoteToFolderDescription" && targetKind === "file") {
+        await convertNoteToFolderDescription(targetPath);
       } else if (action === "reveal") {
         await revealExplorerPath(targetKind === "empty" ? undefined : targetPath);
       } else if (action === "trash" && targetKind !== "empty") {
@@ -1560,6 +1610,132 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     }
     await refreshUniverse();
     showToast("Folder note deleted. The folder was kept.", "success");
+  }
+
+  /** Demotes a folder's note into a plain note living inside that folder. */
+  async function convertFolderDescriptionToNote(folderPath: string) {
+    if (!index) return;
+    const descriptionPath = folderDescriptionPath(folderPath);
+    const descriptionFile = index.files.find((file) => file.relativePath === descriptionPath);
+    if (!descriptionFile) return;
+
+    const newPath = `${folderPath}/${pathName(descriptionPath)}`;
+    if (index.files.some((file) => file.relativePath === newPath)) {
+      showToast(`Cannot convert: ${newPath} already exists.`, "warning");
+      return;
+    }
+
+    const confirmed = await confirmDialog(
+      `Convert ${pathName(descriptionPath)} into a normal note inside ${pathName(folderPath)}?`,
+      { title: "Convert to normal note", confirmLabel: "Convert" },
+    );
+    if (!confirmed) return;
+
+    try {
+      const vault = vaultHandleFor(index.rootPath, browserRoot);
+      const movedPath = await moveVaultPath(vault, descriptionPath, folderPath, "file");
+      const { frontmatterRaw, bodyMarkdown } = splitMarkdown(descriptionFile.content);
+      const withoutFolder = removeFrontmatterProperty(
+        frontmatterRaw,
+        "folder",
+        index.propertiesConfig,
+        "folder-description",
+      );
+      const demoted = updateFrontmatterProperties(
+        withoutFolder,
+        { type: "concept" },
+        index.propertiesConfig,
+        "folder-description",
+      );
+      await saveVaultFile(
+        vault,
+        movedPath,
+        joinMarkdown(demoted, bodyMarkdown),
+        "Could not update the note's frontmatter.",
+      );
+
+      const change = movePathChange(descriptionPath, folderPath);
+      updateTabsForPathChange(change);
+      await refreshUniverse(movedPath, change);
+      showToast(`Converted ${pathName(descriptionPath)} to a normal note.`, "success");
+    } catch (error) {
+      showToast(
+        `Could not convert ${pathName(descriptionPath)}: ${error instanceof Error ? error.message : String(error)}`,
+        "error",
+      );
+    }
+  }
+
+  /** Promotes a normal note into the folder note of its immediate parent folder. */
+  async function convertNoteToFolderDescription(notePath: string) {
+    if (!index) return;
+    const parentPath = dirname(notePath);
+    if (!parentPath) {
+      showToast("This note is already at the top level of the universe.", "warning");
+      return;
+    }
+
+    const { folderName, descriptionPath: targetPath, hasDescription } = folderDescriptionInfo(
+      index,
+      parentPath,
+    );
+    if (hasDescription) {
+      showToast(`${folderName} already has a folder note.`, "warning");
+      return;
+    }
+    if (
+      index.files.some((file) => file.relativePath === targetPath) ||
+      index.directories.includes(targetPath)
+    ) {
+      showToast(`Cannot convert: ${targetPath} already exists.`, "warning");
+      return;
+    }
+
+    const noteFile = index.files.find((file) => file.relativePath === notePath);
+    if (!noteFile) return;
+
+    const confirmed = await confirmDialog(
+      `Convert ${pathName(notePath)} into the folder note for "${folderName}"? It will move to ${targetPath}.`,
+      { title: "Convert to folder note", confirmLabel: "Convert" },
+    );
+    if (!confirmed) return;
+
+    try {
+      const vault = vaultHandleFor(index.rootPath, browserRoot);
+      const newFileName = pathName(targetPath);
+      let workingPath = notePath;
+      if (pathName(notePath) !== newFileName) {
+        await renameVaultPath(vault, notePath, newFileName, "file");
+        workingPath = `${parentPath}/${newFileName}`;
+      }
+
+      const { frontmatterRaw, bodyMarkdown } = splitMarkdown(noteFile.content);
+      const promoted = frontmatterRaw.trim()
+        ? updateFrontmatterProperties(
+            frontmatterRaw,
+            { type: "folder-description", folder: folderName },
+            index.propertiesConfig,
+            "folder-description",
+          )
+        : frontmatterDataToRaw({ folder: folderName, type: "folder-description" });
+      await saveVaultFile(
+        vault,
+        workingPath,
+        joinMarkdown(promoted, bodyMarkdown),
+        "Could not update the note's frontmatter.",
+      );
+
+      const movedPath = await moveVaultPath(vault, workingPath, dirname(parentPath), "file");
+      const change: PathChangeSet = { fromPath: notePath, toPath: movedPath, mode: "single" };
+      updateTabsForPathChange(change);
+      await refreshUniverse(movedPath, change);
+      showToast(`Converted to the folder note for "${folderName}".`, "success");
+    } catch (error) {
+      showToast(
+        `Could not convert ${pathName(notePath)}: ${error instanceof Error ? error.message : String(error)}`,
+        "error",
+      );
+    }
   }
 
   async function openUniverseNote() {
@@ -1959,16 +2135,30 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     const nextIndex = indexVault(readResult, {
       folderNotesEnabled: settings.explorer.folderNotesEnabled,
     });
+    const isSameUniverse = index?.rootPath === readResult.rootPath;
+    if (!isSameUniverse) {
+      // Track what's on disk for this universe so the appearance-save effect
+      // doesn't immediately re-write the file it just loaded, but does seed
+      // `.everend/settings.json` the first time a universe without one opens.
+      vaultAppearanceOnDiskRef.current = nextIndex.vaultAppearanceSettings
+        ? serializeVaultAppearance(nextIndex.vaultAppearanceSettings)
+        : undefined;
+    }
     setIndex(nextIndex);
     setView("workspace");
     setLoadState("ready");
     setErrorMessage("");
-    setSettings((current) =>
-      rememberUniverse(current, readResult.rootPath, profileForRecent(nextIndex)),
+    setSettings((current) => {
+      const remembered = rememberUniverse(current, readResult.rootPath, profileForRecent(nextIndex));
+      return isSameUniverse
+        ? remembered
+        : applyVaultAppearanceSettings(remembered, nextIndex.vaultAppearanceSettings);
+    });
+    const hasEverendWorkspace = nextIndex.files.some(
+      (file) =>
+        file.relativePath.startsWith(".everend/") &&
+        file.relativePath !== VAULT_APPEARANCE_SETTINGS_PATH,
     );
-    const hasEverendWorkspace =
-      nextIndex.directories.includes(".everend") ||
-      nextIndex.files.some((file) => file.relativePath.startsWith(".everend/"));
     const needsPropertiesOnboarding = !nextIndex.propertiesConfig && !hasEverendWorkspace;
     if (
       needsPropertiesOnboarding &&
@@ -2325,9 +2515,44 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
         return;
       }
 
+      const inheritCandidates = settings.recentUniverses.filter(
+        (path) => !path.startsWith("browser:") && !missingRecentPaths.has(path),
+      );
+      let inheritFrom: string | undefined;
+      if (inheritCandidates.length) {
+        const choice = await chooseAppearanceSource(
+          inheritCandidates.map((path) => ({ path, profile: settings.recentUniverseProfiles[path] })),
+        );
+        if (!choice) {
+          setLoadState(index ? "ready" : "idle");
+          return;
+        }
+        if (choice.type === "inherit") inheritFrom = choice.path;
+      }
+
       setLoadState("loading");
       const result = await invoke<WriteResult>("create_universe", { vaultPath: parent, name });
       if (!result.ok) throw new Error(result.message ?? "Could not create universe.");
+
+      if (inheritFrom) {
+        try {
+          const sourceRead = await invoke<VaultReadResult>("index_vault", { path: inheritFrom });
+          const sourceAppearance = sourceRead.files.find(
+            (file) => file.relativePath === VAULT_APPEARANCE_SETTINGS_PATH,
+          );
+          if (sourceAppearance) {
+            await saveVaultFile(
+              vaultHandleFor(result.path, undefined),
+              VAULT_APPEARANCE_SETTINGS_PATH,
+              sourceAppearance.content,
+              "Could not copy universe appearance.",
+            );
+          }
+        } catch {
+          // Best-effort: the new universe still opens fine with the default appearance.
+        }
+      }
+
       setBrowserRoot(undefined);
       const createdUniverseName = pathName(result.path);
       applyUniverse(
@@ -3281,6 +3506,13 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
         defaultValue={inputDialog.defaultValue}
         onConfirm={inputDialog.onConfirm || (async () => {})}
         onCancel={inputDialog.onCancel ?? closeInputDialog}
+      />
+
+      <InheritAppearanceDialog
+        isOpen={inheritAppearanceDialog.isOpen}
+        options={inheritAppearanceDialog.options}
+        onConfirm={inheritAppearanceDialog.onConfirm ?? (() => {})}
+        onCancel={inheritAppearanceDialog.onCancel ?? closeInheritAppearanceDialog}
       />
 
       <UnsavedChangesDialog
@@ -4553,6 +4785,11 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
               : false
           }
           folderNotesEnabled={settings.explorer.folderNotesEnabled}
+          canPromoteToFolderNote={
+            contextMenu.targetKind === "file" && index && dirname(contextMenu.targetPath)
+              ? !folderDescriptionInfo(index, dirname(contextMenu.targetPath)).hasDescription
+              : false
+          }
           onAction={handleContextMenuAction}
           onClose={() => setContextMenu(null)}
         />

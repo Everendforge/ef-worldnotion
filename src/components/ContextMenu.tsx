@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ChevronRight,
+  CornerLeftUp,
   Copy,
   Edit3,
   Eye,
   ExternalLink,
+  FileMinus,
   FilePlus,
   FileText,
   FolderInput,
@@ -30,6 +32,8 @@ export type ContextMenuAction =
   | "trash"
   | "editFolderDescription"
   | "deleteFolderDescription"
+  | "convertFolderDescriptionToNote"
+  | "convertNoteToFolderDescription"
   | "refresh"
   | "collapseAll"
   | "changeIcon";
@@ -50,6 +54,8 @@ export interface ContextMenuProps {
   trashLabel?: string;
   hasFolderDescription?: boolean;
   folderNotesEnabled?: boolean;
+  /** File targets only: whether this note's immediate parent folder has no folder note yet. */
+  canPromoteToFolderNote?: boolean;
   onAction: (
     action: ContextMenuAction,
     targetPath: string,
@@ -73,6 +79,7 @@ export function ContextMenu({
   trashLabel = "Move to Trash",
   hasFolderDescription = false,
   folderNotesEnabled = true,
+  canPromoteToFolderNote = false,
   onAction,
   onClose,
 }: ContextMenuProps) {
@@ -243,6 +250,26 @@ export function ContextMenu({
                 </button>
               ) : null}
             </>
+          ) : null}
+          {targetKind === "folder" && hasFolderDescription ? (
+            <button
+              type="button"
+              onClick={() => run("convertFolderDescriptionToNote")}
+              className="context-menu-item"
+            >
+              <FileMinus size={16} />
+              <span>Convert Folder Note to Normal Note</span>
+            </button>
+          ) : null}
+          {targetKind === "file" && canPromoteToFolderNote ? (
+            <button
+              type="button"
+              onClick={() => run("convertNoteToFolderDescription")}
+              className="context-menu-item"
+            >
+              <CornerLeftUp size={16} />
+              <span>Convert to Folder Note of Parent</span>
+            </button>
           ) : null}
           <button type="button" onClick={() => run("toggleFavorite")} className="context-menu-item">
             <Star size={16} />

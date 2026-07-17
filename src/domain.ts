@@ -14,6 +14,7 @@ import {
 import { validateAgainstTaxonomy } from "./utils/taxonomyValidation";
 import { buildTree } from "./utils/treeBuilder";
 import { parsePropertiesConfig, parseTemplates, parseUniverseProfile } from "./utils/vaultMetadata";
+import { parseVaultAppearanceSettings } from "./utils/vaultAppearanceSettings";
 import { indexMarkdownEntities } from "./utils/entityIndex";
 import { detectUniverses } from "./utils/universeDetection";
 import {
@@ -143,6 +144,7 @@ export type VaultIndex = {
   propertiesConfig?: import("./editorTypes.js").PropertiesConfig;
   templates: EntityTemplate[];
   universeProfile?: UniverseProfile;
+  vaultAppearanceSettings?: import("./editorTypes.js").VaultAppearanceSettings;
   universes: Universe[];
   tree: VaultTreeNode[];
   entities: Entity[];
@@ -251,6 +253,7 @@ export function indexVault(
   const templates = parseTemplates(readResult.files);
   const universeProfile = parseUniverseProfile(readResult.files, findings);
   const propertiesConfig = parsePropertiesConfig(readResult.files, findings);
+  const vaultAppearanceSettings = parseVaultAppearanceSettings(readResult.files, findings);
   const entityIndex = indexMarkdownEntities(markdownFiles, propertiesConfig);
   findings.push(...entityIndex.findings);
 
@@ -272,6 +275,7 @@ export function indexVault(
     propertiesConfig,
     templates,
     universeProfile,
+    vaultAppearanceSettings,
     universes,
     tree: buildTree(
       readResult.files,

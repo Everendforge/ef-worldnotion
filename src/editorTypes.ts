@@ -338,6 +338,33 @@ export type AppSettingsV4 = {
   sessions: Record<string, WorkspaceSession>;
 };
 
+/** The subset of {@link ExplorerSettings} that is presentation, not per-file workspace content. */
+export type VaultAppearanceExplorerSettings = Pick<
+  ExplorerSettings,
+  | "confirmDragMove"
+  | "showHiddenEverend"
+  | "folderNotesEnabled"
+  | "showImagesInAllFiles"
+  | "activeSection"
+>;
+
+/**
+ * The slice of {@link AppSettingsV4} that represents how a universe looks and
+ * behaves rather than machine-local state (recent lists, open tabs, AI advisor
+ * network endpoints). Persisted inside the vault itself so opening the same
+ * universe anywhere reproduces the same style.
+ */
+export type VaultAppearanceSettings = {
+  version: 1;
+  theme: ThemeId;
+  editor: EditorSettings;
+  explorer: VaultAppearanceExplorerSettings;
+  graph: GraphSettings;
+  plugins: PluginSettings;
+  aiAdvisor: AiAdvisorSettings;
+  keybindings: Keybinding[];
+};
+
 export type CommandPaletteMode = "files" | "commands" | "headers" | "tags";
 
 export type CommandPaletteResultBase = {

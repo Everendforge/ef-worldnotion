@@ -5950,6 +5950,56 @@ button:hover:not(:disabled),
   cursor: not-allowed;
 }
 
+.inherit-appearance-dialog {
+  max-width: 440px;
+}
+
+.inherit-appearance-dialog p {
+  margin: 0 0 12px;
+  color: var(--wn-text-secondary);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.inherit-appearance-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.inherit-appearance-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--wn-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.inherit-appearance-option:hover {
+  background: var(--wn-panel-2);
+}
+
+.inherit-appearance-option.selected {
+  border-color: var(--wn-accent);
+  background: var(--wn-accent-soft);
+}
+
+.inherit-appearance-option input[type="radio"] {
+  margin: 0;
+}
+
+.inherit-appearance-option span {
+  overflow: hidden;
+  font-size: 0.86rem;
+  color: var(--wn-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .image-preview-dialog {
   width: min(900px, calc(100vw - 32px));
   max-width: 900px;
