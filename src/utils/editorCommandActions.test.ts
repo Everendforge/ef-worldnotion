@@ -4,12 +4,12 @@ import { editorCommandAction, nativeMenuEditorCommand } from "./editorCommandAct
 
 describe("editor command actions", () => {
   it("maps formatting commands to declarative actions", () => {
-    expect(editorCommandAction("bold")).toEqual({ type: "wrapSelection", before: "**" });
-    expect(editorCommandAction("inlineCode")).toEqual({
-      type: "wrapSelection",
-      before: "`",
-      after: "`",
-      placeholder: "code",
+    expect(editorCommandAction("bold")).toEqual({ type: "inlineFormat", format: "bold" });
+    expect(editorCommandAction("italic")).toEqual({ type: "inlineFormat", format: "italic" });
+    expect(editorCommandAction("inlineCode")).toEqual({ type: "inlineFormat", format: "code" });
+    expect(editorCommandAction("strikethrough")).toEqual({
+      type: "inlineFormat",
+      format: "strike",
     });
     expect(editorCommandAction("heading4")).toEqual({ type: "heading", level: 4 });
     expect(editorCommandAction("taskList")).toEqual({ type: "list", kind: "task" });

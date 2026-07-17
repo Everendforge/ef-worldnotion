@@ -24,6 +24,7 @@ export type EditorCommandId =
   | "bold"
   | "italic"
   | "inlineCode"
+  | "strikethrough"
   | "codeBlock"
   | "heading1"
   | "heading2"
@@ -652,6 +653,7 @@ export const EDITOR_COMMANDS: EditorCommand[] = [
   { id: "bold", label: "Bold", group: "format", defaultShortcut: "Mod+B" },
   { id: "italic", label: "Italic", group: "format", defaultShortcut: "Mod+I" },
   { id: "inlineCode", label: "Inline Code", group: "format", defaultShortcut: "Mod+E" },
+  { id: "strikethrough", label: "Strikethrough", group: "format", defaultShortcut: "Mod+Shift+X" },
   { id: "codeBlock", label: "Code Block", group: "format", defaultShortcut: "Mod+Shift+C" },
   { id: "heading1", label: "Heading 1", group: "format", defaultShortcut: "Mod+Alt+1" },
   { id: "heading2", label: "Heading 2", group: "format", defaultShortcut: "Mod+Alt+2" },

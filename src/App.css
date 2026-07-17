@@ -3017,6 +3017,13 @@ button:hover:not(:disabled),
   background: var(--wn-accent-soft);
 }
 
+.floating-format-toolbar-fixed button.active,
+.floating-format-toolbar-selection button.active {
+  border-color: var(--wn-accent);
+  background: var(--wn-accent-soft);
+  color: var(--wn-accent);
+}
+
 /* Font Selector Styles */
 .font-selector {
   position: relative;
@@ -3730,98 +3737,161 @@ button:hover:not(:disabled),
   color: var(--wn-editor-text);
 }
 
-.structure-actions-menu {
+/* Notion-style unified panel for advanced formats (wikilinks, links, images…) */
+.format-panel {
   position: fixed;
   z-index: 72;
   display: grid;
-  min-width: 220px;
-  max-width: min(320px, calc(100vw - 24px));
-  gap: 2px;
-  padding: 7px;
+  gap: 10px;
+  width: min(300px, calc(100vw - 24px));
+  padding: 12px;
   border: 1px solid var(--wn-border);
-  border-radius: 9px;
+  border-radius: 12px;
   background: var(--wn-panel);
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.26);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
 }
 
-.structure-actions-title {
-  overflow: hidden;
-  padding: 4px 6px 7px;
-  color: var(--wn-muted);
-  font-size: 0.76rem;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.structure-actions-menu button {
-  min-height: 32px;
-  border-color: transparent;
-  background: transparent;
-  text-align: left;
-}
-
-.structure-actions-menu button:hover,
-.structure-actions-menu button:focus-visible {
-  background: var(--wn-accent-soft);
-  outline: none;
-}
-
-.structure-actions-form {
-  display: grid;
+.format-panel-head {
+  display: flex;
+  align-items: center;
   gap: 7px;
+  color: var(--wn-muted);
 }
 
-.structure-actions-form label {
+.format-panel-kind {
+  flex: 1;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.format-panel-status {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.format-panel-status.is-found {
+  background: color-mix(in srgb, var(--wn-accent) 16%, transparent);
+  color: var(--wn-accent);
+}
+
+.format-panel-status.is-new {
+  background: var(--wn-panel-2);
+  color: var(--wn-muted);
+}
+
+.format-panel-fields {
+  display: grid;
+  gap: 8px;
+}
+
+.format-panel-fields label {
   display: grid;
   gap: 4px;
   color: var(--wn-muted);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
+  font-weight: 500;
 }
 
-.structure-actions-form input {
+.format-panel-fields input[type="text"],
+.format-panel-fields input:not([type]) {
   min-width: 0;
-  padding: 7px;
+  padding: 7px 9px;
   border: 1px solid var(--wn-border);
-  border-radius: 5px;
+  border-radius: 7px;
   background: var(--wn-editor-bg);
   color: var(--wn-editor-text);
+  font-size: 0.86rem;
 }
 
-.structure-actions-image-controls {
-  display: grid;
-  gap: 7px;
-  padding-top: 3px;
+.format-panel-fields input:focus-visible {
+  outline: none;
+  border-color: var(--wn-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--wn-accent) 25%, transparent);
 }
 
-.structure-actions-image-controls label {
-  display: grid;
+.format-panel-slider {
   grid-template-columns: 1fr auto;
-  gap: 4px 8px;
-  color: var(--wn-muted);
-  font-size: 0.78rem;
+  align-items: center;
 }
 
-.structure-actions-image-controls input[type="range"] {
+.format-panel-slider output {
+  color: var(--wn-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.format-panel-slider input[type="range"] {
   grid-column: 1 / -1;
   width: 100%;
   accent-color: var(--wn-accent);
 }
 
-.structure-actions-image-align {
+.format-panel-segmented {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--wn-panel-2);
+}
+
+.format-panel-segmented button {
+  padding: 5px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--wn-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+}
+
+.format-panel-segmented button:hover {
+  color: var(--wn-text);
+}
+
+.format-panel-segmented button.active {
+  background: var(--wn-panel);
+  color: var(--wn-accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.format-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
   gap: 4px;
 }
 
-.structure-actions-image-align button {
-  padding: 4px 6px;
-  text-align: center;
+.format-panel-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--wn-text);
+  font-size: 0.8rem;
+  cursor: pointer;
 }
 
-.structure-actions-image-align button.active {
+.format-panel-chip:hover,
+.format-panel-chip:focus-visible {
   background: var(--wn-accent-soft);
-  color: var(--wn-accent);
+  outline: none;
+}
+
+.format-panel-chip.danger {
+  color: #c05555;
+}
+
+.format-panel-chip.danger:hover,
+.format-panel-chip.danger:focus-visible {
+  background: color-mix(in srgb, #c05555 14%, transparent);
 }
 
 .editor-surface textarea {
@@ -4622,6 +4692,101 @@ button:hover:not(:disabled),
   text-underline-offset: 2px;
 }
 
+.cm-md-strike {
+  color: var(--wn-muted);
+  text-decoration: line-through;
+}
+
+.cm-md-hr {
+  display: inline-block;
+  width: 100%;
+  height: 2px;
+  vertical-align: middle;
+  border-radius: 1px;
+  background: var(--wn-border);
+}
+
+.cm-list-marker-task {
+  cursor: pointer;
+}
+
+.cm-list-marker-task:hover {
+  color: var(--wn-accent);
+}
+
+.cm-md-codeblock-line {
+  background: var(--wn-panel-2);
+  padding-left: 12px;
+  padding-right: 12px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.cm-md-codeblock-first {
+  position: relative;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  padding-top: 6px;
+}
+
+.cm-md-codeblock-last {
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  padding-bottom: 6px;
+}
+
+.cm-md-code-lang {
+  color: var(--wn-accent);
+  font-size: 0.82em;
+  font-weight: 600;
+}
+
+.cm-code-copy {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  padding: 1px 8px;
+  border: 1px solid var(--wn-border);
+  border-radius: 5px;
+  background: var(--wn-panel);
+  color: var(--wn-muted);
+  font-size: 0.72rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.cm-md-codeblock-line:hover .cm-code-copy,
+.cm-code-copy:focus-visible {
+  opacity: 1;
+}
+
+.cm-code-copy:hover {
+  color: var(--wn-accent);
+  border-color: var(--wn-accent);
+}
+
+.cm-link-hover {
+  padding: 4px 6px;
+  border: 1px solid var(--wn-border);
+  border-radius: 6px;
+  background: var(--wn-panel);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.cm-link-hover-open {
+  max-width: 340px;
+  overflow: hidden;
+  border: none;
+  background: transparent;
+  color: var(--wn-accent);
+  font-size: 0.8rem;
+  text-decoration: underline;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
 .cm-md-wikilink-target {
   color: var(--wn-muted);
   opacity: 0.5;
@@ -4835,6 +5000,50 @@ button:hover:not(:disabled),
   background: var(--wn-card);
   color: var(--wn-text);
   font-weight: 650;
+}
+
+.cm-table-editable {
+  position: relative;
+}
+
+.cm-table-editable th:focus,
+.cm-table-editable td:focus {
+  outline: 2px solid var(--wn-accent);
+  outline-offset: -2px;
+  background: var(--wn-accent-soft);
+}
+
+.cm-table-add {
+  position: absolute;
+  padding: 1px 8px;
+  border: 1px solid var(--wn-border);
+  border-radius: 5px;
+  background: var(--wn-panel);
+  color: var(--wn-muted);
+  font-size: 0.72rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.cm-table-editable:hover .cm-table-add,
+.cm-table-add:focus-visible {
+  opacity: 1;
+}
+
+.cm-table-add:hover {
+  color: var(--wn-accent);
+  border-color: var(--wn-accent);
+}
+
+.cm-table-add-row {
+  bottom: 4px;
+  left: 8px;
+}
+
+.cm-table-add-col {
+  top: 4px;
+  right: 8px;
 }
 
 .settings-backdrop {
@@ -11863,6 +12072,21 @@ select.property-field-control {
   opacity: 0.5;
 }
 
+.property-row-wrapper.drop-target {
+  position: relative;
+}
+
+.property-row-wrapper.drop-target::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--wn-accent);
+}
+
 .property-row-wrapper.property-row-hidden-in-type {
   opacity: 0.55;
 }
@@ -12573,6 +12797,23 @@ select.property-field-control {
   background: var(--wn-accent-soft);
 }
 
+.picker-popover-actions {
+  display: grid;
+  gap: 1px;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--wn-border);
+}
+
+.picker-popover-action {
+  color: var(--wn-accent);
+  cursor: pointer;
+}
+
+.picker-popover-action:hover {
+  background: var(--wn-accent-soft);
+}
+
 .picker-popover-icon {
   display: inline-flex;
   flex-shrink: 0;
@@ -12640,12 +12881,67 @@ select.property-field-control {
 .entity-ref-field,
 .file-field,
 .entity-ref-list-field,
-.image-field-controls {
-  display: flex;
+.image-field-empty {
+  display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
+  gap: 7px;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px dashed var(--wn-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--wn-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.image-field-empty:hover:not(:disabled) {
+  border-color: var(--wn-accent);
+  color: var(--wn-text);
+}
+
+.image-field-empty:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.image-field-actions {
+  display: flex;
   gap: 4px;
-  min-width: 0;
+}
+
+.image-field-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid var(--wn-border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--wn-text);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.image-field-action:hover:not(:disabled) {
+  border-color: var(--wn-accent);
+  background: var(--wn-accent-soft);
+}
+
+.image-field-action:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.image-field-action-danger {
+  color: #c05555;
+}
+
+.image-field-action-danger:hover:not(:disabled) {
+  border-color: #c05555;
+  background: color-mix(in srgb, #c05555 12%, transparent);
 }
 
 .entity-ref-chip {
@@ -12678,30 +12974,6 @@ select.property-field-control {
   border-color: color-mix(in srgb, var(--wn-danger) 55%, transparent);
   background: color-mix(in srgb, var(--wn-danger) 10%, transparent);
   color: var(--wn-danger);
-}
-
-.image-field-upload {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 22px;
-  padding: 1px 7px;
-  border: 1px solid var(--wn-border);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--wn-muted);
-  font: inherit;
-  font-size: 0.74rem;
-}
-
-.image-field-upload:hover:not(:disabled) {
-  border-color: var(--wn-accent);
-  color: var(--wn-text);
-}
-
-.image-field-upload:disabled {
-  cursor: wait;
-  opacity: 0.6;
 }
 
 .entity-ref-chip-label {
@@ -12740,6 +13012,67 @@ select.property-field-control {
   width: 22px;
   height: 22px;
   border: 1px dashed var(--wn-border);
+}
+
+.entity-ref-variant-selector {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--wn-muted);
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+}
+
+.entity-ref-variant-selector:hover {
+  background: var(--wn-panel-hover);
+  color: var(--wn-text);
+}
+
+.entity-ref-variant-selector:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.entity-ref-variant-menu {
+  min-width: 200px;
+  background: var(--wn-panel);
+  border: 1px solid var(--wn-border);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  overflow: hidden;
+  display: none;
+}
+
+.entity-ref-variant-menu.open {
+  display: block;
+}
+
+.entity-ref-variant-option {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--wn-text);
+  text-align: left;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.entity-ref-variant-option:hover {
+  background-color: var(--wn-panel-hover);
+}
+
+.entity-ref-variant-option.selected {
+  background-color: color-mix(in srgb, var(--wn-accent) 20%, transparent);
+  font-weight: 500;
 }
 
 .image-field {

@@ -51,7 +51,7 @@ export function readNoteVariants(frontmatter: Record<string, unknown>): NoteVari
       if (record) result[id] = record;
     });
   }
-  result[BASE_VARIANT_ID] = { label: result[BASE_VARIANT_ID]?.label || "Base" };
+  result[BASE_VARIANT_ID] = { label: result[BASE_VARIANT_ID]?.label || "Base variant" };
   return result;
 }
 

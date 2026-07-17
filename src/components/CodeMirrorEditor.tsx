@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, useRef, useEffect } from "react";
 import CodeMirror from "@uiw/react-codemirror";
-import { markdown } from "@codemirror/lang-markdown";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorState as CodeMirrorState, Prec } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView, keymap } from "@codemirror/view";
@@ -36,6 +36,8 @@ import { isImagePath } from "../utils/vaultImages";
 import { tableInsertion } from "../utils/markdownEditing";
 import { structureAt, type StructuredElement } from "../utils/structuredMarkdown";
 import { paragraphSpacingExtension } from "../utils/paragraphSpacing";
+import { exitEmptyBlockLine, toggleInlineFormat } from "../utils/formatCommands";
+import { linkHoverTooltip } from "./linkHoverTooltip";
 
 function imageFilesFromTransfer(data: DataTransfer | null): File[] {
   if (!data) return [];
@@ -644,95 +646,11 @@ export function CodeMirrorEditor({
     return indent + "> ";
   }
 
-  // Smart markdown helpers for bold/italic toggling
-  function toggleMarkdownFormat(view: EditorView, marker: string): boolean {
-    if (mode !== "write") return false;
-
-    const selection = view.state.selection.main;
-    if (selection.empty) return false; // No selection, do nothing
-
-    const selectedText = view.state.doc.sliceString(selection.from, selection.to);
-    const doubleMarker = marker + marker;
-
-    // Check if text is already wrapped in markers
-    if (selectedText.startsWith(doubleMarker) && selectedText.endsWith(doubleMarker)) {
-      // Remove markers
-      const unwrapped = selectedText.slice(doubleMarker.length, -doubleMarker.length);
-      view.dispatch({
-        changes: { from: selection.from, to: selection.to, insert: unwrapped },
-        selection: { anchor: selection.from, head: selection.from + unwrapped.length },
-      });
-      return true;
-    } else {
-      // Add markers
-      const wrapped = doubleMarker + selectedText + doubleMarker;
-      view.dispatch({
-        changes: { from: selection.from, to: selection.to, insert: wrapped },
-        selection: {
-          anchor: selection.from + doubleMarker.length,
-          head: selection.from + doubleMarker.length + selectedText.length,
-        },
-      });
-      return true;
-    }
-  }
-
-  // Check if selection is inside or adjacent to special markdown syntax
-  const isSelectionInSpecialSyntax = useCallback(
-    (view: EditorView, from: number, to: number): boolean => {
-      // Get the line containing the selection
-      const lineFrom = view.state.doc.lineAt(from);
-      const lineTo = view.state.doc.lineAt(to);
-
-      // If selection spans multiple lines, allow toolbar
-      if (lineFrom.number !== lineTo.number) {
-        return false;
-      }
-
-      const lineText = lineFrom.text;
-      const selStart = from - lineFrom.from;
-      const selEnd = to - lineFrom.from;
-
-      // Check for wikilinks [[...]]
-      const wikilinkRegex = /\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g;
-      let match: RegExpExecArray | null;
-      while ((match = wikilinkRegex.exec(lineText)) !== null) {
-        const matchStart = match.index;
-        const matchEnd = matchStart + match[0].length;
-
-        // Check if selection overlaps or is adjacent to wikilink
-        if (selStart <= matchEnd && selEnd >= matchStart) {
-          return true;
-        }
-      }
-
-      // Check for inline code `...`
-      const codeRegex = /`[^`]+`/g;
-      while ((match = codeRegex.exec(lineText)) !== null) {
-        const matchStart = match.index;
-        const matchEnd = matchStart + match[0].length;
-
-        if (selStart <= matchEnd && selEnd >= matchStart) {
-          return true;
-        }
-      }
-
-      return false;
-    },
-    [],
-  );
-
   // Simple selection rect calculation
   const handleSelectionChange = useCallback(
     (view: EditorView) => {
       const selection = view.state.selection.main;
       if (selection.empty) {
-        onSelectionChange?.(undefined);
-        return;
-      }
-
-      // Don't show toolbar if selection is inside special syntax
-      if (isSelectionInSpecialSyntax(view, selection.from, selection.to)) {
         onSelectionChange?.(undefined);
         return;
       }
@@ -753,7 +671,7 @@ export function CodeMirrorEditor({
       const rect = new DOMRect(left, top, right - left, bottom - top);
       onSelectionChange?.(rect);
     },
-    [onSelectionChange, isSelectionInSpecialSyntax],
+    [onSelectionChange],
   );
 
   return (
@@ -767,7 +685,9 @@ export function CodeMirrorEditor({
         }}
         theme={isDarkTheme(theme) ? oneDark : undefined}
         extensions={[
-          markdown(),
+          // GFM base so the syntax tree carries Task, Table, and Strikethrough
+          // nodes — the processed-mode decorations are built from that tree.
+          markdown({ base: markdownLanguage }),
           ...(mode === "write" && activeVariantId
             ? [
                 createVariantContentPlugin(
@@ -815,6 +735,7 @@ export function CodeMirrorEditor({
             ? [tablePlugin()]
             : []),
           ...(processedWriting ? [markdownSyntaxPlugin] : []),
+          ...(mode === "write" && onOpenUrl ? [linkHoverTooltip(onOpenUrl)] : []),
           ...(mode === "write" ? [paragraphSpacingExtension()] : []),
           ...(processedWriting && isPluginEnabled(pluginSettings, "font-family-rendering")
             ? [fontFamilyPlugin]
@@ -843,30 +764,9 @@ export function CodeMirrorEditor({
                     showVisualWikilinkPicker(view, start);
                     return true;
                   }
-                  if (text === "**" || (text === "*" && previous === "*")) {
-                    const start = text === "**" ? from : from - 1;
-                    const placeholder = "bold text";
-                    const replacement = `**${placeholder}**`;
-                    view.dispatch({
-                      changes: { from: start, to, insert: replacement },
-                      selection: { anchor: start + 2, head: start + 2 + placeholder.length },
-                    });
-                    return true;
-                  }
-                  if (text === " ") {
-                    const line = view.state.doc.lineAt(from);
-                    if (view.state.doc.sliceString(line.from, from) === "#") {
-                      const placeholder = "Heading";
-                      view.dispatch({
-                        changes: { from: line.from, to, insert: `# ${placeholder}` },
-                        selection: {
-                          anchor: line.from + 2,
-                          head: line.from + 2 + placeholder.length,
-                        },
-                      });
-                      return true;
-                    }
-                  }
+                  // Typing markdown markers (**, #, -, >) is left alone: the
+                  // live-preview decorations style the result as you type, so
+                  // placeholder insertion would only fight the writer.
                   return false;
                 }),
               ]
@@ -951,6 +851,9 @@ export function CodeMirrorEditor({
                   const selection = view.state.selection.main;
                   const line = view.state.doc.lineAt(selection.from);
 
+                  // An empty list item or quote line exits the block.
+                  if (exitEmptyBlockLine(view)) return true;
+
                   // Handle quotes: continue with > prefix
                   if (isInQuote(view)) {
                     const quotePrefix = getQuotePrefix(line.text);
@@ -1022,20 +925,29 @@ export function CodeMirrorEditor({
               {
                 key: "Cmd-b",
                 mac: "Cmd-b",
-                run: (view) => toggleMarkdownFormat(view, "*"),
+                run: (view) => mode === "write" && toggleInlineFormat(view, "bold"),
               },
               {
                 key: "Ctrl-b",
-                run: (view) => toggleMarkdownFormat(view, "*"),
+                run: (view) => mode === "write" && toggleInlineFormat(view, "bold"),
               },
               {
                 key: "Cmd-i",
                 mac: "Cmd-i",
-                run: (view) => toggleMarkdownFormat(view, "_"),
+                run: (view) => mode === "write" && toggleInlineFormat(view, "italic"),
               },
               {
                 key: "Ctrl-i",
-                run: (view) => toggleMarkdownFormat(view, "_"),
+                run: (view) => mode === "write" && toggleInlineFormat(view, "italic"),
+              },
+              {
+                key: "Cmd-Shift-x",
+                mac: "Cmd-Shift-x",
+                run: (view) => mode === "write" && toggleInlineFormat(view, "strike"),
+              },
+              {
+                key: "Ctrl-Shift-x",
+                run: (view) => mode === "write" && toggleInlineFormat(view, "strike"),
               },
             ]),
           ),
@@ -1170,6 +1082,7 @@ export function CodeMirrorEditor({
       {structureMenu ? (
         <StructureActionsMenu
           {...structureMenu}
+          resolveWikilink={resolveWikilink}
           onDismiss={() => setStructureMenu(undefined)}
           onReplace={replaceStructuredElement}
           onOpenSource={() => {

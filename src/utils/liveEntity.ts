@@ -24,10 +24,27 @@ function listFromFrontmatter(value: unknown, fallback: string[] = []): string[] 
   return fallback;
 }
 
+function extractVariants(data: Record<string, unknown>): import("../domain.js").Variant[] | undefined {
+  const raw = data.variants;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const variants: import("../domain.js").Variant[] = [];
+  Object.entries(raw).forEach(([id, value]) => {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const item = value as Record<string, unknown>;
+      const label = typeof item.label === "string" ? item.label.trim() : "";
+      if (label && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id)) {
+        variants.push({ id, label });
+      }
+    }
+  });
+  if (variants.length === 0) return undefined;
+  return variants;
+}
+
 function customPropertiesFromFrontmatter(data: Record<string, unknown>) {
   const customProperties: Record<string, unknown> = {};
   Object.entries(data).forEach(([key, value]) => {
-    if (!LIVE_ENTITY_BASE_FIELDS.has(key)) {
+    if (!LIVE_ENTITY_BASE_FIELDS.has(key) && key !== "variants") {
       customProperties[key] = value;
     }
   });
@@ -60,6 +77,7 @@ function liveEntityFromTab(index: VaultIndex | undefined, tab: OpenTab): Entity 
       parentId: typeof parsed.data.parentId === "string" ? parsed.data.parentId : undefined,
       childrenIds: listFromFrontmatter(parsed.data.childrenIds),
       folder: typeof parsed.data.folder === "string" ? parsed.data.folder : undefined,
+      variants: extractVariants(parsed.data),
       customProperties: customPropertiesFromFrontmatter(parsed.data),
       body: parsed.content,
       path: tab.path,
@@ -103,6 +121,7 @@ export function selectLiveEntity(
         typeof parsed.data.parentId === "string" ? parsed.data.parentId : indexEntity.parentId,
       childrenIds: listFromFrontmatter(parsed.data.childrenIds, indexEntity.childrenIds),
       folder: typeof parsed.data.folder === "string" ? parsed.data.folder : indexEntity.folder,
+      variants: extractVariants(parsed.data),
       customProperties: customPropertiesFromFrontmatter(parsed.data),
       body: parsed.content,
       wikilinks: extractWikilinks(parsed.content),

@@ -117,6 +117,11 @@ export type ValidationFinding = {
   suggestion?: string;
 };
 
+export type Variant = {
+  id: string;
+  label: string;
+};
+
 export type Entity = {
   id: string;
   type: string;
@@ -127,6 +132,7 @@ export type Entity = {
   parentId?: string;
   childrenIds: string[];
   folder?: string; // Folder name if this is a folder description note
+  variants?: Variant[]; // Available variants from frontmatter
   customProperties: Record<string, unknown>;
   body: string;
   path: string;

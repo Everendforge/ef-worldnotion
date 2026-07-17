@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -55,9 +56,11 @@ export function PropertyRow({
   handlers,
 }: PropertyRowProps) {
   const property = node.property as PropertyLike;
+  const [isDropTarget, setIsDropTarget] = useState(false);
   const hasChildren = Boolean(node.children.length);
   const isGroup = property.type === "group";
   const isCollapsed = collapsedGroups.has(property.id);
+  const isDragging = draggedPropertyId === property.id;
   const canOverride = handlers.isVariantMode && handlers.canOverride?.(property.id);
   const overridden = handlers.isOverridden?.(property.id);
   const isReadOnly = Boolean(
@@ -93,12 +96,30 @@ export function PropertyRow({
     );
   }
 
+  const canDrop = Boolean(draggedPropertyId) && !isDragging;
+
   return (
     <div
-      className={`property-row-wrapper ${draggedPropertyId === property.id ? "dragging" : ""} ${!node.visibleInType ? "property-row-hidden-in-type" : ""}`}
-      onDragOver={(event) => event.preventDefault()}
+      className={`property-row-wrapper ${isDragging ? "dragging" : ""} ${isDropTarget ? "drop-target" : ""} ${!node.visibleInType ? "property-row-hidden-in-type" : ""}`}
+      onDragOver={(event) => {
+        if (!canDrop) return;
+        // Only the innermost row under the pointer highlights, so nested group
+        // children don't light up their parent too.
+        event.stopPropagation();
+        // preventDefault marks this as a valid drop zone; without it the
+        // browser rejects the drop and no `drop` event fires.
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        if (!isDropTarget) setIsDropTarget(true);
+      }}
+      onDragLeave={(event) => {
+        // Ignore leave events fired while moving onto a descendant row.
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        setIsDropTarget(false);
+      }}
       onDrop={(event) => {
         event.stopPropagation();
+        setIsDropTarget(false);
         handlers.onDrop(property.id);
       }}
     >
@@ -110,7 +131,13 @@ export function PropertyRow({
           type="button"
           className="property-row-handle"
           draggable
-          onDragStart={() => handlers.onDragStart(property.id)}
+          onDragStart={(event) => {
+            // Populating dataTransfer is what actually starts a native drag in
+            // WebKit/Tauri and Firefox; without it the row never lifts.
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", property.id);
+            handlers.onDragStart(property.id);
+          }}
           onDragEnd={handlers.onDragEnd}
           title="Drag to reorder"
           aria-label={`Reorder ${property.label || property.id}`}

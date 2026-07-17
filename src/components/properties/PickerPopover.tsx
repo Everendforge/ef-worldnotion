@@ -12,6 +12,14 @@ export type PickerItem = {
   keywords?: string[];
 };
 
+/** A pinned command shown above the search results (e.g. "Upload from computer"). */
+export type PickerAction = {
+  id: string;
+  label: string;
+  icon?: ReactNode;
+  onSelect: () => void;
+};
+
 export type PickerPopoverProps = {
   open: boolean;
   anchorRef: RefObject<HTMLElement | null>;
@@ -24,6 +32,8 @@ export type PickerPopoverProps = {
   onCreate?: (query: string) => void;
   createLabel?: (query: string) => string;
   maxResults?: number;
+  /** Pinned actions rendered above the results, always visible regardless of query. */
+  actions?: PickerAction[];
 };
 
 const FUSE_OPTIONS: IFuseOptions<PickerItem> = {
@@ -51,6 +61,7 @@ export function PickerPopover({
   onCreate,
   createLabel,
   maxResults = 50,
+  actions,
 }: PickerPopoverProps) {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -172,6 +183,24 @@ export function PickerPopover({
         aria-label={placeholder}
       />
       <div ref={listRef} className="picker-popover-list" role="listbox">
+        {actions?.length ? (
+          <div className="picker-popover-actions">
+            {actions.map((action) => (
+              <button
+                key={action.id}
+                type="button"
+                className="picker-popover-item picker-popover-action"
+                onClick={() => {
+                  action.onSelect();
+                  onClose();
+                }}
+              >
+                {action.icon ? <span className="picker-popover-icon">{action.icon}</span> : null}
+                <span className="picker-popover-label">{action.label}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
         {results.map((item, index) => (
           <button
             key={item.id}

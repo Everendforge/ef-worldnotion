@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { CustomFieldDefinition } from "../../../editorTypes";
 import { makeEntity, makeVaultIndex } from "../../../test/fixtures";
-import { EntityRefField, entityPickerItems } from "./EntityRefField";
+import { EntityRefField, entityPickerItems, parseEntityRef, buildEntityRef } from "./EntityRefField";
 import { EntityRefListField } from "./EntityRefListField";
 
 const refProperty: CustomFieldDefinition = {
@@ -82,6 +82,43 @@ describe("EntityRefField", () => {
 
     fireEvent.click(screen.getByTitle("Open Iron Keep"));
     expect(onOpenEntity).toHaveBeenCalledWith("Places/Iron.md");
+  });
+
+  it("displays variant in label when variant is selected", () => {
+    const index = makeVaultIndex({
+      entities: [
+        makeEntity({
+          id: "iron-keep",
+          type: "location",
+          name: "Iron Keep",
+          path: "Places/Iron.md",
+          variants: [{ id: "ancient", label: "Ancient" }],
+        }),
+      ],
+    });
+    
+    render(
+      <EntityRefField
+        property={refProperty}
+        value="iron-keep@ancient"
+        onChange={vi.fn()}
+        vaultIndex={index}
+      />,
+    );
+
+    expect(screen.getByText(/Iron Keep @ Ancient/)).toBeInTheDocument();
+  });
+});
+
+describe("Entity reference parsing", () => {
+  it("parseEntityRef splits entity-id@variant-id format", () => {
+    expect(parseEntityRef("mara@older")).toEqual({ entityId: "mara", variantId: "older" });
+    expect(parseEntityRef("mara")).toEqual({ entityId: "mara", variantId: undefined });
+  });
+
+  it("buildEntityRef constructs the reference format", () => {
+    expect(buildEntityRef("mara")).toBe("mara");
+    expect(buildEntityRef("mara", "older")).toBe("mara@older");
   });
 });
 

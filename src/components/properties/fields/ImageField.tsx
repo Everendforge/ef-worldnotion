@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from "react";
-import { Image, ImagePlus, X } from "lucide-react";
+import { ImagePlus, RefreshCw, Trash2 } from "lucide-react";
 import type { VaultIndex } from "../../../domain";
 import { isImagePath, useVaultImage } from "../../../utils/vaultImages";
-import { PickerPopover } from "../PickerPopover";
+import { PickerPopover, type PickerAction } from "../PickerPopover";
 import { filePickerItems } from "./FileField";
 
 export type ImageFieldProps = {
@@ -17,6 +17,10 @@ export type ImageFieldProps = {
  * Image reference picked from the vault or imported from the computer, with
  * an inline preview (Tauri reads the file via read_file_base64; browser mode
  * uses the directory handle). Stored value is always the vault-relative path.
+ *
+ * Empty: a single "Pick image" button opening a unified picker (vault search +
+ * an "Upload from computer" action). Chosen: the preview plus two clear
+ * actions — Replace and Remove.
  */
 export function ImageField({
   value,
@@ -28,7 +32,8 @@ export function ImageField({
   const [open, setOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
-  const anchorRef = useRef<HTMLButtonElement>(null);
+  const pickButtonRef = useRef<HTMLButtonElement>(null);
+  const replaceButtonRef = useRef<HTMLButtonElement>(null);
   const stringValue = typeof value === "string" ? value : "";
   const items = useMemo(() => filePickerItems(vaultIndex, isImagePath), [vaultIndex]);
   const { url, error } = useVaultImage(vaultIndex, stringValue);
@@ -50,49 +55,66 @@ export function ImageField({
     }
   };
 
+  const pickerActions: PickerAction[] =
+    onRequestImage && !readOnly
+      ? [
+          {
+            id: "upload",
+            label: "Upload from computer",
+            icon: <ImagePlus size={13} aria-hidden="true" />,
+            onSelect: () => void uploadImage(),
+          },
+        ]
+      : [];
+
+  const anchorRef = stringValue ? replaceButtonRef : pickButtonRef;
+
   return (
     <div className="image-field">
-      <div className="image-field-controls">
+      {stringValue ? (
+        <>
+          {url ? (
+            <div className="image-field-preview">
+              <img src={url} alt={stringValue} />
+            </div>
+          ) : null}
+          {!readOnly ? (
+            <div className="image-field-actions">
+              <button
+                ref={replaceButtonRef}
+                type="button"
+                className="image-field-action"
+                onClick={() => setOpen((current) => !current)}
+                disabled={uploading}
+                title={stringValue}
+              >
+                <RefreshCw size={13} aria-hidden="true" />
+                {uploading ? "Uploading…" : "Replace"}
+              </button>
+              <button
+                type="button"
+                className="image-field-action image-field-action-danger"
+                onClick={() => onChange("")}
+                title="Remove image"
+              >
+                <Trash2 size={13} aria-hidden="true" />
+                Remove
+              </button>
+            </div>
+          ) : null}
+        </>
+      ) : (
         <button
-          ref={anchorRef}
+          ref={pickButtonRef}
           type="button"
-          className={`entity-ref-chip ${stringValue ? "" : "entity-ref-empty"}`}
+          className="image-field-empty"
           onClick={() => !readOnly && setOpen((current) => !current)}
-          disabled={readOnly}
-          title={stringValue || "Pick an image from the vault"}
+          disabled={readOnly || uploading}
         >
-          <Image size={12} aria-hidden="true" />
-          <span className="entity-ref-chip-label">{stringValue || "Pick image…"}</span>
+          <ImagePlus size={15} aria-hidden="true" />
+          <span>{uploading ? "Uploading…" : "Pick image"}</span>
         </button>
-        {onRequestImage && !readOnly ? (
-          <button
-            type="button"
-            className="image-field-upload"
-            onClick={() => void uploadImage()}
-            disabled={uploading}
-            title="Upload image from computer"
-            aria-label="Upload image from computer"
-          >
-            <ImagePlus size={12} aria-hidden="true" />
-            {uploading ? "Uploading…" : "Upload"}
-          </button>
-        ) : null}
-        {stringValue && !readOnly ? (
-          <button
-            type="button"
-            className="entity-ref-action"
-            onClick={() => onChange("")}
-            title="Clear image"
-          >
-            <X size={12} />
-          </button>
-        ) : null}
-      </div>
-      {url ? (
-        <div className="image-field-preview">
-          <img src={url} alt={stringValue} />
-        </div>
-      ) : null}
+      )}
       {stringValue && error ? <div className="image-field-error">{error}</div> : null}
       {uploadError ? (
         <div className="image-field-error" role="alert">
@@ -103,6 +125,7 @@ export function ImageField({
         open={open}
         anchorRef={anchorRef}
         items={items}
+        actions={pickerActions}
         placeholder="Search vault images…"
         emptyLabel="No images in vault"
         onSelect={(item) => onChange(item.id)}

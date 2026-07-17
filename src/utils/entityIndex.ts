@@ -1,5 +1,5 @@
 import type { TaxonomyConfig } from "../editorTypes";
-import type { Entity, ValidationFinding, VaultFile } from "../domain";
+import type { Entity, Variant, ValidationFinding, VaultFile } from "../domain";
 import { validateAgainstTaxonomy } from "./taxonomyValidation";
 import {
   extractWikilinks,
@@ -58,13 +58,30 @@ function createFinding(
   return { code, severity, message, file, field };
 }
 
+function extractVariants(data: Record<string, unknown>): Entity["variants"] {
+  const raw = data.variants;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const variants: Variant[] = [];
+  Object.entries(raw).forEach(([id, value]) => {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const item = value as Record<string, unknown>;
+      const label = typeof item.label === "string" ? item.label.trim() : "";
+      if (label && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id)) {
+        variants.push({ id, label });
+      }
+    }
+  });
+  if (variants.length === 0) return undefined;
+  return variants;
+}
+
 function entityFromMarkdown(file: VaultFile, parsed: ParsedMarkdown): Entity {
   const id = asString(parsed.data.id) || `missing-id:${file.relativePath}`;
   const type = asString(parsed.data.type) || "unknown";
   const name = asString(parsed.data.name) || basenameWithoutExtension(file.relativePath);
   const status = asString(parsed.data.status) || "unknown";
   const customProperties = Object.fromEntries(
-    Object.entries(parsed.data).filter(([key]) => !BASE_ENTITY_FIELDS.has(key)),
+    Object.entries(parsed.data).filter(([key]) => !BASE_ENTITY_FIELDS.has(key) && key !== "variants"),
   );
 
   return {
@@ -77,6 +94,7 @@ function entityFromMarkdown(file: VaultFile, parsed: ParsedMarkdown): Entity {
     parentId: asString(parsed.data.parentId) || undefined,
     childrenIds: toStringArray(parsed.data.childrenIds),
     folder: asString(parsed.data.folder) || undefined,
+    variants: extractVariants(parsed.data),
     customProperties,
     body: parsed.content.trim(),
     path: file.relativePath,

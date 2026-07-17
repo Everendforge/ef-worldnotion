@@ -4,6 +4,7 @@ export type EditorCommandAction =
   | { type: "save" }
   | { type: "search" }
   | { type: "find"; direction: 1 | -1 }
+  | { type: "inlineFormat"; format: "bold" | "italic" | "code" | "strike" }
   | { type: "wrapSelection"; before: string; after?: string; placeholder?: string }
   | { type: "heading"; level: 1 | 2 | 3 | 4 | 5 | 6 }
   | { type: "blockquote" }
@@ -34,11 +35,13 @@ export function editorCommandAction(commandId: EditorCommandId): EditorCommandAc
     case "findPrevious":
       return { type: "find", direction: -1 };
     case "bold":
-      return { type: "wrapSelection", before: "**" };
+      return { type: "inlineFormat", format: "bold" };
     case "italic":
-      return { type: "wrapSelection", before: "*" };
+      return { type: "inlineFormat", format: "italic" };
     case "inlineCode":
-      return { type: "wrapSelection", before: "`", after: "`", placeholder: "code" };
+      return { type: "inlineFormat", format: "code" };
+    case "strikethrough":
+      return { type: "inlineFormat", format: "strike" };
     case "codeBlock":
       return { type: "wrapSelection", before: "```\n", after: "\n```", placeholder: "code" };
     case "heading1":

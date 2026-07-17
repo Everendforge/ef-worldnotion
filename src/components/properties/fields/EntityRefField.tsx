@@ -1,31 +1,15 @@
-import { useMemo, useRef, useState } from "react";
-import { ExternalLink, Link2, X } from "lucide-react";
-import type { Entity, VaultIndex } from "../../../domain";
+import { useMemo, useRef, useState, useEffect } from "react";
+import { ChevronDown, ExternalLink, Link2, X } from "lucide-react";
+import { autoUpdate, flip, offset, shift, useFloating } from "@floating-ui/react";
+import type { VaultIndex } from "../../../domain";
 import type { BasePropertyDefinition, CustomFieldDefinition } from "../../../editorTypes";
-import { PickerPopover, type PickerItem } from "../PickerPopover";
+import { PickerPopover } from "../PickerPopover";
+import { entityPickerItems, findEntityById, parseEntityRef, buildEntityRef } from "./EntityRefUtils";
+
+// Re-export for backward compatibility
+export { entityPickerItems, findEntityById, parseEntityRef, buildEntityRef } from "./EntityRefUtils";
 
 type PropertyLike = BasePropertyDefinition | CustomFieldDefinition;
-
-export function entityPickerItems(
-  vaultIndex: VaultIndex,
-  targetTypes: string[] | undefined,
-  excludeIds: Set<string> = new Set(),
-): PickerItem[] {
-  const allowedTypes = targetTypes?.length ? new Set(targetTypes) : null;
-  return vaultIndex.entities
-    .filter((entity) => entity.id && !excludeIds.has(entity.id))
-    .filter((entity) => !allowedTypes || allowedTypes.has(entity.type))
-    .map((entity) => ({
-      id: entity.id,
-      label: entity.name || entity.id,
-      sublabel: entity.type,
-      keywords: [entity.id, entity.path, ...entity.aliases],
-    }));
-}
-
-export function findEntityById(vaultIndex: VaultIndex, id: string): Entity | undefined {
-  return vaultIndex.entities.find((entity) => entity.id === id);
-}
 
 export type EntityRefFieldProps = {
   property: PropertyLike;
@@ -39,7 +23,7 @@ export type EntityRefFieldProps = {
 /**
  * Single entity reference: shows the resolved entity as a chip and picks a
  * replacement from a fuzzy popover filtered by the property's targetTypes.
- * The stored value is always the stable entity id (spec v0.1).
+ * Supports optional variant selection in format "entity-id@variant-id".
  */
 export function EntityRefField({
   property,
@@ -50,39 +34,76 @@ export function EntityRefField({
   onOpenEntity,
 }: EntityRefFieldProps) {
   const [open, setOpen] = useState(false);
+  const [variantOpen, setVariantOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement>(null);
+  const variantAnchorRef = useRef<HTMLButtonElement>(null);
+  const variantMenuRef = useRef<HTMLDivElement>(null);
+  
   const stringValue = typeof value === "string" ? value : "";
+  const { entityId, variantId } = parseEntityRef(stringValue);
+  
   const resolved = useMemo(
-    () => (stringValue ? findEntityById(vaultIndex, stringValue) : undefined),
-    [stringValue, vaultIndex],
+    () => (entityId ? findEntityById(vaultIndex, entityId) : undefined),
+    [entityId, vaultIndex],
   );
+  
   const items = useMemo(
     () => entityPickerItems(vaultIndex, property.targetTypes),
     [property.targetTypes, vaultIndex],
   );
+
+  const { refs: variantRefs, floatingStyles: variantFloatingStyles } = useFloating({
+    open: variantOpen,
+    placement: "bottom-start",
+    middleware: [
+      offset(4),
+      flip({ padding: 8 }),
+      shift({ padding: 8 }),
+    ],
+    whileElementsMounted: autoUpdate,
+  });
+
+  useEffect(() => {
+    variantRefs.setReference(variantAnchorRef.current);
+    variantRefs.setFloating(variantMenuRef.current);
+  }, [variantRefs, variantOpen]);
+  
+  const displayLabel = resolved ? `${resolved.name}${variantId ? ` @ ${resolved.variants?.find(v => v.id === variantId)?.label || variantId}` : ""}` : stringValue || "";
 
   return (
     <div className="entity-ref-field">
       <button
         ref={anchorRef}
         type="button"
-        className={`entity-ref-chip ${stringValue && !resolved ? "entity-ref-unresolved" : ""} ${stringValue ? "" : "entity-ref-empty"}`}
+        className={`entity-ref-chip ${entityId && !resolved ? "entity-ref-unresolved" : ""} ${entityId ? "" : "entity-ref-empty"}`}
         onClick={() => !readOnly && setOpen((current) => !current)}
         disabled={readOnly}
         title={
           resolved
             ? `${resolved.name} (${resolved.path})`
-            : stringValue
-              ? `Unresolved id: ${stringValue}`
+            : entityId
+              ? `Unresolved id: ${entityId}`
               : `Link a ${property.targetTypes?.join("/") || "entity"}`
         }
       >
         <Link2 size={12} aria-hidden="true" />
         <span className="entity-ref-chip-label">
-          {resolved?.name ?? stringValue ?? ""}
-          {!stringValue ? `Link ${property.targetTypes?.join("/") || "entity"}…` : null}
+          {displayLabel}
+          {!entityId ? `Link ${property.targetTypes?.join("/") || "entity"}…` : null}
         </span>
       </button>
+      {resolved && resolved.variants && resolved.variants.length > 0 ? (
+        <button
+          ref={variantAnchorRef}
+          type="button"
+          className="entity-ref-variant-selector"
+          onClick={() => !readOnly && setVariantOpen((current) => !current)}
+          disabled={readOnly}
+          title="Select variant"
+        >
+          <ChevronDown size={12} aria-hidden="true" />
+        </button>
+      ) : null}
       {resolved && onOpenEntity ? (
         <button
           type="button"
@@ -93,7 +114,7 @@ export function EntityRefField({
           <ExternalLink size={12} />
         </button>
       ) : null}
-      {stringValue && !readOnly ? (
+      {entityId && !readOnly ? (
         <button
           type="button"
           className="entity-ref-action"
@@ -109,9 +130,30 @@ export function EntityRefField({
         items={items}
         placeholder={`Search ${property.targetTypes?.join(", ") || "entities"}…`}
         emptyLabel="No matching entities"
-        onSelect={(item) => onChange(item.id)}
+        onSelect={(item) => onChange(buildEntityRef(item.id))}
         onClose={() => setOpen(false)}
       />
+      {resolved && resolved.variants && resolved.variants.length > 0 ? (
+        <div 
+          ref={variantMenuRef}
+          className={`entity-ref-variant-menu ${variantOpen ? "open" : ""}`}
+          style={variantFloatingStyles}
+        >
+          {resolved.variants.map((variant) => (
+            <button
+              key={variant.id}
+              type="button"
+              className={`entity-ref-variant-option ${variantId === variant.id ? "selected" : ""}`}
+              onClick={() => {
+                onChange(buildEntityRef(entityId, variant.id));
+                setVariantOpen(false);
+              }}
+            >
+              {variant.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

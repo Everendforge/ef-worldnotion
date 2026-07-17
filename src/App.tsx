@@ -24,6 +24,27 @@ import {
   Files,
   GitPullRequest,
   SlidersHorizontal,
+  Bold,
+  Italic,
+  Code,
+  Strikethrough,
+  Link2,
+  Brackets,
+  Table,
+  List,
+  ListOrdered,
+  ListTodo,
+  TextQuote,
+  Heading,
+  Heading1,
+  Heading2,
+  Heading3,
+  Heading4,
+  Heading5,
+  Heading6,
+  ArrowUpToLine,
+  ArrowDownToLine,
+  type LucideIcon,
 } from "lucide-react";
 import "./App.css";
 import forgeLogoOnDark from "./assets/everend-forge-logo-on-dark.png";
@@ -59,6 +80,7 @@ import {
   AppSettingsV4,
   EditorCommandId,
   FloatingFormatCommand,
+  EDITOR_COMMANDS,
   DockPanelKind,
   DockTabRef,
   NoteSuggestion,
@@ -189,8 +211,6 @@ import {
   entityToFrontmatterRaw,
   fontFamilyInsertion,
   footnoteInsertion,
-  headingLine,
-  listLine,
   markdownLinkInsertion,
   tableInsertion,
   wikilinkInsertion,
@@ -207,6 +227,14 @@ import {
   renamePathChange,
 } from "./utils/vaultOperations";
 import { editorCommandAction, nativeMenuEditorCommand } from "./utils/editorCommandActions";
+import {
+  activeFormats,
+  toggleHeadingLine,
+  toggleInlineFormat,
+  toggleListLine,
+  toggleQuoteLine,
+  type ActiveFormats,
+} from "./utils/formatCommands";
 import { profileForRecent, rememberUniverse, universeDisplayName } from "./utils/universeSession";
 import { isTauriRuntime, platformLabels, shortcutMatches } from "./utils/appEnvironment";
 import { indexCanonChangeSets, type IndexedCanonChangeSet } from "./utils/canonChangeSets";
@@ -326,37 +354,69 @@ type PointerDragItem = {
   active: boolean;
 };
 
-const FLOATING_FORMAT_COMMANDS: FloatingFormatCommand[] = [
-  { id: "bold", label: "B" },
-  { id: "italic", label: "I" },
-  { id: "inlineCode", label: "<>" },
-  { id: "link", label: "Link" },
-  { id: "wikilink", label: "[[]]" },
-  { id: "table", label: "Table" },
-  { id: "unorderedList", label: "List" },
-  { id: "blockquote", label: "Quote" },
-  { id: "spaceBefore", label: "↑ Espacio" },
-  { id: "spaceAfter", label: "Espacio ↓" },
+type ToolbarCommand = FloatingFormatCommand & {
+  icon: LucideIcon;
+  /** Reads whether the command's format is active at the current selection. */
+  isActive?: (formats: ActiveFormats) => boolean;
+};
+
+const TOOLBAR_INLINE_COMMANDS: ToolbarCommand[] = [
+  { id: "bold", label: "Bold", icon: Bold, isActive: (formats) => formats.bold },
+  { id: "italic", label: "Italic", icon: Italic, isActive: (formats) => formats.italic },
+  {
+    id: "strikethrough",
+    label: "Strikethrough",
+    icon: Strikethrough,
+    isActive: (formats) => formats.strike,
+  },
+  { id: "inlineCode", label: "Inline code", icon: Code, isActive: (formats) => formats.code },
+  { id: "link", label: "Link", icon: Link2 },
+  { id: "wikilink", label: "Wikilink", icon: Brackets },
 ];
 
-const FLOATING_SELECTION_COMMANDS: FloatingFormatCommand[] = [
-  { id: "bold", label: "B" },
-  { id: "italic", label: "I" },
-  { id: "inlineCode", label: "<>" },
-  { id: "link", label: "Link" },
-  { id: "wikilink", label: "[[]]" },
-  { id: "unorderedList", label: "List" },
-  { id: "blockquote", label: "Quote" },
+const TOOLBAR_BLOCK_COMMANDS: ToolbarCommand[] = [
+  {
+    id: "unorderedList",
+    label: "Bullet list",
+    icon: List,
+    isActive: (formats) => formats.list === "bullet",
+  },
+  {
+    id: "orderedList",
+    label: "Ordered list",
+    icon: ListOrdered,
+    isActive: (formats) => formats.list === "ordered",
+  },
+  {
+    id: "taskList",
+    label: "Task list",
+    icon: ListTodo,
+    isActive: (formats) => formats.list === "task",
+  },
+  { id: "blockquote", label: "Quote", icon: TextQuote, isActive: (formats) => formats.quote },
 ];
 
-const FLOATING_HEADING_COMMANDS: FloatingFormatCommand[] = [
-  { id: "heading1", label: "H1" },
-  { id: "heading2", label: "H2" },
-  { id: "heading3", label: "H3" },
-  { id: "heading4", label: "H4" },
-  { id: "heading5", label: "H5" },
-  { id: "heading6", label: "H6" },
+const TOOLBAR_FIXED_EXTRA_COMMANDS: ToolbarCommand[] = [
+  { id: "table", label: "Table", icon: Table },
+  { id: "spaceBefore", label: "Space above", icon: ArrowUpToLine },
+  { id: "spaceAfter", label: "Space below", icon: ArrowDownToLine },
 ];
+
+const TOOLBAR_HEADING_COMMANDS: ToolbarCommand[] = [
+  { id: "heading1", label: "Heading 1", icon: Heading1, isActive: (f) => f.headingLevel === 1 },
+  { id: "heading2", label: "Heading 2", icon: Heading2, isActive: (f) => f.headingLevel === 2 },
+  { id: "heading3", label: "Heading 3", icon: Heading3, isActive: (f) => f.headingLevel === 3 },
+  { id: "heading4", label: "Heading 4", icon: Heading4, isActive: (f) => f.headingLevel === 4 },
+  { id: "heading5", label: "Heading 5", icon: Heading5, isActive: (f) => f.headingLevel === 5 },
+  { id: "heading6", label: "Heading 6", icon: Heading6, isActive: (f) => f.headingLevel === 6 },
+];
+
+function shortcutHint(commandId: EditorCommandId): string | undefined {
+  const shortcut = EDITOR_COMMANDS.find((command) => command.id === commandId)?.defaultShortcut;
+  if (!shortcut) return undefined;
+  const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
+  return shortcut.replace("Mod", isMac ? "⌘" : "Ctrl").replace("Alt", isMac ? "⌥" : "Alt");
+}
 
 async function fileToBase64(file: File): Promise<string> {
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -443,6 +503,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   const [graphResetSignal, setGraphResetSignal] = useState(0);
   const [appZoom, setAppZoom] = useState(1);
   const [floatingToolbarRect, setFloatingToolbarRect] = useState<DOMRect>();
+  const [editorFormats, setEditorFormats] = useState<ActiveFormats>();
   const [templatesExpanded, setTemplatesExpanded] = useState(false);
   const [cursorLine, setCursorLine] = useState(0);
   const [unsavedDialogPath, setUnsavedDialogPath] = useState<string | null>(null);
@@ -2951,12 +3012,32 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     view.focus();
   }
 
+  function renderToolbarButton(command: ToolbarCommand) {
+    const Icon = command.icon;
+    const active = Boolean(editorFormats && command.isActive?.(editorFormats));
+    const hint = shortcutHint(command.id);
+    return (
+      <button
+        key={command.id}
+        type="button"
+        className={active ? "active" : undefined}
+        title={hint ? `${command.label} (${hint})` : command.label}
+        aria-label={command.label}
+        aria-pressed={active}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => executeCommand(command.id)}
+      >
+        <Icon size={14} />
+      </button>
+    );
+  }
+
   function applyHeading(level: 1 | 2 | 3 | 4 | 5 | 6) {
-    replaceCurrentLines((line) => headingLine(line, level));
+    replaceCurrentLines((line) => toggleHeadingLine(line, level));
   }
 
   function applyList(kind: "bullet" | "ordered" | "task") {
-    replaceCurrentLines((line, index) => listLine(line, index, kind));
+    replaceCurrentLines((line, index) => toggleListLine(line, index, kind));
   }
 
   function insertAtCursor(markdown: string) {
@@ -3282,15 +3363,31 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
           command(editorViewRef.current);
         }
         break;
+      case "inlineFormat":
+        if (editorViewRef.current) toggleInlineFormat(editorViewRef.current, action.format);
+        break;
       case "wrapSelection":
         replaceSelection(action.before, action.after, action.placeholder);
         break;
       case "heading":
         applyHeading(action.level);
         break;
-      case "blockquote":
-        replaceCurrentLines((line) => `> ${line.replace(/^>\s?/, "")}`);
+      case "blockquote": {
+        const view = editorViewRef.current;
+        if (!view) break;
+        const selection = view.state.selection.main;
+        const startLine = view.state.doc.lineAt(selection.from).number;
+        const endLine = view.state.doc.lineAt(selection.to).number;
+        let removing = true;
+        for (let lineNumber = startLine; lineNumber <= endLine; lineNumber += 1) {
+          if (!/^\s*>\s?/.test(view.state.doc.line(lineNumber).text)) {
+            removing = false;
+            break;
+          }
+        }
+        replaceCurrentLines((line) => toggleQuoteLine(line, removing));
         break;
+      }
       case "list":
         applyList(action.kind);
         break;
@@ -3815,33 +3912,21 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
         settings.editor.floatingToolbarEnabled ? (
           <div className="floating-format-toolbar-fixed">
             <FontSelector availableFonts={fonts} onSelectFont={applyFontFamily} />
-            {FLOATING_FORMAT_COMMANDS.filter(
-              (command) =>
-                command.id !== "table" || isPluginEnabled(settings.plugins, "table-tools"),
-            ).map((command) => (
-              <button
-                key={command.id}
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => executeCommand(command.id)}
-              >
-                {command.label}
-              </button>
-            ))}
+            {[
+              ...TOOLBAR_INLINE_COMMANDS,
+              ...TOOLBAR_BLOCK_COMMANDS,
+              ...TOOLBAR_FIXED_EXTRA_COMMANDS,
+            ]
+              .filter(
+                (command) =>
+                  command.id !== "table" || isPluginEnabled(settings.plugins, "table-tools"),
+              )
+              .map((command) => renderToolbarButton(command))}
             <details className="floating-format-group">
-              <summary>H</summary>
-              <div>
-                {FLOATING_HEADING_COMMANDS.map((command) => (
-                  <button
-                    key={command.id}
-                    type="button"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => executeCommand(command.id)}
-                  >
-                    {command.label}
-                  </button>
-                ))}
-              </div>
+              <summary title="Headings">
+                <Heading size={14} />
+              </summary>
+              <div>{TOOLBAR_HEADING_COMMANDS.map((command) => renderToolbarButton(command))}</div>
             </details>
           </div>
         ) : null}
@@ -3861,30 +3946,14 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
               };
             })()}
           >
-            {FLOATING_SELECTION_COMMANDS.map((command) => (
-              <button
-                key={command.id}
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => executeCommand(command.id)}
-              >
-                {command.label}
-              </button>
-            ))}
+            {[...TOOLBAR_INLINE_COMMANDS, ...TOOLBAR_BLOCK_COMMANDS].map((command) =>
+              renderToolbarButton(command),
+            )}
             <details className="floating-format-group">
-              <summary>H</summary>
-              <div>
-                {FLOATING_HEADING_COMMANDS.map((command) => (
-                  <button
-                    key={command.id}
-                    type="button"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => executeCommand(command.id)}
-                  >
-                    {command.label}
-                  </button>
-                ))}
-              </div>
+              <summary title="Headings">
+                <Heading size={14} />
+              </summary>
+              <div>{TOOLBAR_HEADING_COMMANDS.map((command) => renderToolbarButton(command))}</div>
             </details>
           </div>
         ) : null}
@@ -4018,6 +4087,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
                     const pos = editorViewRef.current.state.selection.main.head;
                     const line = editorViewRef.current.state.doc.lineAt(pos);
                     setCursorLine(line.number - 1);
+                    setEditorFormats(activeFormats(editorViewRef.current.state));
                   }
                 }}
                 onSelectionChange={(rect) => {

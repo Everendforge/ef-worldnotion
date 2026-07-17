@@ -7,27 +7,25 @@ import {
   ViewUpdate,
   WidgetType,
 } from "@codemirror/view";
-import {
-  isStructuralChange,
-  marker as sharedMarker,
-  syntaxMarker as sharedSyntaxMarker,
-} from "./pluginUtils";
+import { syntaxTree } from "@codemirror/language";
+import { isStructuralChange, marker, selectionTouches, syntaxMarker } from "./pluginUtils";
 
 // List configuration - matches Obsidian standard
 const LIST_INDENT_WIDTH = 2; // 2 spaces per indent level
-const LIST_MARKER_REGEX = /^(\s*)([-*]|\d+\.)\s/; // Bullet, asterisk, or numbered list
-const TASK_CHECKBOX_REGEX = /^(\s*)- \[[ xX]\]\s/; // Task list
+const MAX_INDENT_CLASS = 5; // Deepest cm-list-indent-N class defined in App.css
 
-// Inline style patterns - compiled once at module load
-const BOLD_PATTERN = /(\*\*|__)([^*_`\n]+?)\1/g;
-const ITALIC_PATTERN = /(^|[^*_\w])(\*|_)([^*_`\n]+?)\2(?![*_\w])/g;
-const CODE_PATTERN = /`([^`\n]+?)`/g;
-// Markdown links are inline syntax. Do not let a match cross a line break,
-// since syntax hiding uses Decoration.replace for parts of the match.
-const MARKDOWN_LINK_PATTERN = /\[([^\]\n]+)\]\(([^)\n]+)\)/g;
-
-// Limit matches per visible range to prevent performance issues on huge documents
-const MAX_INLINE_MATCHES_PER_RANGE = 50;
+/** Flips the task checkbox on the line containing `pos`. */
+export function toggleTaskAt(view: EditorView, pos: number): boolean {
+  const line = view.state.doc.lineAt(pos);
+  const match = /^(\s*[-*] \[)([ xX])\]/.exec(line.text);
+  if (!match) return false;
+  const checkboxPos = line.from + match[1].length;
+  view.dispatch({
+    changes: { from: checkboxPos, to: checkboxPos + 1, insert: match[2] === " " ? "x" : " " },
+    userEvent: "input",
+  });
+  return true;
+}
 
 class ListMarkerWidget extends WidgetType {
   constructor(
@@ -37,10 +35,42 @@ class ListMarkerWidget extends WidgetType {
     super();
   }
 
-  toDOM() {
+  eq(other: ListMarkerWidget) {
+    return other.label === this.label && other.kind === this.kind;
+  }
+
+  toDOM(view: EditorView) {
     const element = document.createElement("span");
     element.className = `cm-list-marker cm-list-marker-${this.kind}`;
     element.textContent = this.label;
+    if (this.kind === "task") {
+      element.setAttribute("role", "checkbox");
+      element.setAttribute("aria-checked", String(this.label === "☑"));
+      element.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+        toggleTaskAt(view, view.posAtDOM(element));
+      });
+    } else {
+      element.setAttribute("aria-hidden", "true");
+    }
+    return element;
+  }
+
+  ignoreEvent(event: Event) {
+    // Task checkboxes own their mouse events so a click toggles instead of
+    // moving the cursor; everything else defers to CodeMirror.
+    return this.kind === "task" && event.type.startsWith("mouse");
+  }
+}
+
+class HorizontalRuleWidget extends WidgetType {
+  eq() {
+    return true;
+  }
+
+  toDOM() {
+    const element = document.createElement("span");
+    element.className = "cm-md-hr";
     element.setAttribute("aria-hidden", "true");
     return element;
   }
@@ -50,9 +80,41 @@ class ListMarkerWidget extends WidgetType {
   }
 }
 
-class HeaderSpacerWidget extends WidgetType {
-  constructor() {
+class CopyCodeWidget extends WidgetType {
+  constructor(private readonly code: string) {
     super();
+  }
+
+  eq(other: CopyCodeWidget) {
+    return other.code === this.code;
+  }
+
+  toDOM() {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "cm-code-copy";
+    button.textContent = "Copy";
+    button.setAttribute("aria-label", "Copy code block");
+    button.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      void navigator.clipboard?.writeText(this.code).then(() => {
+        button.textContent = "Copied";
+        setTimeout(() => {
+          button.textContent = "Copy";
+        }, 1200);
+      });
+    });
+    return button;
+  }
+
+  ignoreEvent(event: Event) {
+    return event.type.startsWith("mouse");
+  }
+}
+
+class HeaderSpacerWidget extends WidgetType {
+  eq() {
+    return true;
   }
 
   toDOM() {
@@ -65,15 +127,6 @@ class HeaderSpacerWidget extends WidgetType {
     return true;
   }
 }
-
-// Local utility functions
-function lineClass(className: string, from: number) {
-  return Decoration.line({ class: className }).range(from);
-}
-
-// Use shared utilities from pluginUtils
-const marker = sharedMarker;
-const syntaxMarker = sharedSyntaxMarker;
 
 // Calculate indentation level - handles both spaces and tabs
 function calculateIndentLevel(indentStr: string): number {
@@ -88,228 +141,239 @@ function calculateIndentLevel(indentStr: string): number {
   return Math.floor(level);
 }
 
-// List-specific functions
-interface ListItemInfo {
-  indentLevel: number;
-  markerStart: number;
-  markerEnd: number;
-  kind: "bullet" | "ordered" | "task";
-  marker: string;
-}
-
-function parseListItem(text: string, lineStart: number): ListItemInfo | null {
-  const taskMatch = TASK_CHECKBOX_REGEX.exec(text);
-  if (taskMatch) {
-    return {
-      indentLevel: calculateIndentLevel(taskMatch[1]),
-      markerStart: lineStart + taskMatch[1].length,
-      markerEnd: lineStart + taskMatch[0].length,
-      kind: "task",
-      marker: /[xX]/.test(text) ? "☑" : "☐",
-    };
-  }
-
-  const listMatch = LIST_MARKER_REGEX.exec(text);
-  if (listMatch) {
-    const indent = listMatch[1];
-    const markerText = listMatch[2];
-    const isOrdered = /^\d+\./.test(markerText);
-
-    return {
-      indentLevel: calculateIndentLevel(indent),
-      markerStart: lineStart + indent.length,
-      markerEnd: lineStart + listMatch[0].length,
-      kind: isOrdered ? "ordered" : "bullet",
-      marker: isOrdered ? markerText : "•",
-    };
-  }
-
-  return null;
-}
-
-function isListContinuation(text: string, prevListLevel: number): boolean {
-  // A line is a continuation if it's indented more than list marker indentation
-  // but doesn't start with a list marker
-  if (LIST_MARKER_REGEX.test(text)) return false;
-
-  const indentMatch = /^\s*/.exec(text);
-  if (!indentMatch) return false;
-
-  const indentStr = indentMatch[0];
-  const currentLevel = calculateIndentLevel(indentStr);
-  const expectedMinLevel = prevListLevel + 1;
-
-  return currentLevel >= expectedMinLevel && text.trim().length > 0;
-}
-
-function addInlineMatches(text: string, from: number, decorations: Range<Decoration>[]) {
-  let matchCount = 0;
-
-  let boldMatch: RegExpExecArray | null;
-  BOLD_PATTERN.lastIndex = 0;
-  while (
-    (boldMatch = BOLD_PATTERN.exec(text)) !== null &&
-    matchCount < MAX_INLINE_MATCHES_PER_RANGE
-  ) {
-    matchCount++;
-    const openFrom = from + boldMatch.index;
-    const contentFrom = openFrom + boldMatch[1].length;
-    const contentTo = contentFrom + boldMatch[2].length;
-    const active = false;
-    const m1 = syntaxMarker(openFrom, contentFrom, active);
-    if (m1) decorations.push(m1);
-    const m2 = marker(contentFrom, contentTo, "cm-md-bold");
-    if (m2) decorations.push(m2);
-    const m3 = syntaxMarker(contentTo, contentTo + boldMatch[1].length, active);
-    if (m3) decorations.push(m3);
-  }
-
-  let italicMatch: RegExpExecArray | null;
-  ITALIC_PATTERN.lastIndex = 0;
-  while (
-    (italicMatch = ITALIC_PATTERN.exec(text)) !== null &&
-    matchCount < MAX_INLINE_MATCHES_PER_RANGE
-  ) {
-    matchCount++;
-    const openFrom = from + italicMatch.index + italicMatch[1].length;
-    const contentFrom = openFrom + italicMatch[2].length;
-    const contentTo = contentFrom + italicMatch[3].length;
-    const active = false;
-    const m1 = syntaxMarker(openFrom, contentFrom, active);
-    if (m1) decorations.push(m1);
-    const m2 = marker(contentFrom, contentTo, "cm-md-italic");
-    if (m2) decorations.push(m2);
-    const m3 = syntaxMarker(contentTo, contentTo + italicMatch[2].length, active);
-    if (m3) decorations.push(m3);
-  }
-
-  let codeMatch: RegExpExecArray | null;
-  CODE_PATTERN.lastIndex = 0;
-  while (
-    (codeMatch = CODE_PATTERN.exec(text)) !== null &&
-    matchCount < MAX_INLINE_MATCHES_PER_RANGE
-  ) {
-    matchCount++;
-    const openFrom = from + codeMatch.index;
-    const contentFrom = openFrom + 1;
-    const contentTo = contentFrom + codeMatch[1].length;
-    const active = false;
-    const m1 = syntaxMarker(openFrom, contentFrom, active);
-    if (m1) decorations.push(m1);
-    const m2 = marker(contentFrom, contentTo, "cm-md-inline-code");
-    if (m2) decorations.push(m2);
-    const m3 = syntaxMarker(contentTo, contentTo + 1, active);
-    if (m3) decorations.push(m3);
-  }
-
-  let linkMatch: RegExpExecArray | null;
-  MARKDOWN_LINK_PATTERN.lastIndex = 0;
-  while (
-    (linkMatch = MARKDOWN_LINK_PATTERN.exec(text)) !== null &&
-    matchCount < MAX_INLINE_MATCHES_PER_RANGE
-  ) {
-    matchCount++;
-    const linkFrom = from + linkMatch.index;
-    const linkTo = linkFrom + linkMatch[0].length;
-    const active = false;
-    const m1 = syntaxMarker(linkFrom, linkFrom + 1, active);
-    if (m1) decorations.push(m1);
-    const m2 = marker(
-      from + linkMatch.index + 1,
-      from + linkMatch.index + 1 + linkMatch[1].length,
-      "cm-md-link-label",
-    );
-    if (m2) decorations.push(m2);
-    const labelEnd = from + linkMatch.index + 1 + linkMatch[1].length;
-    const m3 = syntaxMarker(labelEnd, linkTo, active);
-    if (m3) decorations.push(m3);
-  }
-}
-
-function getDecorations(view: EditorView): DecorationSet {
+/**
+ * Builds the live-preview decorations for processed Write mode from the Lezer
+ * markdown syntax tree (GFM base), so styling always agrees with what the
+ * markdown actually parses as — escaped markers, nested emphasis, and code
+ * spans never produce false positives.
+ *
+ * Reveal rule: an element whose range is touched by the selection shows its
+ * syntax markers muted instead of hidden, so the characters under the cursor
+ * are always visible while editing (Obsidian-style live preview).
+ */
+export function buildProcessedDecorations(view: EditorView): DecorationSet {
+  const { state } = view;
+  const selection = state.selection.main;
+  const tree = syntaxTree(state);
   const decorations: Range<Decoration>[] = [];
-  for (const { from, to } of view.visibleRanges) {
-    let position = from;
-    let lastListLevel = -1;
+  // Lines already claimed by a marker so the continuation pass skips them.
+  const listMarkerLines = new Set<number>();
+  const quoteLines = new Set<number>();
+  const listRanges: Array<{ from: number; to: number }> = [];
 
-    while (position <= to) {
-      const line = view.state.doc.lineAt(position);
-      const text = line.text;
+  const touches = (from: number, to: number) =>
+    selectionTouches(selection.from, selection.to, from, to);
 
-      // Handle headings
-      const heading = /^(#{1,6})\s/.exec(text);
-      if (heading) {
-        lastListLevel = -1;
-        const level = Math.min(heading[1].length, 6);
-        const markerFrom = line.from;
-        const markerTo = line.from + heading[0].length;
-        const markerActive = false;
+  const hideOrMute = (from: number, to: number, active: boolean) => {
+    const decoration = syntaxMarker(from, to, active);
+    if (decoration) decorations.push(decoration);
+  };
 
-        if (line.number > 1) {
-          decorations.push(
-            Decoration.widget({
-              widget: new HeaderSpacerWidget(),
-              side: -1,
-            }).range(line.from),
-          );
-        }
+  const extendWithSpace = (to: number) => (state.doc.sliceString(to, to + 1) === " " ? to + 1 : to);
 
-        decorations.push(lineClass(`cm-md-heading-line cm-md-heading-${level}`, line.from));
-        const m1 = syntaxMarker(markerFrom, markerTo, markerActive);
-        if (m1) decorations.push(m1);
-        const m2 = marker(markerTo, line.to, `cm-md-heading-text cm-md-heading-text-${level}`);
-        if (m2) decorations.push(m2);
-      } else {
-        // Handle list items
-        const listItem = parseListItem(text, line.from);
-        if (listItem) {
-          lastListLevel = listItem.indentLevel;
-          const lineClasses = ["cm-list-line"];
-          if (listItem.indentLevel > 0) {
-            lineClasses.push(`cm-list-indent-${listItem.indentLevel}`);
-          }
+  const styleContent = (from: number, to: number, className: string) => {
+    const decoration = marker(from, to, className);
+    if (decoration) decorations.push(decoration);
+  };
 
-          decorations.push(lineClass(lineClasses.join(" "), line.from));
+  /** Hides the delimiter pair of an inline element and styles its content. */
+  const inlineElement = (
+    node: { from: number; to: number },
+    delimiters: Array<{ from: number; to: number }>,
+    contentClass: string,
+  ) => {
+    if (delimiters.length < 2) return;
+    // Reveal while the cursor touches any part of the element.
+    const active = touches(node.from, node.to);
+    delimiters.forEach((delimiter) => hideOrMute(delimiter.from, delimiter.to, active));
+    styleContent(delimiters[0].to, delimiters[delimiters.length - 1].from, contentClass);
+  };
 
-          // Only show syntax when cursor is in the marker itself
-          const cursorInMarker = false;
+  for (const range of view.visibleRanges) {
+    tree.iterate({
+      from: range.from,
+      to: range.to,
+      enter: (node) => {
+        const name = node.name;
 
-          if (!cursorInMarker) {
+        const atxHeading = /^ATXHeading([1-6])$/.exec(name);
+        if (atxHeading) {
+          const level = Number(atxHeading[1]);
+          const line = state.doc.lineAt(node.from);
+          // Block markers reveal when the cursor is anywhere on their line.
+          const active = touches(line.from, line.to + 1);
+          if (line.number > 1) {
             decorations.push(
-              Decoration.widget({
-                widget: new ListMarkerWidget(listItem.marker, listItem.kind),
-                side: 1,
-              }).range(listItem.markerStart),
+              Decoration.widget({ widget: new HeaderSpacerWidget(), side: -1 }).range(line.from),
             );
           }
-
-          const m1 = cursorInMarker
-            ? marker(listItem.markerStart, listItem.markerEnd, "cm-list-marker")
-            : syntaxMarker(listItem.markerStart, listItem.markerEnd, false);
-          if (m1) decorations.push(m1);
-        } else if (lastListLevel >= 0 && isListContinuation(text, lastListLevel)) {
-          // This is a continuation of a list item
-          decorations.push(lineClass("cm-list-line cm-list-continuation", line.from));
-        } else {
-          lastListLevel = -1;
+          decorations.push(
+            Decoration.line({ class: `cm-md-heading-line cm-md-heading-${level}` }).range(
+              line.from,
+            ),
+          );
+          const headerMark = node.node.getChild("HeaderMark");
+          if (headerMark) {
+            const markEnd = extendWithSpace(headerMark.to);
+            hideOrMute(headerMark.from, markEnd, active);
+            styleContent(markEnd, line.to, `cm-md-heading-text cm-md-heading-text-${level}`);
+          }
+          return;
         }
-      }
 
-      // Handle block quotes
-      const quote = /^>\s/.exec(text);
-      if (quote) {
-        lastListLevel = -1;
-        // Show syntax while cursor is in the marker (>) only, hide when writing content
-        const markerActive = false;
-        decorations.push(lineClass("cm-md-quote-line", line.from));
-        const m1 = syntaxMarker(line.from, line.from + quote[0].length, markerActive);
-        if (m1) decorations.push(m1);
-      }
+        if (name === "QuoteMark") {
+          const line = state.doc.lineAt(node.from);
+          const active = touches(line.from, line.to + 1);
+          if (!quoteLines.has(line.from)) {
+            quoteLines.add(line.from);
+            decorations.push(Decoration.line({ class: "cm-md-quote-line" }).range(line.from));
+          }
+          hideOrMute(node.from, extendWithSpace(node.to), active);
+          return;
+        }
 
-      addInlineMatches(text, line.from, decorations);
-      if (line.to + 1 > to) break;
-      position = line.to + 1;
+        if (name === "BulletList" || name === "OrderedList") {
+          listRanges.push({ from: node.from, to: node.to });
+          return;
+        }
+
+        if (name === "ListMark") {
+          const listItem = node.node.parent;
+          const line = state.doc.lineAt(node.from);
+          listMarkerLines.add(line.from);
+
+          const indentLevel = calculateIndentLevel(line.text.slice(0, node.from - line.from));
+          const lineClasses = ["cm-list-line"];
+          if (indentLevel > 0) {
+            lineClasses.push(`cm-list-indent-${Math.min(indentLevel, MAX_INDENT_CLASS)}`);
+          }
+          decorations.push(Decoration.line({ class: lineClasses.join(" ") }).range(line.from));
+
+          const taskMarker = listItem?.getChild("Task")?.getChild("TaskMarker");
+          const markText = state.doc.sliceString(node.from, node.to);
+          const kind = taskMarker ? "task" : /^\d/.test(markText) ? "ordered" : "bullet";
+          const label = taskMarker
+            ? /x/i.test(state.doc.sliceString(taskMarker.from, taskMarker.to))
+              ? "☑"
+              : "☐"
+            : kind === "ordered"
+              ? markText
+              : "•";
+          const markerEnd = extendWithSpace(taskMarker ? taskMarker.to : node.to);
+
+          // List markers reveal only when the cursor enters the marker itself,
+          // so bullets stay rendered while the item text is being edited.
+          const active = touches(node.from, markerEnd);
+          if (active) {
+            styleContent(node.from, markerEnd, "cm-list-marker");
+          } else {
+            decorations.push(
+              Decoration.widget({ widget: new ListMarkerWidget(label, kind), side: 1 }).range(
+                node.from,
+              ),
+            );
+            hideOrMute(node.from, markerEnd, false);
+          }
+          return;
+        }
+
+        if (name === "StrongEmphasis") {
+          inlineElement(node, node.node.getChildren("EmphasisMark"), "cm-md-bold");
+          return;
+        }
+
+        if (name === "Emphasis") {
+          inlineElement(node, node.node.getChildren("EmphasisMark"), "cm-md-italic");
+          return;
+        }
+
+        if (name === "InlineCode") {
+          inlineElement(node, node.node.getChildren("CodeMark"), "cm-md-inline-code");
+          return;
+        }
+
+        if (name === "Strikethrough") {
+          inlineElement(node, node.node.getChildren("StrikethroughMark"), "cm-md-strike");
+          return;
+        }
+
+        if (name === "Link") {
+          const link = node.node;
+          const url = link.getChild("URL");
+          // Links without a URL are wikilinks or bare [references]; the
+          // wikilink plugin owns those and plain brackets stay as typed.
+          if (!url) return;
+          const active = touches(node.from, node.to);
+          const linkMarks = link.getChildren("LinkMark");
+          linkMarks.forEach((linkMark) => hideOrMute(linkMark.from, linkMark.to, active));
+          hideOrMute(url.from, url.to, active);
+          const title = link.getChild("LinkTitle");
+          if (title) hideOrMute(title.from, title.to, active);
+          if (linkMarks.length >= 2) {
+            styleContent(linkMarks[0].to, linkMarks[1].from, "cm-md-link-label");
+          }
+          return;
+        }
+
+        if (name === "HorizontalRule") {
+          const line = state.doc.lineAt(node.from);
+          const active = touches(line.from, line.to + 1);
+          if (!active) {
+            decorations.push(
+              Decoration.replace({ widget: new HorizontalRuleWidget() }).range(node.from, node.to),
+            );
+          } else {
+            styleContent(node.from, node.to, "cm-markdown-syntax-muted");
+          }
+          return;
+        }
+
+        if (name === "FencedCode") {
+          const firstLine = state.doc.lineAt(node.from);
+          const lastLine = state.doc.lineAt(node.to);
+          for (let lineNumber = firstLine.number; lineNumber <= lastLine.number; lineNumber += 1) {
+            const line = state.doc.line(lineNumber);
+            const classes = ["cm-md-codeblock-line"];
+            if (lineNumber === firstLine.number) classes.push("cm-md-codeblock-first");
+            if (lineNumber === lastLine.number) classes.push("cm-md-codeblock-last");
+            decorations.push(Decoration.line({ class: classes.join(" ") }).range(line.from));
+          }
+          node.node.getChildren("CodeMark").forEach((codeMark) => {
+            styleContent(codeMark.from, codeMark.to, "cm-markdown-syntax-muted");
+          });
+          const info = node.node.getChild("CodeInfo");
+          if (info) styleContent(info.from, info.to, "cm-md-code-lang");
+          const codeText = node.node.getChild("CodeText");
+          decorations.push(
+            Decoration.widget({
+              widget: new CopyCodeWidget(
+                codeText ? state.doc.sliceString(codeText.from, codeText.to) : "",
+              ),
+              side: 1,
+            }).range(firstLine.to),
+          );
+          return false;
+        }
+
+        // Images are replaced wholesale by the image plugin; skip their inner
+        // Link-like markup so the two plugins never disagree.
+        if (name === "Image") return false;
+      },
+    });
+
+    // Continuation lines: text inside a list that doesn't start its own item.
+    for (const listRange of listRanges) {
+      const firstLine = state.doc.lineAt(Math.max(listRange.from, range.from));
+      const lastLine = state.doc.lineAt(Math.min(listRange.to, range.to));
+      for (let lineNumber = firstLine.number; lineNumber <= lastLine.number; lineNumber += 1) {
+        const line = state.doc.line(lineNumber);
+        if (listMarkerLines.has(line.from) || !line.text.trim()) continue;
+        decorations.push(
+          Decoration.line({ class: "cm-list-line cm-list-continuation" }).range(line.from),
+        );
+      }
     }
+    listRanges.length = 0;
   }
 
   return Decoration.set(decorations, true);
@@ -320,15 +384,18 @@ export const markdownSyntaxPlugin = ViewPlugin.fromClass(
     decorations: DecorationSet;
 
     constructor(view: EditorView) {
-      this.decorations = getDecorations(view);
+      this.decorations = buildProcessedDecorations(view);
     }
 
     update(update: ViewUpdate) {
-      // Recalculate on structural changes OR selection changes
-      // Selection changes affect syntax visibility (show/hide based on cursor position)
-      // This enables instant syntax response when cursor moves (like Obsidian)
-      if (isStructuralChange(update) || update.selectionSet) {
-        this.decorations = getDecorations(update.view);
+      // Selection changes drive the reveal-on-touch behavior; tree changes
+      // arrive asynchronously while the parser catches up on large documents.
+      if (
+        isStructuralChange(update) ||
+        update.selectionSet ||
+        syntaxTree(update.state) !== syntaxTree(update.startState)
+      ) {
+        this.decorations = buildProcessedDecorations(update.view);
       }
     }
   },
