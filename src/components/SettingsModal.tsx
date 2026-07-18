@@ -9,6 +9,7 @@ import {
   Globe2,
   Hash,
   Keyboard,
+  KeyRound,
   PanelLeft,
   Plug,
   Plus,
@@ -57,6 +58,7 @@ import {
   normalizeLocaleNames,
 } from "../utils/localization";
 import "../App.css";
+
 
 type SettingsModalProps = {
   settings: AppSettingsV4;
@@ -280,9 +282,155 @@ function readImageFile(file: File) {
   });
 }
 
+
+
+
+
+function SuiteLicenseSettings({ license }: { license: SuiteSettings["license"] }) {
+  const [keyDraft, setKeyDraft] = useState("");
+  const isActive = license.status === "active";
+  const isBusy = license.status === "activating";
+  const maskedKey = license.licenseKey
+    ? `${license.licenseKey.slice(0, 4)}••••${license.licenseKey.slice(-4)}`
+    : "—";
+
+  useEffect(() => {
+    if (isActive && license.instances === undefined && license.devicesStatus === "idle") {
+      license.onLoadDevices();
+    }
+  }, [isActive, license.devicesStatus, license.instances, license.onLoadDevices]);
+
+  return (
+    <div className="settings-panel forge-license-settings">
+      <div className="settings-page-title">
+        <h3>Licencia</h3>
+        <p>Activa y administra la licencia de Everend Forge Suite en este equipo.</p>
+      </div>
+
+      {isActive ? (
+        <>
+          <div className="forge-license-status active" role="status">
+            <KeyRound size={18} />
+            <div>
+              <strong>Licencia activa</strong>
+              <p>La Suite está habilitada en este equipo.</p>
+            </div>
+          </div>
+          <div className="forge-license-details">
+            <div>
+              <span>Clave</span>
+              <code>{maskedKey}</code>
+            </div>
+            <div>
+              <span>Equipo</span>
+              <strong>{license.instanceName ?? "—"}</strong>
+            </div>
+            {license.activationUsage !== undefined || license.activationLimit !== undefined ? (
+              <div>
+                <span>Activaciones</span>
+                <strong>
+                  {license.activationUsage ?? 0} / {license.activationLimit ?? "—"}
+                </strong>
+              </div>
+            ) : null}
+          </div>
+          <div className="settings-actions">
+            <button type="button" onClick={license.onValidate} disabled={isBusy}>
+              {isBusy ? "Verificando..." : "Validar licencia"}
+            </button>
+            <button type="button" onClick={license.onDeactivate} disabled={isBusy}>
+              Desactivar en este equipo
+            </button>
+          </div>
+          <section className="forge-license-devices" aria-labelledby="forge-license-devices-title">
+            <div className="forge-license-devices-heading">
+              <div>
+                <h4 id="forge-license-devices-title">Dispositivos</h4>
+                <p>Consulta y desactiva las activaciones de esta licencia.</p>
+              </div>
+              <button type="button" onClick={license.onLoadDevices} disabled={isBusy || license.devicesStatus === "loading"}>
+                {license.devicesStatus === "loading"
+                  ? "Cargando..."
+                  : license.instances
+                    ? "Actualizar"
+                    : "Ver dispositivos"}
+              </button>
+            </div>
+            {license.devicesError ? <p className="forge-license-error" role="alert">{license.devicesError}</p> : null}
+            {license.instances ? (
+              license.instances.length ? (
+                <ul className="forge-license-device-list">
+                  {license.instances.map((instance) => {
+                    const isCurrentDevice = instance.id === license.currentInstanceId;
+                    return (
+                      <li key={instance.id}>
+                        <div>
+                          <strong>{instance.name}</strong>
+                          <small>{isCurrentDevice ? "Este equipo" : "Otro equipo"}</small>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => license.onDeactivateDevice(instance.id)}
+                          disabled={isBusy || license.devicesStatus === "loading"}
+                        >
+                          {isCurrentDevice ? "Desactivar este equipo" : "Desactivar"}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="forge-license-devices-empty">No hay dispositivos activos para esta licencia.</p>
+              )
+            ) : null}
+          </section>
+        </>
+      ) : (
+        <>
+          <div className={`forge-license-status ${license.status === "error" ? "error" : ""}`} role="status">
+            <KeyRound size={18} />
+            <div>
+              <strong>{license.status === "error" ? "No se pudo verificar la licencia" : "Licencia no activada"}</strong>
+              <p>Introduce una clave de Lemon Squeezy para habilitar la Suite.</p>
+            </div>
+          </div>
+          <form
+            className="forge-license-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              license.onActivate(keyDraft);
+            }}
+          >
+            <label>
+              <span>Clave de licencia</span>
+              <input
+                value={keyDraft}
+                onChange={(event) => setKeyDraft(event.target.value)}
+                placeholder="Pega aquí tu clave"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </label>
+            <div className="settings-actions">
+              <button type="submit" className="primary-action" disabled={!keyDraft.trim() || isBusy}>
+                {isBusy ? "Verificando..." : "Activar licencia"}
+              </button>
+            </div>
+          </form>
+        </>
+      )}
+
+      {license.error ? <p className="forge-license-error" role="alert">{license.error}</p> : null}
+      <small>La clave se guarda en el llavero seguro del sistema operativo.</small>
+    </div>
+  );
+}
+
+
 type SettingsSection =
   | "suite"
   | "update"
+  | "license"
   | "overview"
   | "tags"
   | "utils"
@@ -593,6 +741,14 @@ export function SettingsModal({
                   <RefreshCw size={14} />
                   Update
                 </button>
+                <button
+                  className={activeSection === "license" ? "active" : ""}
+                  onClick={() => setActiveSection("license")}
+                  type="button"
+                >
+                  <KeyRound size={14} />
+                  Licencia
+                </button>
               </div>
             ) : null}
             {universe ? (
@@ -843,6 +999,9 @@ export function SettingsModal({
                   </p>
                 ) : null}
               </div>
+            ) : null}
+            {activeSection === "license" && suiteSettings?.license ? (
+              <SuiteLicenseSettings license={suiteSettings.license} />
             ) : null}
             {activeSection === "overview" && universe ? (
               <div className="settings-panel">
