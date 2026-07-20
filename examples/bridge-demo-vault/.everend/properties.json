@@ -1,0 +1,845 @@
+{
+  "version": "3.0",
+  "baseProperties": {
+    "definitions": [
+      {
+        "id": "id",
+        "label": "ID",
+        "description": "Unique identifier",
+        "type": "text",
+        "immutable": true,
+        "readOnly": true,
+        "required": true,
+        "order": 0
+      },
+      {
+        "id": "name",
+        "label": "Name",
+        "description": "Entity name",
+        "type": "text",
+        "immutable": true,
+        "required": true,
+        "order": 1
+      },
+      {
+        "id": "type",
+        "label": "Type",
+        "description": "Entity type",
+        "type": "select",
+        "immutable": true,
+        "required": true,
+        "order": 2,
+        "options": [
+          {
+            "value": "character",
+            "label": "Character",
+            "color": "#3b82f6"
+          },
+          {
+            "value": "location",
+            "label": "Location",
+            "color": "#10b981"
+          },
+          {
+            "value": "organization",
+            "label": "Organization",
+            "color": "#f59e0b"
+          },
+          {
+            "value": "concept",
+            "label": "Concept",
+            "color": "#8b5cf6"
+          },
+          {
+            "value": "item",
+            "label": "Item",
+            "color": "#ec4899"
+          },
+          {
+            "value": "cycle",
+            "label": "Cycle",
+            "color": "#14b8a6"
+          },
+          {
+            "value": "universe",
+            "label": "Universe",
+            "color": "#a855f7"
+          },
+          {
+            "value": "scene",
+            "label": "Scene",
+            "color": "#f97316"
+          },
+          {
+            "value": "world",
+            "label": "World"
+          },
+          {
+            "value": "chronology",
+            "label": "Chronology"
+          }
+        ]
+      },
+      {
+        "id": "status",
+        "label": "Status",
+        "description": "Canon or editorial state",
+        "type": "select",
+        "immutable": true,
+        "required": true,
+        "order": 3,
+        "options": [
+          {
+            "value": "draft",
+            "label": "Draft",
+            "color": "#6b7280"
+          },
+          {
+            "value": "in-progress",
+            "label": "In Progress",
+            "color": "#f59e0b"
+          },
+          {
+            "value": "review",
+            "label": "Review",
+            "color": "#3b82f6"
+          },
+          {
+            "value": "published",
+            "label": "Published",
+            "color": "#10b981"
+          },
+          {
+            "value": "archived",
+            "label": "Archived",
+            "color": "#6b7280"
+          }
+        ]
+      },
+      {
+        "id": "tags",
+        "label": "Tags",
+        "description": "Search and grouping labels",
+        "type": "text",
+        "immutable": true,
+        "order": 4
+      },
+      {
+        "id": "aliases",
+        "label": "Aliases",
+        "description": "Alternate display names or wikilink candidates",
+        "type": "text",
+        "immutable": true,
+        "order": 5
+      },
+      {
+        "id": "parentId",
+        "label": "Parent",
+        "description": "Stable ID of a parent entity",
+        "type": "entity-ref",
+        "immutable": true,
+        "targetTypes": [
+          "character",
+          "location",
+          "organization",
+          "event",
+          "concept",
+          "item",
+          "world",
+          "cycle",
+          "universe",
+          "story",
+          "arc",
+          "scene",
+          "quest"
+        ],
+        "order": 6
+      },
+      {
+        "id": "childrenIds",
+        "label": "Children",
+        "description": "Stable IDs of explicit child entities",
+        "type": "entity-ref-list",
+        "immutable": true,
+        "targetTypes": [
+          "character",
+          "location",
+          "organization",
+          "event",
+          "concept",
+          "item",
+          "world",
+          "cycle",
+          "universe",
+          "story",
+          "arc",
+          "scene",
+          "quest"
+        ],
+        "order": 7
+      }
+    ],
+    "visibleByDefault": [
+      "type",
+      "status",
+      "aliases",
+      "parentId",
+      "childrenIds"
+    ],
+    "order": [
+      "id",
+      "name",
+      "type",
+      "status",
+      "tags",
+      "aliases",
+      "parentId",
+      "childrenIds"
+    ]
+  },
+  "tags": {
+    "rootNodes": [],
+    "allowCustomTags": true,
+    "autoDetectSlashNotation": true
+  },
+  "contentTypes": {
+    "definitions": [
+      {
+        "id": "folder-description",
+        "label": "Folder Note",
+        "description": "Special note that describes a folder",
+        "icon": "folder",
+        "color": "#64748b",
+        "immutable": true
+      }
+    ]
+  },
+  "entityTypes": {
+    "definitions": [
+      {
+        "id": "character",
+        "label": "Character",
+        "description": "Person, creature, or viewpoint actor",
+        "icon": "user",
+        "color": "#3b82f6",
+        "customFields": [
+          "lore-level",
+          "identity",
+          "narrative",
+          "portrait"
+        ],
+        "visibleProperties": [
+          "type",
+          "status",
+          "aliases"
+        ],
+        "propertyOrder": [
+          "type",
+          "status",
+          "aliases",
+          "lore-level",
+          "identity",
+          "narrative",
+          "portrait"
+        ],
+        "presentation": {
+          "portraitPropertyId": "portrait"
+        }
+      },
+      {
+        "id": "location",
+        "label": "Location",
+        "description": "Place, region, settlement, or site",
+        "icon": "map-pin",
+        "color": "#10b981",
+        "customFields": [
+          "lore-level",
+          "place"
+        ],
+        "visibleProperties": [
+          "type",
+          "status",
+          "aliases",
+          "parentId",
+          "childrenIds"
+        ],
+        "propertyOrder": [
+          "type",
+          "status",
+          "aliases",
+          "parentId",
+          "childrenIds",
+          "lore-level",
+          "place"
+        ],
+        "hiddenProperties": [
+          "status"
+        ]
+      },
+      {
+        "id": "organization",
+        "label": "Organization",
+        "description": "Faction, institution, house, or guild",
+        "icon": "users",
+        "color": "#f59e0b",
+        "customFields": [
+          "lore-level",
+          "identity"
+        ],
+        "visibleProperties": [
+          "type",
+          "status",
+          "aliases",
+          "parentId",
+          "childrenIds"
+        ],
+        "propertyOrder": [
+          "type",
+          "status",
+          "aliases",
+          "parentId",
+          "childrenIds",
+          "lore-level",
+          "identity"
+        ]
+      },
+      {
+        "id": "concept",
+        "label": "Concept",
+        "description": "Idea, law, magic rule, or abstract note",
+        "icon": "lightbulb",
+        "color": "#8b5cf6",
+        "customFields": [
+          "lore-level"
+        ],
+        "visibleProperties": [
+          "type",
+          "status",
+          "parentId",
+          "childrenIds",
+          "lore-level"
+        ],
+        "propertyOrder": [
+          "type",
+          "status",
+          "parentId",
+          "childrenIds",
+          "lore-level"
+        ],
+        "hiddenProperties": [
+          "aliases",
+          "lore-level",
+          "status"
+        ]
+      },
+      {
+        "id": "item",
+        "label": "Item",
+        "description": "Object, relic, tool, or artifact",
+        "icon": "package",
+        "color": "#ec4899",
+        "customFields": [
+          "lore-level",
+          "identity",
+          "place",
+          "item-details"
+        ],
+        "visibleProperties": [
+          "type",
+          "status",
+          "aliases",
+          "parentId",
+          "childrenIds"
+        ],
+        "propertyOrder": [
+          "type",
+          "status",
+          "aliases",
+          "parentId",
+          "childrenIds",
+          "lore-level",
+          "identity",
+          "place",
+          "item-details"
+        ]
+      },
+      {
+        "id": "cycle",
+        "label": "Cycle",
+        "description": "Era, cycle, age, or large continuity span",
+        "icon": "refresh-cw",
+        "color": "#14b8a6",
+        "customFields": [
+          "lore-level"
+        ],
+        "visibleProperties": [
+          "type",
+          "status",
+          "aliases",
+          "parentId",
+          "childrenIds"
+        ],
+        "propertyOrder": [
+          "type",
+          "status",
+          "aliases",
+          "parentId",
+          "childrenIds",
+          "lore-level"
+        ]
+      },
+      {
+        "id": "universe",
+        "label": "Universe",
+        "description": "Top-level canon container or cosmology",
+        "icon": "sparkles",
+        "color": "#a855f7",
+        "customFields": [
+          "lore-level"
+        ],
+        "visibleProperties": [
+          "type",
+          "status",
+          "aliases",
+          "parentId",
+          "childrenIds"
+        ],
+        "propertyOrder": [
+          "type",
+          "status",
+          "aliases",
+          "parentId",
+          "childrenIds",
+          "lore-level"
+        ]
+      },
+      {
+        "id": "scene",
+        "customFields": [],
+        "label": "Scene",
+        "color": "#f97316",
+        "hiddenProperties": [
+          "aliases"
+        ]
+      },
+      {
+        "id": "world",
+        "customFields": [],
+        "label": "World",
+        "hiddenProperties": [
+          "status"
+        ]
+      },
+      {
+        "id": "chronology",
+        "customFields": [],
+        "label": "Chronology",
+        "hiddenProperties": [
+          "aliases"
+        ]
+      }
+    ],
+    "defaultType": "concept",
+    "allowCustomTypes": true
+  },
+  "statuses": {
+    "definitions": [
+      {
+        "id": "draft",
+        "label": "Draft",
+        "description": "Work in progress",
+        "color": "#6b7280",
+        "order": 0
+      },
+      {
+        "id": "in-progress",
+        "label": "In Progress",
+        "description": "Actively being worked on",
+        "color": "#f59e0b",
+        "order": 1
+      },
+      {
+        "id": "review",
+        "label": "Review",
+        "description": "Ready for review",
+        "color": "#3b82f6",
+        "order": 2
+      },
+      {
+        "id": "published",
+        "label": "Published",
+        "description": "Finalized and approved",
+        "color": "#10b981",
+        "order": 3
+      },
+      {
+        "id": "archived",
+        "label": "Archived",
+        "description": "No longer active",
+        "color": "#6b7280",
+        "order": 4
+      }
+    ],
+    "defaultStatus": "draft",
+    "allowCustomStatuses": true
+  },
+  "customFields": {
+    "definitions": [
+      {
+        "id": "lore-level",
+        "label": "Lore Level",
+        "type": "select",
+        "description": "Level of detail or canonicity for this entity",
+        "required": false,
+        "options": [
+          {
+            "value": "canon",
+            "label": "Canon",
+            "color": "#10b981"
+          },
+          {
+            "value": "semi-canon",
+            "label": "Semi-canon",
+            "color": "#f59e0b"
+          },
+          {
+            "value": "draft",
+            "label": "Draft",
+            "color": "#64748b"
+          },
+          {
+            "value": "idea",
+            "label": "Idea",
+            "color": "#94a3b8"
+          }
+        ],
+        "children": [],
+        "appliesTo": [
+          "character",
+          "location",
+          "organization",
+          "item",
+          "cycle",
+          "universe"
+        ]
+      },
+      {
+        "id": "identity",
+        "label": "Identity",
+        "type": "group",
+        "description": "Roles, homes, affiliations, ownership, and identity relationships",
+        "required": false,
+        "children": [
+          {
+            "id": "role",
+            "label": "Role",
+            "type": "select",
+            "description": "Narrative or institutional function",
+            "required": false,
+            "options": [
+              {
+                "value": "protagonist",
+                "label": "Protagonist",
+                "color": "#2563eb"
+              },
+              {
+                "value": "antagonist",
+                "label": "Antagonist",
+                "color": "#dc2626"
+              },
+              {
+                "value": "ally",
+                "label": "Ally",
+                "color": "#16a34a"
+              },
+              {
+                "value": "mentor",
+                "label": "Mentor",
+                "color": "#7c3aed"
+              },
+              {
+                "value": "supporting",
+                "label": "Supporting",
+                "color": "#64748b"
+              }
+            ],
+            "appliesTo": [
+              "character",
+              "organization"
+            ]
+          },
+          {
+            "id": "affiliation",
+            "label": "Affiliation",
+            "type": "entity-ref",
+            "description": "Organization, faction, house, or group connected to this note",
+            "required": false,
+            "targetTypes": [
+              "organization"
+            ],
+            "appliesTo": [
+              "character"
+            ]
+          },
+          {
+            "id": "home",
+            "label": "Home",
+            "type": "entity-ref",
+            "description": "Primary place connected to this entity",
+            "required": false,
+            "targetTypes": [
+              "location",
+              "world"
+            ],
+            "appliesTo": [
+              "character",
+              "organization"
+            ]
+          },
+          {
+            "id": "owner",
+            "label": "Owner",
+            "type": "entity-ref",
+            "description": "Current or notable owner",
+            "required": false,
+            "targetTypes": [
+              "character",
+              "organization"
+            ],
+            "appliesTo": [
+              "item"
+            ]
+          },
+          {
+            "id": "portrait",
+            "label": "Portrait",
+            "type": "image",
+            "required": false,
+            "appliesTo": [
+              "character"
+            ]
+          }
+        ],
+        "source": "custom",
+        "appliesTo": [
+          "character",
+          "organization",
+          "item"
+        ]
+      },
+      {
+        "id": "place",
+        "label": "Place",
+        "type": "group",
+        "description": "Spatial scope and location relationships",
+        "required": false,
+        "children": [
+          {
+            "id": "scale",
+            "label": "Scale",
+            "type": "select",
+            "description": "Physical or social scale",
+            "required": false,
+            "options": [
+              {
+                "value": "room",
+                "label": "Room",
+                "color": "#94a3b8"
+              },
+              {
+                "value": "building",
+                "label": "Building",
+                "color": "#64748b"
+              },
+              {
+                "value": "settlement",
+                "label": "Settlement",
+                "color": "#10b981"
+              },
+              {
+                "value": "region",
+                "label": "Region",
+                "color": "#0ea5e9"
+              },
+              {
+                "value": "world",
+                "label": "World",
+                "color": "#8b5cf6"
+              }
+            ],
+            "appliesTo": [
+              "location"
+            ]
+          },
+          {
+            "id": "region",
+            "label": "Region",
+            "type": "entity-ref",
+            "description": "Parent or surrounding location",
+            "required": false,
+            "targetTypes": [
+              "location",
+              "world"
+            ],
+            "appliesTo": [
+              "location"
+            ]
+          },
+          {
+            "id": "population",
+            "label": "Population",
+            "type": "text",
+            "description": "Population estimate or known inhabitants",
+            "required": false,
+            "appliesTo": [
+              "location"
+            ]
+          },
+          {
+            "id": "location",
+            "label": "Location",
+            "type": "entity-ref",
+            "description": "Place where this event, story, scene, quest, or object belongs",
+            "required": false,
+            "targetTypes": [
+              "location",
+              "world"
+            ],
+            "appliesTo": [
+              "item"
+            ]
+          }
+        ],
+        "appliesTo": [
+          "location",
+          "item"
+        ]
+      },
+      {
+        "id": "narrative",
+        "label": "Narrative",
+        "type": "group",
+        "description": "Story structure, timing, and participation",
+        "required": false,
+        "children": [
+          {
+            "id": "arc",
+            "label": "Arc",
+            "type": "select",
+            "description": "Narrative arc state",
+            "required": false,
+            "options": [
+              {
+                "value": "setup",
+                "label": "Setup",
+                "color": "#94a3b8"
+              },
+              {
+                "value": "rising",
+                "label": "Rising",
+                "color": "#3b82f6"
+              },
+              {
+                "value": "turning-point",
+                "label": "Turning Point",
+                "color": "#f59e0b"
+              },
+              {
+                "value": "climax",
+                "label": "Climax",
+                "color": "#ef4444"
+              },
+              {
+                "value": "resolution",
+                "label": "Resolution",
+                "color": "#10b981"
+              }
+            ],
+            "appliesTo": [
+              "character"
+            ]
+          },
+          {
+            "id": "date",
+            "label": "Date",
+            "type": "date",
+            "description": "In-world or planning date",
+            "required": false,
+            "appliesTo": []
+          },
+          {
+            "id": "participants",
+            "label": "Participants",
+            "type": "entity-ref-list",
+            "description": "Characters or organizations involved",
+            "required": false,
+            "targetTypes": [
+              "character",
+              "organization"
+            ],
+            "appliesTo": []
+          }
+        ],
+        "appliesTo": [
+          "character"
+        ]
+      },
+      {
+        "id": "item-details",
+        "label": "Item",
+        "type": "group",
+        "description": "Item materiality and rarity",
+        "required": false,
+        "children": [
+          {
+            "id": "rarity",
+            "label": "Rarity",
+            "type": "select",
+            "description": "How common or legendary an item is",
+            "required": false,
+            "options": [
+              {
+                "value": "common",
+                "label": "Common",
+                "color": "#94a3b8"
+              },
+              {
+                "value": "uncommon",
+                "label": "Uncommon",
+                "color": "#10b981"
+              },
+              {
+                "value": "rare",
+                "label": "Rare",
+                "color": "#3b82f6"
+              },
+              {
+                "value": "legendary",
+                "label": "Legendary",
+                "color": "#f59e0b"
+              },
+              {
+                "value": "unique",
+                "label": "Unique",
+                "color": "#ec4899"
+              }
+            ]
+          },
+          {
+            "id": "material",
+            "label": "Material",
+            "type": "text",
+            "description": "Primary material, component, or substance",
+            "required": false
+          }
+        ],
+        "appliesTo": [
+          "item"
+        ]
+      }
+    ],
+    "globalFields": [
+      "lore-level"
+    ]
+  }
+}

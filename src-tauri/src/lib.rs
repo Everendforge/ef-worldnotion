@@ -620,14 +620,27 @@ fn walk_vault(
         }
     };
 
+    // Check if we're inside .everend (allow dot-folders inside .everend)
+    let current_relative = current
+        .strip_prefix(root)
+        .unwrap_or(current)
+        .to_string_lossy()
+        .replace('\\', "/");
+    let is_inside_everend = current_relative == ".everend" || current_relative.starts_with(".everend/");
+
     for entry in entries {
         match entry {
             Ok(entry) => {
                 let path = entry.path();
                 let file_name = entry.file_name();
-                if file_name.to_string_lossy().starts_with('.')
+                let file_name_str = file_name.to_string_lossy();
+                
+                // Skip dot-folders, except: .everend at root, .pathbranching at root,
+                // or any dot-folder inside .everend
+                if file_name_str.starts_with('.')
                     && file_name != ".everend"
                     && file_name != ".pathbranching"
+                    && !is_inside_everend
                 {
                     continue;
                 }
@@ -1169,6 +1182,62 @@ fn list_theme_files(vault_path: String) -> Result<Vec<ThemeManifest>, String> {
     Ok(themes)
 }
 
+#[derive(Serialize)]
+struct ExplorerIconsResponse {
+    ok: bool,
+    content: Option<String>,
+    message: Option<String>,
+}
+
+#[tauri::command]
+fn read_explorer_icons(vault_path: String) -> ExplorerIconsResponse {
+    let root = PathBuf::from(&vault_path);
+    let icons_path = root.join(".everend/.worldnotion/explorer-icons.json");
+
+    match fs::read_to_string(&icons_path) {
+        Ok(content) => ExplorerIconsResponse {
+            ok: true,
+            content: Some(content),
+            message: None,
+        },
+        Err(_) => ExplorerIconsResponse {
+            ok: false,
+            content: None,
+            message: Some("Icons file not found".to_string()),
+        },
+    }
+}
+
+#[tauri::command]
+fn save_explorer_icons(vault_path: String, content: String) -> ExplorerIconsResponse {
+    let root = PathBuf::from(&vault_path);
+    let icons_dir = root.join(".everend/.worldnotion");
+    let icons_path = icons_dir.join("explorer-icons.json");
+
+    // Create directories if they don't exist
+    if let Err(err) = fs::create_dir_all(&icons_dir) {
+        return ExplorerIconsResponse {
+            ok: false,
+            content: None,
+            message: Some(format!("Could not create icons directory: {}", err)),
+        };
+    }
+
+    // Write the file
+    match fs::write(&icons_path, &content) {
+        Ok(_) => ExplorerIconsResponse {
+            ok: true,
+            content: None,
+            message: None,
+        },
+        Err(err) => ExplorerIconsResponse {
+            ok: false,
+            content: None,
+            message: Some(format!("Could not save icons file: {}", err)),
+        },
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1200,7 +1269,9 @@ pub fn run() {
             trash_path,
             reveal_path,
             reveal_vault,
-            list_theme_files
+            list_theme_files,
+            read_explorer_icons,
+            save_explorer_icons
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

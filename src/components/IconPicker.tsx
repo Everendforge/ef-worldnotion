@@ -34,6 +34,48 @@ import {
   Users,
   Zap,
   X,
+  Wand2,
+  Sword,
+  Crown,
+  Skull,
+  Scroll,
+  Compass,
+  Flame,
+  Droplet,
+  Wind,
+  Cloud,
+  Sun,
+  Moon,
+  Anchor,
+  Ship,
+  Gift,
+  Gem,
+  Coins,
+  Eye,
+  Feather,
+  PenTool,
+  Palette,
+  Trophy,
+  Beaker,
+  Microscope,
+  Bookmark,
+  Hourglass,
+  Clock,
+  AlertCircle,
+  Info,
+  Crosshair,
+  Hexagon,
+  Activity,
+  Aperture,
+  Barcode,
+  Bell,
+  Bluetooth,
+  Briefcase,
+  CameraOff,
+  ChevronUp,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import "../App.css";
 
@@ -71,7 +113,43 @@ export type IconName =
   | "layers"
   | "truck"
   | "users"
-  | "zap";
+  | "zap"
+  | "wand"
+  | "sword"
+  | "crown"
+  | "skull"
+  | "scroll"
+  | "compass"
+  | "flame"
+  | "droplet"
+  | "wind"
+  | "cloud"
+  | "sun"
+  | "moon"
+  | "anchor"
+  | "ship"
+  | "gift"
+  | "gem"
+  | "coins"
+  | "eye"
+  | "feather"
+  | "pen"
+  | "palette"
+  | "trophy"
+  | "beaker"
+  | "microscope"
+  | "bookmarked"
+  | "hourglass"
+  | "clock"
+  | "alert"
+  | "info"
+  | "crosshair"
+  | "hexagon"
+  | "activity"
+  | "aperture"
+  | "barcode"
+  | "bell"
+  | "briefcase";
 
 interface IconPickerProps {
   onSelect: (iconName: IconName) => void;
@@ -82,7 +160,7 @@ interface IconPickerProps {
 
 const ICON_OPTIONS: Array<{ name: IconName; label: string; Icon: any }> = [
   { name: "default", label: "Default", Icon: Folder },
-  { name: "bookmark", label: "Bookmark", Icon: BookOpen },
+  { name: "bookmark", label: "Bookmark", Icon: Bookmark },
   { name: "box", label: "Box", Icon: Box },
   { name: "calendar", label: "Calendar", Icon: Calendar },
   { name: "checkbox", label: "Checkbox", Icon: CheckSquare },
@@ -115,6 +193,47 @@ const ICON_OPTIONS: Array<{ name: IconName; label: string; Icon: any }> = [
   { name: "truck", label: "Truck", Icon: Truck },
   { name: "users", label: "Users", Icon: Users },
   { name: "zap", label: "Zap", Icon: Zap },
+  // Worldbuilding & Fantasy
+  { name: "wand", label: "Wand", Icon: Wand2 },
+  { name: "sword", label: "Sword", Icon: Sword },
+  { name: "crown", label: "Crown", Icon: Crown },
+  { name: "skull", label: "Skull", Icon: Skull },
+  { name: "scroll", label: "Scroll", Icon: Scroll },
+  { name: "compass", label: "Compass", Icon: Compass },
+  // Elements & Nature
+  { name: "flame", label: "Flame", Icon: Flame },
+  { name: "droplet", label: "Droplet", Icon: Droplet },
+  { name: "wind", label: "Wind", Icon: Wind },
+  { name: "cloud", label: "Cloud", Icon: Cloud },
+  { name: "sun", label: "Sun", Icon: Sun },
+  { name: "moon", label: "Moon", Icon: Moon },
+  // Exploration & Adventure
+  { name: "anchor", label: "Anchor", Icon: Anchor },
+  { name: "ship", label: "Ship", Icon: Ship },
+  { name: "gift", label: "Gift", Icon: Gift },
+  { name: "gem", label: "Gem", Icon: Gem },
+  { name: "coins", label: "Coins", Icon: Coins },
+  { name: "eye", label: "Eye", Icon: Eye },
+  // Knowledge & Creativity
+  { name: "feather", label: "Feather", Icon: Feather },
+  { name: "pen", label: "Pen", Icon: PenTool },
+  { name: "palette", label: "Palette", Icon: Palette },
+  { name: "trophy", label: "Trophy", Icon: Trophy },
+  { name: "beaker", label: "Beaker", Icon: Beaker },
+  { name: "microscope", label: "Microscope", Icon: Microscope },
+
+  { name: "hourglass", label: "Hourglass", Icon: Hourglass },
+  { name: "clock", label: "Clock", Icon: Clock },
+  // Status & State
+  { name: "alert", label: "Alert", Icon: AlertCircle },
+  { name: "info", label: "Info", Icon: Info },
+  { name: "crosshair", label: "Crosshair", Icon: Crosshair },
+  { name: "hexagon", label: "Hexagon", Icon: Hexagon },
+  { name: "activity", label: "Activity", Icon: Activity },
+  { name: "aperture", label: "Aperture", Icon: Aperture },
+  { name: "barcode", label: "Barcode", Icon: Barcode },
+  { name: "bell", label: "Bell", Icon: Bell },
+  { name: "briefcase", label: "Briefcase", Icon: Briefcase },
 ];
 
 export function IconPicker({ onSelect, onClose, x = 0, y = 0 }: IconPickerProps) {

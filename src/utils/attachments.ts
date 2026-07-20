@@ -1,4 +1,4 @@
-export const DEFAULT_ATTACHMENTS_FOLDER = "attachments";
+export const DEFAULT_ATTACHMENTS_FOLDER = ".everend/assets/image";
 
 export type ImagePresentation = {
   /** Percentage of the writing column occupied by the image. */

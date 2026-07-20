@@ -12277,6 +12277,42 @@ select.property-field-control {
 
 .template-preview ul {
   margin: 0;
+
+/* Appearance-Behavior Tab Navigation */
+.appearance-behavior-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.appearance-behavior-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--wn-border);
+  margin-bottom: 16px;
+}
+
+.appearance-behavior-tabs button {
+  padding: 10px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--wn-muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.appearance-behavior-tabs button:hover {
+  color: var(--wn-text);
+  border-bottom-color: color-mix(in srgb, var(--wn-border) 60%, transparent);
+}
+
+.appearance-behavior-tabs button.active {
+  color: var(--wn-accent);
+  border-bottom-color: var(--wn-accent);
+}
   padding-left: 18px;
   list-style: disc;
   color: var(--wn-text-secondary);
@@ -13688,7 +13724,7 @@ select.property-field-control {
   padding: 12px;
   border: 1px solid var(--wn-border, rgba(127, 127, 127, 0.22));
   border-radius: 10px;
-  background: var(--wn-surface, rgba(255, 255, 255, 0.45));
+  background: var(--wn-card, #ffffff);
 }
 
 .presentation-role-heading {
@@ -13738,7 +13774,7 @@ select.property-field-control {
   margin: 0 0 14px;
   border: 1px solid var(--wn-border, rgba(127, 127, 127, 0.22));
   border-radius: 10px;
-  background: var(--wn-surface, rgba(255, 255, 255, 0.45));
+  background: var(--wn-card, #ffffff);
 }
 
 .document-presentation-cover {
@@ -13786,9 +13822,9 @@ select.property-field-control {
   width: 70px;
   height: 92px;
   flex: 0 0 auto;
-  border: 3px solid var(--wn-editor-bg, #fff);
+  border: 3px solid var(--wn-card, #fff);
   border-radius: 9px;
-  background: var(--wn-surface-muted, rgba(127, 127, 127, 0.08));
+  background: var(--wn-panel-2, rgba(127, 127, 127, 0.08));
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
   object-fit: cover;
 }

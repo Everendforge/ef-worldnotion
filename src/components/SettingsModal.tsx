@@ -434,15 +434,17 @@ type SettingsSection =
   | "update"
   | "license"
   | "overview"
-  | "tags"
+  | "properties"
   | "utils"
-  | "editor"
-  | "shortcuts"
-  | "tabs"
-  | "explorer"
+  | "appearance-behavior"
   | "plugins"
   | "ai-advisor"
-  | "tutorials";
+  | "help";
+
+type AppearanceBehaviorTab =
+  | "appearance"
+  | "editor"
+  | "workspace";
 
 const primaryFontOptions = [
   ["sans", "Sans serif"],
@@ -473,8 +475,9 @@ export function SettingsModal({
   suiteSettings,
 }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>(
-    initialSection ?? (universe ? "overview" : "editor"),
+    initialSection ?? (universe ? "overview" : "appearance-behavior"),
   );
+  const [appearanceBehaviorTab, setAppearanceBehaviorTab] = useState<AppearanceBehaviorTab>("appearance");
   const interfaceCopy = interfaceLocaleCopy(
     resolveInterfaceLocale(suiteSettings?.localePreference ?? settings.localePreference ?? "system"),
   );
@@ -773,8 +776,8 @@ export function SettingsModal({
                   {settingsText.overview}
                 </button>
                 <button
-                  className={activeSection === "tags" ? "active" : ""}
-                  onClick={() => setActiveSection("tags")}
+                  className={activeSection === "properties" ? "active" : ""}
+                  onClick={() => setActiveSection("properties")}
                   type="button"
                 >
                   <Hash size={14} />
@@ -794,36 +797,12 @@ export function SettingsModal({
             <div className="settings-nav-group app-settings-group">
               <p>{settingsText.application}</p>
               <button
-                className={activeSection === "editor" ? "active" : ""}
-                onClick={() => setActiveSection("editor")}
+                className={activeSection === "appearance-behavior" ? "active" : ""}
+                onClick={() => setActiveSection("appearance-behavior")}
                 type="button"
               >
                 <TextCursorInput size={14} />
-                {settingsText.editor}
-              </button>
-              <button
-                className={activeSection === "shortcuts" ? "active" : ""}
-                onClick={() => setActiveSection("shortcuts")}
-                type="button"
-              >
-                <Keyboard size={14} />
-                {settingsText.shortcuts}
-              </button>
-              <button
-                className={activeSection === "tabs" ? "active" : ""}
-                onClick={() => setActiveSection("tabs")}
-                type="button"
-              >
-                <PanelLeft size={14} />
-                {settingsText.tabs}
-              </button>
-              <button
-                className={activeSection === "explorer" ? "active" : ""}
-                onClick={() => setActiveSection("explorer")}
-                type="button"
-              >
-                <Folder size={14} />
-                {settingsText.explorer}
+                Appearance & Behavior
               </button>
               <button
                 className={activeSection === "plugins" ? "active" : ""}
@@ -842,12 +821,12 @@ export function SettingsModal({
                 {settingsText.advisor}
               </button>
               <button
-                className={activeSection === "tutorials" ? "active" : ""}
-                onClick={() => setActiveSection("tutorials")}
+                className={activeSection === "help" ? "active" : ""}
+                onClick={() => setActiveSection("help")}
                 type="button"
               >
-                <RefreshCw size={14} />
-                {settingsText.tutorials}
+                <BookOpen size={14} />
+                Help & Docs
               </button>
             </div>
           </nav>
@@ -1180,383 +1159,538 @@ export function SettingsModal({
               </div>
             ) : null}
 
-            {activeSection === "editor" ? (
-              <>
-                <div className="settings-grid">
-                  {!suiteSettings ? (
-                    <label>
-                      <span>{interfaceCopy.interfaceLanguage}</span>
-                      <select
-                        value={settings.localePreference ?? "system"}
-                        onChange={(event) =>
-                          onChange({ ...settings, localePreference: event.target.value as "system" | "en" | "es" })
-                        }
-                      >
-                        <option value="system">{interfaceCopy.system}</option>
-                        <option value="en">English</option>
-                        <option value="es">Español</option>
-                      </select>
-                    </label>
-                  ) : null}
-                  <label>
-                    <span>{settingsText.activeStyle}</span>
-                    <input value={themeById(settings.theme).label} readOnly />
-                  </label>
-                  <label>
-                    <span>{settingsText.pageStyle}</span>
-                    <select
-                      value={settings.editor.pageStyle}
-                      onChange={(event) =>
-                        updateEditor({
-                          pageStyle: event.target.value as EditorSettings["pageStyle"],
-                        })
-                      }
-                    >
-                      <option value="theme">{settingsText.theme}</option>
-                      <option value="white">{settingsText.whitePage}</option>
-                      <option value="warm-paper">{settingsText.warmPaper}</option>
-                      <option value="system">{settingsText.systemSurface}</option>
-                      <option value="custom">{settingsText.customColor}</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>{settingsText.customPageColor}</span>
-                    <input
-                      type="color"
-                      value={settings.editor.customPageColor}
-                      onChange={(event) => updateEditor({ customPageColor: event.target.value })}
-                      disabled={settings.editor.pageStyle !== "custom"}
-                    />
-                  </label>
-                  <label>
-                    <span>{settingsText.paperShadow}</span>
-                    <input
-                      type="checkbox"
-                      checked={settings.editor.showPaperShadow}
-                      onChange={(event) => updateEditor({ showPaperShadow: event.target.checked })}
-                    />
-                  </label>
-                  <label>
-                    <span>{settingsText.lineNumbers}</span>
-                    <input
-                      type="checkbox"
-                      checked={settings.editor.lineNumbers}
-                      onChange={(event) => updateEditor({ lineNumbers: event.target.checked })}
-                    />
-                  </label>
-                  <label>
-                    <span>{settingsText.lineWrap}</span>
-                    <input
-                      type="checkbox"
-                      checked={settings.editor.lineWrap}
-                      onChange={(event) => updateEditor({ lineWrap: event.target.checked })}
-                    />
-                  </label>
-                  <label>
-                    <span>{settingsText.activeLine}</span>
-                    <input
-                      type="checkbox"
-                      checked={settings.editor.activeLine}
-                      onChange={(event) => updateEditor({ activeLine: event.target.checked })}
-                    />
-                  </label>
-                  <label>
-                    <span>{settingsText.writingStructures}</span>
-                    <select
-                      value={settings.editor.writeStructureMode}
-                      onChange={(event) =>
-                        updateEditor({
-                          writeStructureMode: event.target
-                            .value as EditorSettings["writeStructureMode"],
-                        })
-                      }
-                    >
-                      <option value="processed">{settingsText.processed}</option>
-                      <option value="visible">{settingsText.visibleStructures}</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>{settingsText.fontSize}</span>
-                    <input
-                      type="number"
-                      min={11}
-                      max={22}
-                      value={settings.editor.fontSize}
-                      onChange={(event) => updateEditor({ fontSize: Number(event.target.value) })}
-                    />
-                  </label>
-                  <label>
-                    <span>{settingsText.writeFont}</span>
-                    <input
-                      value={settings.editor.writeFontFamily}
-                      onChange={(event) => updateEditor({ writeFontFamily: event.target.value })}
-                    />
-                  </label>
-                  <label>
-                    <span>{settingsText.sourceFont}</span>
-                    <input
-                      value={settings.editor.sourceFontFamily}
-                      onChange={(event) => updateEditor({ sourceFontFamily: event.target.value })}
-                    />
-                  </label>
-                  <label>
-                    <span>{settingsText.tabSize}</span>
-                    <input
-                      type="number"
-                      min={2}
-                      max={8}
-                      value={settings.editor.tabSize}
-                      onChange={(event) => updateEditor({ tabSize: Number(event.target.value) })}
-                    />
-                  </label>
-                  <label>
-                    <span>{settingsText.defaultMode}</span>
-                    <select
-                      value={settings.editor.defaultMode}
-                      onChange={(event) =>
-                        updateEditor({
-                          defaultMode: event.target.value as EditorSettings["defaultMode"],
-                        })
-                      }
-                    >
-                      <option value="write">{settingsText.write}</option>
-                      <option value="source">{settingsText.source}</option>
-                    </select>
-                  </label>
-                </div>
-
-                <h3
-                  style={{
-                    gridColumn: "1 / -1",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    margin: "16px 0 8px 0",
-                    color: "var(--wn-muted)",
-                  }}
-                >
-                  {settingsText.navigation}
-                </h3>
-                <div className="settings-grid">
-                  <label>
-                    <span>{settingsText.commandPalette}</span>
-                    <input
-                      type="checkbox"
-                      checked={settings.editor.commandPaletteEnabled}
-                      onChange={(event) =>
-                        updateEditor({ commandPaletteEnabled: event.target.checked })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>{settingsText.quickSwitcher}</span>
-                    <input
-                      type="checkbox"
-                      checked={settings.editor.quickSwitcherEnabled}
-                      onChange={(event) =>
-                        updateEditor({ quickSwitcherEnabled: event.target.checked })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>{settingsText.findReplace}</span>
-                    <input
-                      type="checkbox"
-                      checked={settings.editor.searchPanelEnabled}
-                      onChange={(event) =>
-                        updateEditor({ searchPanelEnabled: event.target.checked })
-                      }
-                    />
-                  </label>
-                </div>
-
-                <h3
-                  style={{
-                    gridColumn: "1 / -1",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    margin: "16px 0 8px 0",
-                    color: "var(--wn-muted)",
-                  }}
-                >
-                  {settingsText.visualization}
-                </h3>
-                <div className="settings-grid">
-                  <label>
-                    <span>{settingsText.outlineGuide}</span>
-                    <input
-                      type="checkbox"
-                      checked={settings.editor.outlineGuideEnabled}
-                      onChange={(event) =>
-                        updateEditor({ outlineGuideEnabled: event.target.checked })
-                      }
-                    />
-                  </label>
-                  {settings.editor.outlineGuideEnabled && (
-                    <label>
-                      <span>{settingsText.outlinePosition}</span>
-                      <select
-                        value={settings.editor.outlinePosition}
-                        onChange={(event) =>
-                          updateEditor({ outlinePosition: event.target.value as "left" | "right" })
-                        }
-                      >
-                        <option value="left">{settingsText.left}</option>
-                        <option value="right">{settingsText.right}</option>
-                      </select>
-                    </label>
-                  )}
-                  <label>
-                    <span>{settingsText.breadcrumbs}</span>
-                    <input
-                      type="checkbox"
-                      checked={settings.editor.breadcrumbsEnabled}
-                      onChange={(event) =>
-                        updateEditor({ breadcrumbsEnabled: event.target.checked })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>{settingsText.codeFolding}</span>
-                    <input
-                      type="checkbox"
-                      checked={settings.editor.codeFoldingEnabled}
-                      onChange={(event) =>
-                        updateEditor({ codeFoldingEnabled: event.target.checked })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>{settingsText.floatingToolbar}</span>
-                    <input
-                      type="checkbox"
-                      checked={settings.editor.floatingToolbarEnabled}
-                      onChange={(event) =>
-                        updateEditor({ floatingToolbarEnabled: event.target.checked })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>{settingsText.documentHeader}</span>
-                    <input
-                      type="checkbox"
-                      checked={settings.editor.documentHeaderEnabled}
-                      onChange={(event) =>
-                        updateEditorWithPluginMirror({
-                          documentHeaderEnabled: event.target.checked,
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>{settingsText.showProjectName}</span>
-                    <input
-                      type="checkbox"
-                      disabled={!settings.editor.documentHeaderEnabled}
-                      checked={settings.editor.showProjectNameInHeader}
-                      onChange={(event) =>
-                        updateEditor({ showProjectNameInHeader: event.target.checked })
-                      }
-                    />
-                  </label>
-                </div>
-              </>
-            ) : null}
-
-            {activeSection === "shortcuts" ? (
-              <div>
-                <div className="settings-inline">
-                  <p className="muted">Focus a shortcut field and press the desired keys.</p>
+            {activeSection === "appearance-behavior" ? (
+              <div className="appearance-behavior-section">
+                <div className="appearance-behavior-tabs">
                   <button
                     type="button"
-                    onClick={() => onChange({ ...settings, keybindings: DEFAULT_KEYBINDINGS })}
+                    className={appearanceBehaviorTab === "appearance" ? "active" : ""}
+                    onClick={() => setAppearanceBehaviorTab("appearance")}
                   >
-                    Reset defaults
+                    Appearance
+                  </button>
+                  <button
+                    type="button"
+                    className={appearanceBehaviorTab === "editor" ? "active" : ""}
+                    onClick={() => setAppearanceBehaviorTab("editor")}
+                  >
+                    Editor
+                  </button>
+                  <button
+                    type="button"
+                    className={appearanceBehaviorTab === "workspace" ? "active" : ""}
+                    onClick={() => setAppearanceBehaviorTab("workspace")}
+                  >
+                    Workspace
                   </button>
                 </div>
-                {conflictMessage ? (
-                  <div className="error-banner settings-error">{conflictMessage}</div>
-                ) : null}
-                <div className="shortcut-list">
-                  {EDITOR_COMMANDS.map((command) => (
-                    <label key={command.id} className="shortcut-row">
-                      <span>{command.label}</span>
+
+                {appearanceBehaviorTab === "appearance" ? (
+                  <div className="settings-grid">
+                    {!suiteSettings ? (
+                      <label>
+                        <span>{interfaceCopy.interfaceLanguage}</span>
+                        <select
+                          value={settings.localePreference ?? "system"}
+                          onChange={(event) =>
+                            onChange({ ...settings, localePreference: event.target.value as "system" | "en" | "es" })
+                          }
+                        >
+                          <option value="system">{interfaceCopy.system}</option>
+                          <option value="en">English</option>
+                          <option value="es">Español</option>
+                        </select>
+                      </label>
+                    ) : null}
+                    <label>
+                      <span>{settingsText.activeStyle}</span>
+                      <input value={themeById(settings.theme).label} readOnly />
+                    </label>
+                    <h3
+                      style={{
+                        gridColumn: "1 / -1",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        margin: "12px 0 8px 0",
+                        color: "var(--wn-muted)",
+                      }}
+                    >
+                      Page Style
+                    </h3>
+                    <label>
+                      <span>{settingsText.pageStyle}</span>
+                      <select
+                        value={settings.editor.pageStyle}
+                        onChange={(event) =>
+                          updateEditor({
+                            pageStyle: event.target.value as EditorSettings["pageStyle"],
+                          })
+                        }
+                      >
+                        <option value="theme">{settingsText.theme}</option>
+                        <option value="white">{settingsText.whitePage}</option>
+                        <option value="warm-paper">{settingsText.warmPaper}</option>
+                        <option value="system">{settingsText.systemSurface}</option>
+                        <option value="custom">{settingsText.customColor}</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>{settingsText.customPageColor}</span>
                       <input
-                        value={keybindingMap.get(command.id) ?? ""}
-                        onChange={(event) => updateShortcut(command.id, event.target.value)}
-                        onKeyDown={(event) => {
-                          event.preventDefault();
-                          updateShortcut(command.id, eventToShortcut(event));
-                        }}
-                        placeholder="Unassigned"
+                        type="color"
+                        value={settings.editor.customPageColor}
+                        onChange={(event) => updateEditor({ customPageColor: event.target.value })}
+                        disabled={settings.editor.pageStyle !== "custom"}
                       />
                     </label>
-                  ))}
-                </div>
+                    <label>
+                      <span>{settingsText.paperShadow}</span>
+                      <input
+                        type="checkbox"
+                        checked={settings.editor.showPaperShadow}
+                        onChange={(event) => updateEditor({ showPaperShadow: event.target.checked })}
+                      />
+                    </label>
+                    <h3
+                      style={{
+                        gridColumn: "1 / -1",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        margin: "12px 0 8px 0",
+                        color: "var(--wn-muted)",
+                      }}
+                    >
+                      Typography
+                    </h3>
+                    <label>
+                      <span>{settingsText.writeFont}</span>
+                      <input
+                        value={settings.editor.writeFontFamily}
+                        onChange={(event) => updateEditor({ writeFontFamily: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      <span>{settingsText.sourceFont}</span>
+                      <input
+                        value={settings.editor.sourceFontFamily}
+                        onChange={(event) => updateEditor({ sourceFontFamily: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      <span>{settingsText.fontSize}</span>
+                      <input
+                        type="number"
+                        min={11}
+                        max={22}
+                        value={settings.editor.fontSize}
+                        onChange={(event) => updateEditor({ fontSize: Number(event.target.value) })}
+                      />
+                    </label>
+                  </div>
+                ) : null}
+
+                {appearanceBehaviorTab === "editor" ? (
+                  <div>
+                    <div className="settings-grid">
+                      <h3
+                        style={{
+                          gridColumn: "1 / -1",
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          margin: "0 0 8px 0",
+                          color: "var(--wn-muted)",
+                        }}
+                      >
+                        Editing Behavior
+                      </h3>
+                      <label>
+                        <span>{settingsText.lineWrap}</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.editor.lineWrap}
+                          onChange={(event) => updateEditor({ lineWrap: event.target.checked })}
+                        />
+                      </label>
+                      <label>
+                        <span>{settingsText.tabSize}</span>
+                        <input
+                          type="number"
+                          min={2}
+                          max={8}
+                          value={settings.editor.tabSize}
+                          onChange={(event) => updateEditor({ tabSize: Number(event.target.value) })}
+                        />
+                      </label>
+                      <label>
+                        <span>{settingsText.lineNumbers}</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.editor.lineNumbers}
+                          onChange={(event) => updateEditor({ lineNumbers: event.target.checked })}
+                        />
+                      </label>
+                      <label>
+                        <span>{settingsText.activeLine}</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.editor.activeLine}
+                          onChange={(event) => updateEditor({ activeLine: event.target.checked })}
+                        />
+                      </label>
+                      <label>
+                        <span>{settingsText.writingStructures}</span>
+                        <select
+                          value={settings.editor.writeStructureMode}
+                          onChange={(event) =>
+                            updateEditor({
+                              writeStructureMode: event.target
+                                .value as EditorSettings["writeStructureMode"],
+                            })
+                          }
+                        >
+                          <option value="processed">{settingsText.processed}</option>
+                          <option value="visible">{settingsText.visibleStructures}</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>{settingsText.defaultMode}</span>
+                        <select
+                          value={settings.editor.defaultMode}
+                          onChange={(event) =>
+                            updateEditor({
+                              defaultMode: event.target.value as EditorSettings["defaultMode"],
+                            })
+                          }
+                        >
+                          <option value="write">{settingsText.write}</option>
+                          <option value="source">{settingsText.source}</option>
+                        </select>
+                      </label>
+
+                      <h3
+                        style={{
+                          gridColumn: "1 / -1",
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          margin: "16px 0 8px 0",
+                          color: "var(--wn-muted)",
+                        }}
+                      >
+                        Display Options
+                      </h3>
+                      <label>
+                        <span>{settingsText.breadcrumbs}</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.editor.breadcrumbsEnabled}
+                          onChange={(event) =>
+                            updateEditor({ breadcrumbsEnabled: event.target.checked })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>{settingsText.codeFolding}</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.editor.codeFoldingEnabled}
+                          onChange={(event) =>
+                            updateEditor({ codeFoldingEnabled: event.target.checked })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>{settingsText.floatingToolbar}</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.editor.floatingToolbarEnabled}
+                          onChange={(event) =>
+                            updateEditor({ floatingToolbarEnabled: event.target.checked })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>{settingsText.outlineGuide}</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.editor.outlineGuideEnabled}
+                          onChange={(event) =>
+                            updateEditor({ outlineGuideEnabled: event.target.checked })
+                          }
+                        />
+                      </label>
+                      {settings.editor.outlineGuideEnabled && (
+                        <label>
+                          <span>{settingsText.outlinePosition}</span>
+                          <select
+                            value={settings.editor.outlinePosition}
+                            onChange={(event) =>
+                              updateEditor({ outlinePosition: event.target.value as "left" | "right" })
+                            }
+                          >
+                            <option value="left">{settingsText.left}</option>
+                            <option value="right">{settingsText.right}</option>
+                          </select>
+                        </label>
+                      )}
+                      <label>
+                        <span>{settingsText.documentHeader}</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.editor.documentHeaderEnabled}
+                          onChange={(event) =>
+                            updateEditorWithPluginMirror({
+                              documentHeaderEnabled: event.target.checked,
+                            })
+                          }
+                        />
+                      </label>
+                      {settings.editor.documentHeaderEnabled && (
+                        <label>
+                          <span>{settingsText.showProjectName}</span>
+                          <input
+                            type="checkbox"
+                            checked={settings.editor.showProjectNameInHeader}
+                            onChange={(event) =>
+                              updateEditor({ showProjectNameInHeader: event.target.checked })
+                            }
+                          />
+                        </label>
+                      )}
+
+                      <h3
+                        style={{
+                          gridColumn: "1 / -1",
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          margin: "16px 0 8px 0",
+                          color: "var(--wn-muted)",
+                        }}
+                      >
+                        Navigation Tools
+                      </h3>
+                      <label>
+                        <span>{settingsText.commandPalette}</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.editor.commandPaletteEnabled}
+                          onChange={(event) =>
+                            updateEditor({ commandPaletteEnabled: event.target.checked })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>{settingsText.quickSwitcher}</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.editor.quickSwitcherEnabled}
+                          onChange={(event) =>
+                            updateEditor({ quickSwitcherEnabled: event.target.checked })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>{settingsText.findReplace}</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.editor.searchPanelEnabled}
+                          onChange={(event) =>
+                            updateEditor({ searchPanelEnabled: event.target.checked })
+                          }
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ) : null}
+
+                {appearanceBehaviorTab === "workspace" ? (
+                  <div>
+                    <div className="settings-grid">
+                      <h3
+                        style={{
+                          gridColumn: "1 / -1",
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          margin: "0 0 8px 0",
+                          color: "var(--wn-muted)",
+                        }}
+                      >
+                        Dock & Tabs
+                      </h3>
+                      <label>
+                        <span>Dock tab size</span>
+                        <input
+                          type="range"
+                          min={0.75}
+                          max={1.75}
+                          step={0.05}
+                          value={settings.editor.dockTabScale}
+                          onChange={(event) =>
+                            updateEditor({ dockTabScale: dockTabScaleFromInput(event.target.value) })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>Dock tab scale</span>
+                        <input
+                          type="number"
+                          min={75}
+                          max={175}
+                          step={5}
+                          value={Math.round(settings.editor.dockTabScale * 100)}
+                          onChange={(event) =>
+                            updateEditor({
+                              dockTabScale: dockTabScaleFromInput(
+                                String(Number(event.target.value) / 100),
+                              ),
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>Persist tabs</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.editor.persistTabs}
+                          onChange={(event) => updateEditor({ persistTabs: event.target.checked })}
+                        />
+                      </label>
+                      <label>
+                        <span>Reuse open tabs</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.editor.reuseOpenTabs}
+                          onChange={(event) => updateEditor({ reuseOpenTabs: event.target.checked })}
+                        />
+                      </label>
+                      <label>
+                        <span>Confirm dirty close</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.editor.confirmCloseDirtyTab}
+                          onChange={(event) =>
+                            updateEditor({ confirmCloseDirtyTab: event.target.checked })
+                          }
+                        />
+                      </label>
+
+                      <h3
+                        style={{
+                          gridColumn: "1 / -1",
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          margin: "16px 0 8px 0",
+                          color: "var(--wn-muted)",
+                        }}
+                      >
+                        Keyboard Shortcuts
+                      </h3>
+                    </div>
+                    <div className="settings-inline">
+                      <p className="muted">Focus a shortcut field and press the desired keys.</p>
+                      <button
+                        type="button"
+                        onClick={() => onChange({ ...settings, keybindings: DEFAULT_KEYBINDINGS })}
+                      >
+                        Reset defaults
+                      </button>
+                    </div>
+                    {conflictMessage ? (
+                      <div className="error-banner settings-error">{conflictMessage}</div>
+                    ) : null}
+                    <div className="shortcut-list">
+                      {EDITOR_COMMANDS.map((command) => (
+                        <label key={command.id} className="shortcut-row">
+                          <span>{command.label}</span>
+                          <input
+                            value={keybindingMap.get(command.id) ?? ""}
+                            onChange={(event) => updateShortcut(command.id, event.target.value)}
+                            onKeyDown={(event) => {
+                              event.preventDefault();
+                              updateShortcut(command.id, eventToShortcut(event));
+                            }}
+                            placeholder="Unassigned"
+                          />
+                        </label>
+                      ))}
+                    </div>
+
+                    <div className="settings-grid">
+                      <h3
+                        style={{
+                          gridColumn: "1 / -1",
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          margin: "16px 0 8px 0",
+                          color: "var(--wn-muted)",
+                        }}
+                      >
+                        Explorer
+                      </h3>
+                      <label>
+                        <span>{settingsText.confirmMoves}</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.explorer.confirmDragMove}
+                          onChange={(event) =>
+                            onChange({
+                              ...settings,
+                              explorer: { ...settings.explorer, confirmDragMove: event.target.checked },
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>{settingsText.showHidden}</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.explorer.showHiddenEverend}
+                          onChange={(event) =>
+                            onChange({
+                              ...settings,
+                              explorer: { ...settings.explorer, showHiddenEverend: event.target.checked },
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>{settingsText.folderNotes}</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.explorer.folderNotesEnabled}
+                          onChange={(event) =>
+                            onChange({
+                              ...settings,
+                              explorer: {
+                                ...settings.explorer,
+                                folderNotesEnabled: event.target.checked,
+                              },
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>{settingsText.showImages}</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.explorer.showImagesInAllFiles}
+                          onChange={(event) =>
+                            onChange({
+                              ...settings,
+                              explorer: {
+                                ...settings.explorer,
+                                showImagesInAllFiles: event.target.checked,
+                              },
+                            })
+                          }
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
-            {activeSection === "tabs" ? (
-              <div className="settings-grid">
-                <label>
-                  <span>Dock tab size</span>
-                  <input
-                    type="range"
-                    min={0.75}
-                    max={1.75}
-                    step={0.05}
-                    value={settings.editor.dockTabScale}
-                    onChange={(event) =>
-                      updateEditor({ dockTabScale: dockTabScaleFromInput(event.target.value) })
-                    }
-                  />
-                </label>
-                <label>
-                  <span>Dock tab scale</span>
-                  <input
-                    type="number"
-                    min={75}
-                    max={175}
-                    step={5}
-                    value={Math.round(settings.editor.dockTabScale * 100)}
-                    onChange={(event) =>
-                      updateEditor({
-                        dockTabScale: dockTabScaleFromInput(
-                          String(Number(event.target.value) / 100),
-                        ),
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  <span>Persist tabs</span>
-                  <input
-                    type="checkbox"
-                    checked={settings.editor.persistTabs}
-                    onChange={(event) => updateEditor({ persistTabs: event.target.checked })}
-                  />
-                </label>
-                <label>
-                  <span>Reuse open tabs</span>
-                  <input
-                    type="checkbox"
-                    checked={settings.editor.reuseOpenTabs}
-                    onChange={(event) => updateEditor({ reuseOpenTabs: event.target.checked })}
-                  />
-                </label>
-                <label>
-                  <span>Confirm dirty close</span>
-                  <input
-                    type="checkbox"
-                    checked={settings.editor.confirmCloseDirtyTab}
-                    onChange={(event) =>
-                      updateEditor({ confirmCloseDirtyTab: event.target.checked })
-                    }
-                  />
-                </label>
-              </div>
-            ) : null}
-
-            {activeSection === "tags" && universe ? (
+            {activeSection === "properties" && universe ? (
               <div className="settings-panel">
                 <PropertiesManager config={propertiesDraft} onChange={setPropertiesDraft} />
                 <div className="settings-actions">
@@ -1872,66 +2006,16 @@ export function SettingsModal({
               </div>
             ) : null}
 
-            {activeSection === "explorer" ? (
-              <div className="settings-grid">
-                <label>
-                  <span>{settingsText.confirmMoves}</span>
-                  <input
-                    type="checkbox"
-                    checked={settings.explorer.confirmDragMove}
-                    onChange={(event) =>
-                      onChange({
-                        ...settings,
-                        explorer: { ...settings.explorer, confirmDragMove: event.target.checked },
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  <span>{settingsText.showHidden}</span>
-                  <input
-                    type="checkbox"
-                    checked={settings.explorer.showHiddenEverend}
-                    onChange={(event) =>
-                      onChange({
-                        ...settings,
-                        explorer: { ...settings.explorer, showHiddenEverend: event.target.checked },
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  <span>{settingsText.folderNotes}</span>
-                  <input
-                    type="checkbox"
-                    checked={settings.explorer.folderNotesEnabled}
-                    onChange={(event) =>
-                      onChange({
-                        ...settings,
-                        explorer: {
-                          ...settings.explorer,
-                          folderNotesEnabled: event.target.checked,
-                        },
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  <span>{settingsText.showImages}</span>
-                  <input
-                    type="checkbox"
-                    checked={settings.explorer.showImagesInAllFiles}
-                    onChange={(event) =>
-                      onChange({
-                        ...settings,
-                        explorer: {
-                          ...settings.explorer,
-                          showImagesInAllFiles: event.target.checked,
-                        },
-                      })
-                    }
-                  />
-                </label>
+            {activeSection === "help" ? (
+              <div className="settings-panel">
+                <div className="settings-page-title">
+                  <h3>Help & Documentation</h3>
+                  <p>Get started with WorldNotion or reset the onboarding guide.</p>
+                </div>
+                <button type="button" onClick={onResetOnboarding} disabled={!onResetOnboarding}>
+                  <RefreshCw size={15} />
+                  Restart Onboarding
+                </button>
               </div>
             ) : null}
 
@@ -2142,18 +2226,7 @@ export function SettingsModal({
               </div>
             ) : null}
 
-            {activeSection === "tutorials" ? (
-              <div className="settings-panel">
-                <div className="settings-page-title">
-                  <h3>Tutoriales</h3>
-                  <p>Vuelve a mostrar la guía básica de WorldNotion para este universo.</p>
-                </div>
-                <button type="button" onClick={onResetOnboarding} disabled={!onResetOnboarding}>
-                  <RefreshCw size={15} />
-                  Reiniciar tutorial
-                </button>
-              </div>
-            ) : null}
+
           </section>
         </div>
       </div>

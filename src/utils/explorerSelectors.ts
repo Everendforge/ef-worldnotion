@@ -54,7 +54,11 @@ export function selectVisibleTree(
     : index.files;
   const visibleDirectories = excludeImages
     ? index.directories.filter((directory) => {
-        if (directory === DEFAULT_ATTACHMENTS_FOLDER) return false;
+        // Always include asset folder when showing hidden metadata
+        if (directory === DEFAULT_ATTACHMENTS_FOLDER && showHiddenEverend) return true;
+        // Exclude image attachment folder when hiding metadata
+        if (directory === DEFAULT_ATTACHMENTS_FOLDER && !showHiddenEverend) return false;
+        
         const descendants = index.files.filter((file) =>
           file.relativePath.startsWith(`${directory}/`),
         );
@@ -92,10 +96,21 @@ export function selectImageTree(
   focusedFolderPath?: string,
 ): VaultTreeNode[] {
   if (!index) return [];
+  const imageFiles = index.files.filter((file) => isImagePath(file.relativePath));
+  // Include directories that contain images, especially .everend/assets/image
+  const imageDirs = new Set<string>();
+  imageFiles.forEach((file) => {
+    const parts = file.relativePath.split("/");
+    let path = "";
+    for (let i = 0; i < parts.length - 1; i++) {
+      path = path ? `${path}/${parts[i]}` : parts[i];
+      imageDirs.add(path);
+    }
+  });
   const tree = buildTree(
-    index.files.filter((file) => isImagePath(file.relativePath)),
-    [],
-    false,
+    imageFiles,
+    Array.from(imageDirs),
+    true, // include hidden metadata so .everend/assets shows
     `${pathName(index.rootPath)}.md`,
   );
   const focusedRoot = focusedFolderPath ? findTreeNode(tree, focusedFolderPath) : undefined;

@@ -174,21 +174,24 @@ describe("explorer selectors", () => {
     const withImages = index({
       files: [
         { relativePath: "World/Ada.md", content: "" },
-        { relativePath: "attachments/hero.png", content: "", binary: true },
+        { relativePath: ".everend/assets/image/hero.png", content: "", binary: true },
         { relativePath: "Art/maps/world.webp", content: "", binary: true },
       ],
-      directories: ["World", "attachments", "Art", "Art/maps"],
+      directories: ["World", ".everend", ".everend/assets", ".everend/assets/image", "Art", "Art/maps"],
     });
 
     expect(
       selectVisibleTree(withImages, "", false, undefined, true, true).map((item) => item.path),
     ).toEqual(["World"]);
     expect(selectImageTree(withImages, "").map((item) => item.path)).toEqual([
+      ".everend",
+      ".everend/assets",
+      ".everend/assets/image",
       "Art",
-      "attachments",
+      "Art/maps",
     ]);
     expect(selectImageTree(withImages, "hero").map((item) => item.path)).toEqual([
-      "attachments/hero.png",
+      ".everend/assets/image/hero.png",
     ]);
   });
 

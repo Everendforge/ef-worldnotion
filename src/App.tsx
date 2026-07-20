@@ -145,6 +145,11 @@ import {
   trashVaultPath,
   vaultHandleFor,
 } from "./utils/vaultFileOps";
+import {
+  loadExplorerIcons,
+  saveExplorerIcons,
+  type ExplorerIconsData,
+} from "./utils/explorerIconsStorage";
 import { isImagePath, resolveNoteImageUrl, setBrowserVaultRoot } from "./utils/vaultImages";
 import {
   VAULT_APPEARANCE_SETTINGS_PATH,
@@ -637,9 +642,18 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   }, [index?.rootPath]);
 
   const worldNotionOnboardingSteps = useMemo(() => {
-    const directories = index?.directories ?? [];
-    const markdownFiles = index?.markdownFiles ?? [];
-    const rootFolderCreated = directories.some((path) => path && !path.includes("/"));
+    // Hidden/system content (e.g. `.everend/`, `.everend/templates/*.md`) ships
+    // with every universe scaffold, so it must not count as user-created folders
+    // or notes—otherwise the onboarding steps appear complete from the start.
+    const isHiddenPath = (path: string) =>
+      path.split("/").some((segment) => segment.startsWith("."));
+    const directories = (index?.directories ?? []).filter(
+      (path) => path && !isHiddenPath(path),
+    );
+    const markdownFiles = (index?.markdownFiles ?? []).filter(
+      (file) => !isHiddenPath(file.relativePath),
+    );
+    const rootFolderCreated = directories.some((path) => !path.includes("/"));
     const noteInFolderCreated = markdownFiles.some((file) => file.relativePath.includes("/"));
     const nestedFolderCreated = directories.some((path) => path.includes("/"));
     const noteInNestedFolderCreated = markdownFiles.some(
@@ -817,6 +831,25 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   useEffect(() => {
     document.body.style.setProperty("zoom", String(appZoom));
   }, [appZoom]);
+
+  // Load explorer icons from persistent storage when vault opens
+  useEffect(() => {
+    if (!index?.rootPath) return;
+    
+    const loadIcons = async () => {
+      const vault = vaultHandleFor(index.rootPath, browserRoot);
+      try {
+        const iconData = await loadExplorerIcons(vault);
+        if (Object.keys(iconData).length > 0) {
+          updateExplorer({ customIcons: iconData });
+        }
+      } catch (err) {
+        console.warn("Failed to load explorer icons:", err);
+      }
+    };
+    
+    loadIcons();
+  }, [index?.rootPath, browserRoot]);
 
   useEffect(() => {
     if (suiteChrome?.sharedUniversePath) return;
@@ -1170,9 +1203,17 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   function setCustomIcon(path: string, iconName: IconName) {
     const nextIcons = { ...settings.explorer.customIcons };
     delete nextIcons[path];
-    updateExplorer({
-      customIcons: iconName === "default" ? nextIcons : { ...nextIcons, [path]: iconName },
-    });
+    const updated =
+      iconName === "default" ? nextIcons : { ...nextIcons, [path]: iconName };
+    updateExplorer({ customIcons: updated });
+
+    // Save to persistent storage
+    if (index) {
+      const vault = vaultHandleFor(index.rootPath, browserRoot);
+      saveExplorerIcons(vault, updated).catch((err) => {
+        console.warn("Failed to save explorer icons:", err);
+      });
+    }
   }
 
   function setFocusedFolder(path: string | undefined) {
@@ -1239,6 +1280,13 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
             icon,
           ]),
         );
+        
+        // Save updated icons to persistent storage
+        const vault = vaultHandleFor(index.rootPath, browserRoot);
+        saveExplorerIcons(vault, customIcons as ExplorerIconsData).catch((err) => {
+          console.warn("Failed to save explorer icons after path change:", err);
+        });
+        
         return {
           ...current,
           explorer: {
@@ -4103,9 +4151,15 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
                 const entity = selectLiveEntity(index, documentTab.path, tabs);
                 const type =
                   entity && getEntityTypeDefinition(index?.propertiesConfig, entity.type);
-                const frontmatter = entity?.customProperties
-                  ? { ...entity.customProperties, type: entity.type, name: entity.name }
-                  : {};
+                // Use live frontmatter from editor if available, not from stale index
+                const editorParts = rawToEditorParts(documentTab.rawMarkdown);
+                const liveFrontmatter = parseFrontmatterRaw(editorParts.frontmatterRaw);
+                const frontmatter =
+                  Object.keys(liveFrontmatter).length > 0
+                    ? liveFrontmatter
+                    : entity?.customProperties
+                      ? { ...entity.customProperties, type: entity.type, name: entity.name }
+                      : {};
                 const effectiveFrontmatter = resolveVariantFrontmatter(
                   frontmatter,
                   activeVariantId,

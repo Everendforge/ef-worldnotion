@@ -91,7 +91,10 @@ export async function readBrowserUniverse(root: BrowserDirectoryHandle): Promise
       const maybeFile = handle as BrowserFileHandle;
 
       if ("entries" in maybeDirectory) {
-        if (name.startsWith(".") && name !== ".everend") continue;
+        // Allow dot-folders inside .everend (like .worldnotion)
+        // Otherwise, only allow .everend at root level
+        const isInsideEverend = prefix === ".everend" || prefix.startsWith(".everend/");
+        if (name.startsWith(".") && !isInsideEverend && name !== ".everend") continue;
         directories.push(relativePath);
         await walk(maybeDirectory, relativePath);
         continue;

@@ -13,7 +13,7 @@ import { normalizeThemeId } from "../themes";
 import { DEFAULT_AI_ADVISOR_SETTINGS, normalizeAiAdvisorSettings } from "./aiProviders";
 import { normalizePluginSettings } from "./pluginRegistry";
 
-export const VAULT_APPEARANCE_SETTINGS_PATH = ".everend/settings.json";
+export const VAULT_APPEARANCE_SETTINGS_PATH = ".everend/.worldnotion/settings.json";
 
 function normalizeExplorerAppearance(value: unknown): VaultAppearanceExplorerSettings {
   const parsed = (value ?? {}) as Partial<VaultAppearanceExplorerSettings>;

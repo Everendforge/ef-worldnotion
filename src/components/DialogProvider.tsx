@@ -37,7 +37,24 @@ const DialogContext = createContext<DialogContextValue | undefined>(undefined);
  */
 export function useAppDialogs(): DialogContextValue {
   const context = useContext(DialogContext);
-  if (!context) throw new Error("useAppDialogs must be used within a DialogProvider");
+  if (!context) {
+    // Fallback para cuando no hay provider disponible (ej. en tests o componentes aislados)
+    console.warn("useAppDialogs called outside DialogProvider - using fallback");
+    return {
+      confirmDialog: async (message) => {
+        console.warn("confirmDialog (fallback):", message);
+        return confirm(message);
+      },
+      alertDialog: async (message) => {
+        console.warn("alertDialog (fallback):", message);
+        alert(message);
+      },
+      promptDialog: async (title, placeholder) => {
+        console.warn("promptDialog (fallback):", title);
+        return prompt(title, placeholder) ?? null;
+      },
+    };
+  }
   return context;
 }
 
