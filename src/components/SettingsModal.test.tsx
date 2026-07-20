@@ -99,7 +99,7 @@ describe("SettingsModal", () => {
           }}
           onChange={vi.fn()}
           onClose={vi.fn()}
-          initialSection="tags"
+          initialSection="appearance-behavior"
         />
       </DialogProvider>,
     );

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  BookOpen,
   Box,
   Calendar,
   CheckSquare,
@@ -69,13 +68,7 @@ import {
   Aperture,
   Barcode,
   Bell,
-  Bluetooth,
   Briefcase,
-  CameraOff,
-  ChevronUp,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 import "../App.css";
 

@@ -3,10 +3,10 @@ import {
   setDocumentLocale,
   type Locale,
   type LocalePreference,
-} from "../../packages/i18n/src/index";
+} from "./localePolicy";
 import { createContext, useContext } from "react";
 
-export { normalizeLocalePreference } from "../../packages/i18n/src/index";
+export { normalizeLocalePreference } from "./localePolicy";
 export type { Locale, LocalePreference };
 
 export function resolveInterfaceLocale(preference: LocalePreference): Locale {

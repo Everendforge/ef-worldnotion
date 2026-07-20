@@ -517,7 +517,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     applyInterfaceLocale(suiteChrome?.suiteSettings?.localePreference ?? settings.localePreference ?? "system");
   }, [settings.localePreference, suiteChrome?.suiteSettings?.localePreference]);
   const [settingsInitialSection, setSettingsInitialSection] = useState<
-    "overview" | "tags" | "utils" | "editor" | "ai-advisor"
+    "overview" | "utils" | "appearance-behavior" | "ai-advisor"
   >("overview");
   const [settingsInitialPropertiesMode, setSettingsInitialPropertiesMode] = useState<
     "template" | "blank"
@@ -4634,7 +4634,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   }
 
   function openSettingsAt(
-    section: "overview" | "tags" | "utils" | "editor" | "ai-advisor",
+    section: "overview" | "utils" | "appearance-behavior" | "ai-advisor",
     propertiesMode: "template" | "blank" = "template",
   ) {
     setSettingsInitialSection(section);
@@ -4718,7 +4718,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
           <button
             type="button"
             className="dock-icon-button dock-settings-button"
-            onClick={() => openSettingsAt("editor")}
+            onClick={() => openSettingsAt("appearance-behavior")}
             title="Application settings"
           >
             <Settings size={14} />

@@ -1,7 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { IconName } from "../components/IconPicker";
 import type { VaultHandle } from "./vaultFileOps";
-import { vaultHandleFor } from "./vaultFileOps";
 import {
   ensureBrowserWritePermission,
   getBrowserFile,
@@ -9,7 +7,10 @@ import {
   type BrowserDirectoryHandle,
 } from "./browserVault";
 
-export type ExplorerIconsData = Record<string, IconName>;
+// Persisted icon map. Values are icon-name strings validated at render time;
+// kept as plain strings to match settings.explorer.customIcons and tolerate
+// arbitrary values read from disk.
+export type ExplorerIconsData = Record<string, string>;
 
 const ICONS_STORAGE_PATH = ".everend/.worldnotion/explorer-icons.json";
 
