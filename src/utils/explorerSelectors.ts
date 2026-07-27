@@ -179,6 +179,22 @@ export function expandedPathsToDepth(tree: VaultTreeNode[], maxDepth: number): S
   return expanded;
 }
 
+export function getTreeMaxDepth(tree: VaultTreeNode[]): number {
+  let maxDepth = 0;
+
+  function visit(nodes: VaultTreeNode[], depth: number) {
+    maxDepth = Math.max(maxDepth, depth);
+    for (const node of nodes) {
+      if (node.kind === "folder" && node.children.length > 0) {
+        visit(node.children, depth + 1);
+      }
+    }
+  }
+
+  visit(tree, 0);
+  return maxDepth;
+}
+
 export function selectFavoriteItems(
   index: VaultIndex | undefined,
   favorites: ExplorerFavorite[],

@@ -12,8 +12,10 @@ import {
   ChevronDown,
   ChevronRight,
   Check,
+  Crosshair,
   ChevronsDown,
   ChevronsUp,
+  Eye,
   FileEdit,
   FileText,
   Files,
@@ -26,10 +28,9 @@ import {
   Search,
   SlidersHorizontal,
   Star,
-  Target,
   X,
 } from "lucide-react";
-import type { Entity, VaultIndex } from "../domain";
+import type { Entity, VaultIndex, VaultTreeNode } from "../domain";
 import type { ExplorerSection, ExplorerFavorite } from "../editorTypes";
 import {
   getFrontmatterPropertyValue,
@@ -38,11 +39,17 @@ import {
   type VisiblePropertyDefinition,
 } from "../utils/propertiesConfig";
 import type { VisibleExplorerRow } from "../utils/explorerSelectors";
+import { getTreeMaxDepth } from "../utils/explorerSelectors";
 import { getIconComponent } from "./IconPicker";
 import { isImagePath } from "../utils/vaultImages";
 
 export type ExplorerTreeAction =
-  "collapseAll" | "expandSelected" | "expandDepth1" | "expandDepth2" | "expandDepth3";
+  | "collapseAll"
+  | "expandSelected"
+  | "expandDepth1"
+  | "expandDepth2"
+  | "expandDepth3"
+  | { action: "expandDepth"; depth: number };
 
 type ExplorerFocusCrumb = {
   label: string;
@@ -92,6 +99,7 @@ function propertyValuesForGroup(value: unknown): string[] {
 
 export type ExplorerPanelProps = {
   index: VaultIndex;
+  visibleTree: VaultTreeNode[];
   query: string;
   onQueryChange: (query: string) => void;
   activeSection: ExplorerSection;
@@ -101,6 +109,7 @@ export type ExplorerPanelProps = {
   onSetFocusedFolder: (path: string | undefined) => void;
   visibleRows: VisibleExplorerRow[];
   selectedPath?: string;
+  activeTabPath?: string;
   multiSelectedPaths: Set<string>;
   pointerDragTargetPath?: string;
   openTabPaths: Set<string>;
@@ -138,6 +147,7 @@ const VIRTUAL_OVERSCAN = 8;
 
 export function ExplorerPanel({
   index,
+  visibleTree,
   query,
   onQueryChange,
   activeSection,
@@ -147,6 +157,7 @@ export function ExplorerPanel({
   onSetFocusedFolder,
   visibleRows,
   selectedPath,
+  activeTabPath,
   multiSelectedPaths,
   pointerDragTargetPath,
   openTabPaths,
@@ -187,6 +198,7 @@ export function ExplorerPanel({
   const nextEcosystemFilterId = useRef(1);
   const sidebarMainRef = useRef<HTMLDivElement>(null);
   const scrollFrameRef = useRef<number>(undefined);
+  const depthMenuRef = useRef<HTMLDivElement>(null);
   const shouldVirtualize = visibleRows.length > VIRTUALIZE_AFTER;
   const entityTypesById = useMemo(
     () => new Map(index.propertiesConfig?.entityTypes.definitions.map((type) => [type.id, type])),
@@ -266,18 +278,23 @@ export function ExplorerPanel({
   }, [ecosystemEntities, ecosystemGroupBy, index]);
 
   const maxDepth = useMemo(() => {
-    return Math.max(...visibleRows.map((row) => row.depth ?? 0), 0);
-  }, [visibleRows]);
+    return getTreeMaxDepth(visibleTree);
+  }, [visibleTree]);
 
   const scrollToSelected = useCallback(() => {
-    if (!selectedPath || !sidebarMainRef.current) return;
-    const element = sidebarMainRef.current.querySelector(
-      `[data-explorer-path="${selectedPath.replace(/"/g, '\\"')}"]`,
-    );
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-  }, [selectedPath]);
+    if (!activeTabPath || !sidebarMainRef.current) return;
+    // First, expand all ancestor folders to reveal the active file
+    onTreeAction("expandSelected");
+    // Use a small delay to allow the tree to re-render after expansion
+    setTimeout(() => {
+      const element = sidebarMainRef.current?.querySelector(
+        `[data-explorer-path="${activeTabPath.replace(/"/g, '\\"')}"]`,
+      );
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    }, 0);
+  }, [activeTabPath, onTreeAction]);
 
   useEffect(() => {
     const element = sidebarMainRef.current;
@@ -295,6 +312,17 @@ export function ExplorerPanel({
       if (scrollFrameRef.current !== undefined) cancelAnimationFrame(scrollFrameRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!depthMenuOpen) return;
+    const handleClickOutside = (event: Event) => {
+      if (depthMenuRef.current && !depthMenuRef.current.contains(event.target as Node)) {
+        setDepthMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [depthMenuOpen]);
 
   const handleSidebarScroll = useCallback(
     (event: UIEvent<HTMLDivElement>) => {
@@ -381,13 +409,36 @@ export function ExplorerPanel({
           const relevantRows = focusedFolderPath
             ? visibleRows.filter((row) => row.path.startsWith(focusedFolderPath))
             : visibleRows;
-          const hasExpandedFolders = relevantRows.some(
-            (row) => row.kind === "folder" && expandedPaths.has(row.path),
-          );
+          // In focus mode, don't count the focused folder itself or its ancestors as "expanded"
+          // since those must always be expanded. Only count expansions within the focus folder.
+          const hasExpandedFolders = relevantRows.some((row) => {
+            if (row.kind !== "folder") return false;
+            if (focusedFolderPath && (row.path === focusedFolderPath || focusedFolderPath.startsWith(row.path + "/"))) {
+              return false;
+            }
+            return expandedPaths.has(row.path);
+          });
+          const handleToggle = () => {
+            if (hasExpandedFolders) {
+              onTreeAction("collapseAll");
+            } else {
+              // In focus mode, expand to the full depth of the focused tree
+              // Otherwise, just expand to depth 1
+              if (focusedFolderPath && maxDepth > 0) {
+                const action: ExplorerTreeAction | { action: "expandDepth"; depth: number } = {
+                  action: "expandDepth",
+                  depth: maxDepth,
+                };
+                (onTreeAction as (action: any) => void)(action);
+              } else {
+                onTreeAction("expandDepth1");
+              }
+            }
+          };
           return (
             <button
               type="button"
-              onClick={() => onTreeAction(hasExpandedFolders ? "collapseAll" : "expandDepth1")}
+              onClick={handleToggle}
               title={hasExpandedFolders ? "Collapse all folders" : "Expand all folders"}
               className="explorer-action-button"
             >
@@ -402,13 +453,13 @@ export function ExplorerPanel({
         <button
           type="button"
           onClick={() => scrollToSelected()}
-          title="Go to selected item"
+          title="Show active file in explorer"
           className="explorer-action-button"
-          disabled={!selectedPath}
+          disabled={!activeTabPath}
         >
-          <Target size={16} />
+          <Eye size={16} />
         </button>
-        <div className="explorer-depth-menu">
+        <div className="explorer-depth-menu" ref={depthMenuRef}>
           <button
             type="button"
             onClick={() => setDepthMenuOpen(!depthMenuOpen)}
@@ -419,27 +470,41 @@ export function ExplorerPanel({
           </button>
           {depthMenuOpen && maxDepth > 0 && (
             <div className="explorer-depth-dropdown">
-              {Array.from({ length: maxDepth }, (_, i) => i + 1).map((depth) => (
-                <button
-                  key={depth}
-                  type="button"
-                  onClick={() => {
-                    onTreeAction(
-                      depth === 1
-                        ? "expandDepth1"
-                        : depth === 2
-                          ? "expandDepth2"
-                          : depth === 3
-                            ? "expandDepth3"
-                            : "expandDepth1",
-                    );
-                    setDepthMenuOpen(false);
-                  }}
-                  className="explorer-depth-option"
-                >
-                  Depth {depth}
-                </button>
-              ))}
+              {(() => {
+                // Calculate the current depth of the focus folder
+                const focusedFolderDepth = focusedFolderPath
+                  ? (focusedFolderPath.match(/\//g) || []).length
+                  : 0;
+                // In focus mode, start depth options after the focused folder's depth
+                const startDepth = focusedFolderPath ? focusedFolderDepth + 1 : 1;
+                // Generate depths from startDepth to maxDepth
+                const depthsToShow = Array.from(
+                  { length: Math.max(0, maxDepth - startDepth + 1) },
+                  (_, i) => startDepth + i,
+                );
+                return depthsToShow.map((depth) => (
+                  <button
+                    key={depth}
+                    type="button"
+                    onClick={() => {
+                      // Use legacy string actions for depth 1-3, dynamic object for depth > 3
+                      const action: ExplorerTreeAction | { action: "expandDepth"; depth: number } =
+                        depth === 1
+                          ? "expandDepth1"
+                          : depth === 2
+                            ? "expandDepth2"
+                            : depth === 3
+                              ? "expandDepth3"
+                              : { action: "expandDepth", depth };
+                      (onTreeAction as (action: any) => void)(action);
+                      setDepthMenuOpen(false);
+                    }}
+                    className="explorer-depth-option"
+                  >
+                    Depth {depth}
+                  </button>
+                ));
+              })()}
             </div>
           )}
         </div>
@@ -447,7 +512,7 @@ export function ExplorerPanel({
 
       {focusedFolderPath && focusBreadcrumb.length ? (
         <nav className="explorer-focus-breadcrumb" aria-label="Focused folder path">
-          <Target className="explorer-focus-breadcrumb-icon" size={14} />
+          <Crosshair className="explorer-focus-breadcrumb-icon" size={14} />
           {focusBreadcrumb.map((crumb, crumbIndex) => {
             const isLast = crumbIndex === focusBreadcrumb.length - 1;
             return (
@@ -1047,7 +1112,7 @@ const ExplorerTreeRow = memo(function ExplorerTreeRow({
               }}
               title={isFocused ? "Exit folder focus" : "Focus folder"}
             >
-              <Target size={12} />
+              <Crosshair size={12} />
             </button>
           ) : null}
           {row.kind === "folder" && folderNotesEnabled ? (

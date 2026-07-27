@@ -24,6 +24,7 @@ function renderPanel(
   return render(
     <ExplorerPanel
       index={makeVaultIndex()}
+      visibleTree={[]}
       query={query}
       onQueryChange={vi.fn()}
       activeSection="allFiles"

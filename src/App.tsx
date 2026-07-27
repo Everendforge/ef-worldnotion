@@ -1166,9 +1166,17 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     });
   }
 
-  function handleExplorerTreeAction(action: ExplorerTreeAction) {
+  function handleExplorerTreeAction(action: ExplorerTreeAction | { action: "expandDepth"; depth: number }) {
     if (action === "collapseAll") {
-      setExpandedPaths(new Set());
+      // If in focus mode, keep the focused folder and its ancestors expanded
+      if (focusedFolderPath) {
+        const ancestorsOfFocused = explorerAncestorsForPath(`${focusedFolderPath}/placeholder.md`);
+        // Include the focused folder itself
+        ancestorsOfFocused.push(focusedFolderPath);
+        setExpandedPaths(new Set(ancestorsOfFocused.filter(Boolean)));
+      } else {
+        setExpandedPaths(new Set());
+      }
       return;
     }
 
@@ -1183,7 +1191,13 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
       return;
     }
 
-    const depth = action === "expandDepth1" ? 1 : action === "expandDepth2" ? 2 : 3;
+    // Handle dynamic depth or legacy hardcoded depths
+    let depth: number;
+    if (typeof action === "object" && action.action === "expandDepth") {
+      depth = action.depth;
+    } else {
+      depth = action === "expandDepth1" ? 1 : action === "expandDepth2" ? 2 : 3;
+    }
     setExpandedPaths(expandedPathsToDepth(visibleTree, depth));
   }
 
@@ -4241,6 +4255,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
   const explorerPanel = (
     <ExplorerPanel
       index={index}
+      visibleTree={visibleTree}
       query={query}
       onQueryChange={setQuery}
       activeSection={activeExplorerSection}
@@ -4250,6 +4265,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
       onSetFocusedFolder={setFocusedFolder}
       visibleRows={visibleExplorerRows}
       selectedPath={selectedPath}
+      activeTabPath={activeTabPath}
       multiSelectedPaths={new Set(explorerSelection.map((item) => item.path))}
       pointerDragTargetPath={pointerDragTargetPath}
       openTabPaths={openTabPaths}
