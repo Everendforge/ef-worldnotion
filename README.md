@@ -4,15 +4,15 @@
 
 <h1 align="center">Everend WorldNotion</h1>
 <p align="center">
-  The desktop worldbuilding vault app for <a href="https://github.com/Everendforge/everend-forge">Everend Forge</a>.<br />
+  The desktop worldbuilding vault app for <a href="https://github.com/SoleipDreams/everend-forge">Everend Forge</a>.<br />
   Local Markdown vaults, portable canon, Everend Spec compatible.
 </p>
 
 <p align="center">
-  <a href="https://github.com/Everendforge/ef-worldnotion/actions/workflows/ci.yml"><img src="https://github.com/Everendforge/ef-worldnotion/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://github.com/SoleipDreams/everend-forge-worldnotion/actions/workflows/ci.yml"><img src="https://github.com/SoleipDreams/everend-forge-worldnotion/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
   <img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg" alt="License">
   <img src="https://img.shields.io/badge/built%20with-Tauri%20%2B%20React%20%2B%20TypeScript-1e2a4a.svg" alt="Built with Tauri, React, TypeScript">
-  <a href="https://github.com/Everendforge/everend-forge"><img src="https://img.shields.io/badge/Everend%20Forge-open%20core%20suite-0a0e1a.svg" alt="Part of Everend Forge"></a>
+  <a href="https://github.com/SoleipDreams/everend-forge"><img src="https://img.shields.io/badge/Everend%20Forge-open%20core%20suite-0a0e1a.svg" alt="Part of Everend Forge"></a>
 </p>
 
 ---
@@ -74,8 +74,8 @@ A deliberately empty placeholder vault lives in [examples/demo-vault](examples/d
 
 ## Related Repositories
 
-- [Everend Forge portal](https://github.com/Everendforge/everend-forge)
-- [Everend Spec](https://github.com/Everendforge/specs)
+- [Everend Forge portal](https://github.com/SoleipDreams/everend-forge)
+- [Everend Spec](https://github.com/SoleipDreams/everend-forge-specs)
 
 ## License
 

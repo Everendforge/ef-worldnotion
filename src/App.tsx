@@ -260,7 +260,7 @@ import { profileForRecent, rememberUniverse, universeDisplayName } from "./utils
 import { isTauriRuntime, platformLabels, shortcutMatches } from "./utils/appEnvironment";
 import { indexCanonChangeSets, type IndexedCanonChangeSet } from "./utils/canonChangeSets";
 
-const EVEREND_FORGE_GITHUB_URL = "https://github.com/Everendforge/everend-forge";
+const EVEREND_FORGE_GITHUB_URL = "https://github.com/SoleipDreams/everend-forge";
 const BUY_SUITE_URL = "https://everendforge.com/buy-suite";
 const WORLDNOTION_ONBOARDING_KEY = "worldnotion.onboarding.v1";
 
