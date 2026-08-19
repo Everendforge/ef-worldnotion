@@ -6,14 +6,50 @@ import {
   DEFAULT_KEYBINDINGS,
   DEFAULT_PLUGIN_SETTINGS,
   type AppSettingsV4,
+  type ExplorerFavorite,
   type VaultAppearanceExplorerSettings,
   type VaultAppearanceSettings,
 } from "../editorTypes";
 import { normalizeThemeId } from "../themes";
 import { DEFAULT_AI_ADVISOR_SETTINGS, normalizeAiAdvisorSettings } from "./aiProviders";
+import { pathName } from "./pathUtils";
 import { normalizePluginSettings } from "./pluginRegistry";
 
 export const VAULT_APPEARANCE_SETTINGS_PATH = ".everend/.worldnotion/settings.json";
+
+function normalizeFavorite(value: unknown): ExplorerFavorite | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const parsed = value as Partial<ExplorerFavorite>;
+  if (typeof parsed.path !== "string") return undefined;
+
+  const path = parsed.path.trim().replace(/\\/g, "/").replace(/\/+/g, "/");
+  if (!path || path.startsWith("/") || /^[a-zA-Z]:/.test(path)) return undefined;
+  if (path.split("/").some((segment) => segment === "." || segment === "..")) return undefined;
+
+  const kind = parsed.kind === "folder" || parsed.kind === "file" ? parsed.kind : undefined;
+  if (!kind) return undefined;
+
+  return {
+    path,
+    kind,
+    label:
+      typeof parsed.label === "string" && parsed.label.trim()
+        ? parsed.label
+        : pathName(path).replace(/\.md$/i, ""),
+  };
+}
+
+function normalizeFavorites(value: unknown): ExplorerFavorite[] {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set<string>();
+  return value.flatMap((entry) => {
+    const favorite = normalizeFavorite(entry);
+    if (!favorite || seen.has(favorite.path)) return [];
+    seen.add(favorite.path);
+    return [favorite];
+  });
+}
 
 function normalizeExplorerAppearance(value: unknown): VaultAppearanceExplorerSettings {
   const parsed = (value ?? {}) as Partial<VaultAppearanceExplorerSettings>;
@@ -40,6 +76,7 @@ function normalizeExplorerAppearance(value: unknown): VaultAppearanceExplorerSet
       parsed.activeSection === "images"
         ? parsed.activeSection
         : "allFiles",
+    favorites: normalizeFavorites(parsed.favorites),
   };
 }
 

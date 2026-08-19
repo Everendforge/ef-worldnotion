@@ -97,7 +97,7 @@ describe("EntityRefField", () => {
       ],
     });
     
-    render(
+    const { container } = render(
       <EntityRefField
         property={refProperty}
         value="iron-keep@ancient"
@@ -106,7 +106,8 @@ describe("EntityRefField", () => {
       />,
     );
 
-    expect(screen.getByText(/Iron Keep @ Ancient/)).toBeInTheDocument();
+    expect(container.querySelector(".entity-ref-chip-label")).toHaveTextContent("Ancient");
+    expect(screen.queryByText("Iron Keep @ Ancient")).not.toBeInTheDocument();
   });
 });
 
@@ -155,5 +156,29 @@ describe("EntityRefListField", () => {
     fireEvent.click(screen.getByTitle("Add entity"));
     fireEvent.click(screen.getByRole("option", { name: /lys/i }));
     expect(onChange).toHaveBeenCalledWith(["mara", "lys"]);
+  });
+
+  it("uses the selected variant label for list chips", () => {
+    const index = makeVaultIndex({
+      entities: [
+        makeEntity({
+          id: "mara",
+          name: "Mara",
+          variants: [{ id: "older", label: "Mara adulta" }],
+        }),
+      ],
+    });
+
+    const { container } = render(
+      <EntityRefListField
+        property={{ id: "affiliation", label: "Affiliation", type: "entity-ref-list" }}
+        value={["mara@older"]}
+        onChange={vi.fn()}
+        vaultIndex={index}
+      />,
+    );
+
+    expect(container.querySelector(".entity-ref-chip-label")).toHaveTextContent("Mara adulta");
+    expect(screen.queryByText("Mara @ Mara adulta")).not.toBeInTheDocument();
   });
 });

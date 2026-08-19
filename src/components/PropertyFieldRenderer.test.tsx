@@ -54,4 +54,39 @@ describe("PropertyFieldRenderer", () => {
     expect(screen.getByText("Iron Keep")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
+
+  it("renders multiple entity references as a wrapping chip list", () => {
+    const property: CustomFieldDefinition = {
+      id: "affiliation",
+      label: "Affiliation",
+      type: "entity-ref-list",
+      targetTypes: ["organization"],
+    };
+
+    const baseEntity = makeVaultIndex().entities[0];
+    const index = makeVaultIndex({
+      entities: [
+        { ...baseEntity, id: "empire", type: "organization", name: "Imperio del Norte" },
+        {
+          ...baseEntity,
+          id: "squadron",
+          type: "organization",
+          name: "Escuadrón de la Frontera",
+        },
+      ],
+    });
+
+    render(
+      <PropertyFieldRenderer
+        property={property}
+        value={["empire", "squadron"]}
+        onChange={vi.fn()}
+        vaultIndex={index}
+      />,
+    );
+
+    expect(screen.getByText("Imperio del Norte")).toBeInTheDocument();
+    expect(screen.getByText("Escuadrón de la Frontera")).toBeInTheDocument();
+    expect(screen.getByText("Imperio del Norte").closest(".entity-ref-list-field")).toBeTruthy();
+  });
 });

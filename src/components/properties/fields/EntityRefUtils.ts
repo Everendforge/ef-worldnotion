@@ -33,3 +33,13 @@ export function parseEntityRef(value: string): { entityId: string; variantId?: s
 export function buildEntityRef(entityId: string, variantId?: string): string {
   return variantId ? `${entityId}@${variantId}` : entityId;
 }
+
+export function entityRefDisplayLabel(vaultIndex: VaultIndex, refValue: string): string {
+  const { entityId, variantId } = parseEntityRef(refValue);
+  const entity = findEntityById(vaultIndex, entityId);
+  if (!entity) return refValue;
+  if (!variantId) return entity.name || entity.id;
+
+  const variant = entity.variants?.find((candidate) => candidate.id === variantId);
+  return variant?.label || `${entity.name || entity.id} @ ${variantId}`;
+}

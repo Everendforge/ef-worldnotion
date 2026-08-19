@@ -2,7 +2,13 @@ import type { VaultIndex } from "../domain";
 import { dirname } from "../domain";
 import type { ExplorerFavorite, OpenTab } from "../editorTypes";
 import { folderDescriptionPath, updateFolderDescriptionContent } from "./contentTemplates";
-import { pathName, type PathChange } from "./pathUtils";
+import {
+  pathAfterChanges,
+  pathIsAffectedByChanges,
+  pathName,
+  type PathChange,
+  type PathChangeSet,
+} from "./pathUtils";
 
 export type FolderDescriptionRenamePlan = {
   oldDescriptionPath: string;
@@ -35,6 +41,22 @@ export function dirtyTabPathsAffectedByTree(tabs: OpenTab[], rootPath: string) {
 
 export function favoritesOutsideTree(favorites: ExplorerFavorite[], rootPath: string) {
   return favorites.filter((favorite) => !pathWithinTree(favorite.path, rootPath));
+}
+
+export function updateFavoritesForPathChange(
+  favorites: ExplorerFavorite[],
+  changes: PathChangeSet,
+): ExplorerFavorite[] {
+  return favorites.map((favorite) => {
+    if (!pathIsAffectedByChanges(favorite.path, changes)) return favorite;
+
+    const path = pathAfterChanges(favorite.path, changes);
+    return {
+      ...favorite,
+      path,
+      label: pathName(path).replace(/\.md$/i, ""),
+    };
+  });
 }
 
 /** Indexed descendants that make a folder unsafe to delete. */

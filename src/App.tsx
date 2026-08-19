@@ -246,6 +246,7 @@ import {
   planFolderDescriptionMove,
   planFolderDescriptionRename,
   renamePathChange,
+  updateFavoritesForPathChange,
 } from "./utils/vaultOperations";
 import { editorCommandAction, nativeMenuEditorCommand } from "./utils/editorCommandActions";
 import {
@@ -1191,6 +1192,12 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
       return;
     }
 
+    if (typeof action === "object" && action.action === "expandPath") {
+      const paths = explorerAncestorsForPath(action.path);
+      setExpandedPaths((current) => new Set([...current, ...paths]));
+      return;
+    }
+
     // Handle dynamic depth or legacy hardcoded depths
     let depth: number;
     if (typeof action === "object" && action.action === "expandDepth") {
@@ -1357,14 +1364,7 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
           explorer: {
             ...current.explorer,
             focusedFoldersByUniverse,
-            favorites: current.explorer.favorites.map((favorite) => {
-              const path = movePath(favorite.path);
-              return {
-                ...favorite,
-                path,
-                label: pathName(path).replace(/\.md$/i, ""),
-              };
-            }),
+            favorites: updateFavoritesForPathChange(current.explorer.favorites, change),
             recentFiles: current.explorer.recentFiles.map(movePath),
             customIcons,
           },
@@ -1487,6 +1487,23 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
     });
     await refreshUniverse(plan.newNotePath, changeSet);
     return plan;
+  }
+
+  async function handleDocumentNameChange(notePath: string, currentTitle: string, newName: string) {
+    if (newName === currentTitle || !index) return;
+    try {
+      const plan = await renameDocument(notePath, newName);
+      showToast(
+        plan.folderPath
+          ? `Renamed folder note and folder to "${plan.newName}".`
+          : `Renamed to "${plan.newName}".`,
+        "success",
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      showToast(`Could not rename "${currentTitle}" to "${newName}": ${message}`, "warning");
+      throw error;
+    }
   }
 
   async function handleContextMenuAction(
@@ -2627,9 +2644,16 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
         readResult.rootPath,
         profileForRecent(nextIndex),
       );
-      return isSameUniverse
-        ? remembered
-        : applyVaultAppearanceSettings(remembered, nextIndex.vaultAppearanceSettings);
+      if (isSameUniverse) return remembered;
+
+      // Favorites belong to the universe now. Reset the machine-local list
+      // before applying stored settings so a universe without favorites cannot
+      // inherit favorites from the previously opened universe.
+      const universeDefaults = {
+        ...remembered,
+        explorer: { ...remembered.explorer, favorites: [] },
+      };
+      return applyVaultAppearanceSettings(universeDefaults, nextIndex.vaultAppearanceSettings);
     });
     const hasEverendWorkspace = nextIndex.files.some(
       (file) =>
@@ -4496,6 +4520,12 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
                     typeLabel={type.label}
                     portraitPath={portraitPath}
                     coverPath={coverPath}
+                    onDocumentNameChange={
+                      canWrite
+                        ? (newName) =>
+                            handleDocumentNameChange(documentTab.path, documentTab.title, newName)
+                        : undefined
+                    }
                   />
                 ) : null;
               })()}
@@ -4564,25 +4594,9 @@ function App({ suiteChrome }: { suiteChrome?: SuiteChrome } = {}) {
                 }}
                 onRequestUrl={() => promptUser("Insert link", "https://example.com", "https://")}
                 onOpenSource={() => setTabMode(documentTab.path, "source")}
-                onDocumentNameChange={async (newName) => {
-                  if (newName === documentTab.title || !index) return;
-                  try {
-                    const plan = await renameDocument(documentTab.path, newName);
-                    showToast(
-                      plan.folderPath
-                        ? `Renamed folder note and folder to "${plan.newName}".`
-                        : `Renamed to "${plan.newName}".`,
-                      "success",
-                    );
-                  } catch (error) {
-                    const message = error instanceof Error ? error.message : String(error);
-                    showToast(
-                      `Could not rename "${documentTab.title}" to "${newName}": ${message}`,
-                      "warning",
-                    );
-                    throw error;
-                  }
-                }}
+                onDocumentNameChange={(newName) =>
+                  handleDocumentNameChange(documentTab.path, documentTab.title, newName)
+                }
                 onCursorMove={() => {
                   if (documentTab.path !== activeTabPath) return;
                   if (editorViewRef.current) {

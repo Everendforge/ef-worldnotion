@@ -4,10 +4,22 @@ import { autoUpdate, flip, offset, shift, useFloating } from "@floating-ui/react
 import type { VaultIndex } from "../../../domain";
 import type { BasePropertyDefinition, CustomFieldDefinition } from "../../../editorTypes";
 import { PickerPopover } from "../PickerPopover";
-import { entityPickerItems, findEntityById, parseEntityRef, buildEntityRef } from "./EntityRefUtils";
+import {
+  entityPickerItems,
+  entityRefDisplayLabel,
+  findEntityById,
+  parseEntityRef,
+  buildEntityRef,
+} from "./EntityRefUtils";
 
 // Re-export for backward compatibility
-export { entityPickerItems, findEntityById, parseEntityRef, buildEntityRef } from "./EntityRefUtils";
+export {
+  entityPickerItems,
+  entityRefDisplayLabel,
+  findEntityById,
+  parseEntityRef,
+  buildEntityRef,
+} from "./EntityRefUtils";
 
 type PropertyLike = BasePropertyDefinition | CustomFieldDefinition;
 
@@ -68,7 +80,7 @@ export function EntityRefField({
     variantRefs.setFloating(variantMenuRef.current);
   }, [variantRefs, variantOpen]);
   
-  const displayLabel = resolved ? `${resolved.name}${variantId ? ` @ ${resolved.variants?.find(v => v.id === variantId)?.label || variantId}` : ""}` : stringValue || "";
+  const displayLabel = resolved ? entityRefDisplayLabel(vaultIndex, stringValue) : stringValue || "";
 
   return (
     <div className="entity-ref-field">

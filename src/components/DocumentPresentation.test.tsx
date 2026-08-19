@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { makeVaultIndex } from "../test/fixtures";
 import { DocumentPresentation } from "./DocumentPresentation";
@@ -56,5 +56,26 @@ describe("DocumentPresentation", () => {
     );
     expect(screen.queryByAltText("Mara portrait")).not.toBeInTheDocument();
     expect(container.querySelector(".document-presentation-cover")).toBeInTheDocument();
+  });
+
+  it("allows the portrait header to be renamed", async () => {
+    const rename = vi.fn(async () => undefined);
+    render(
+      <DocumentPresentation
+        vaultIndex={makeVaultIndex()}
+        name="Mara"
+        typeLabel="Character"
+        portraitPath="mara"
+        onDocumentNameChange={rename}
+      />,
+    );
+
+    const title = screen.getByRole("heading", { name: "Mara" });
+    title.focus();
+    title.textContent = "Mara Voss";
+    fireEvent.keyDown(title, { key: "Enter" });
+
+    await waitFor(() => expect(rename).toHaveBeenCalledWith("Mara Voss"));
+    expect(title.textContent).toBe("Mara Voss");
   });
 });

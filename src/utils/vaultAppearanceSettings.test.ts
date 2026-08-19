@@ -17,7 +17,9 @@ function baseSettings(): AppSettingsV4 {
 describe("vault appearance settings", () => {
   it("returns undefined when the universe has no settings file yet", () => {
     const findings: ValidationFinding[] = [];
-    expect(parseVaultAppearanceSettings([{ relativePath: "Notes.md", content: "" }], findings)).toBeUndefined();
+    expect(
+      parseVaultAppearanceSettings([{ relativePath: "Notes.md", content: "" }], findings),
+    ).toBeUndefined();
     expect(findings).toEqual([]);
   });
 
@@ -26,10 +28,17 @@ describe("vault appearance settings", () => {
       ...baseSettings(),
       theme: "github-dark",
       editor: { ...DEFAULT_EDITOR_SETTINGS, fontSize: 22 },
+      explorer: {
+        ...baseSettings().explorer,
+        favorites: [{ path: "Characters/Ada.md", kind: "file", label: "Ada" }],
+      },
     };
     const appearance = extractVaultAppearanceSettings(settings);
     const files: VaultFile[] = [
-      { relativePath: VAULT_APPEARANCE_SETTINGS_PATH, content: serializeVaultAppearance(appearance) },
+      {
+        relativePath: VAULT_APPEARANCE_SETTINGS_PATH,
+        content: serializeVaultAppearance(appearance),
+      },
     ];
 
     const findings: ValidationFinding[] = [];
@@ -38,6 +47,52 @@ describe("vault appearance settings", () => {
     expect(findings).toEqual([]);
     expect(parsed?.theme).toBe("github-dark");
     expect(parsed?.editor.fontSize).toBe(22);
+    expect(parsed?.explorer.favorites).toEqual([
+      { path: "Characters/Ada.md", kind: "file", label: "Ada" },
+    ]);
+  });
+
+  it("normalizes portable favorites and ignores machine-specific paths", () => {
+    const findings: ValidationFinding[] = [];
+    const parsed = parseVaultAppearanceSettings(
+      [
+        {
+          relativePath: VAULT_APPEARANCE_SETTINGS_PATH,
+          content: JSON.stringify({
+            explorer: {
+              favorites: [
+                { path: "Characters\\\\Ada.md", kind: "file" },
+                { path: "Characters/Ada.md", kind: "file", label: "Duplicate" },
+                { path: "C:/OtherMachine/Note.md", kind: "file", label: "Local" },
+                { path: "../outside.md", kind: "file", label: "Outside" },
+              ],
+            },
+          }),
+        },
+      ],
+      findings,
+    );
+
+    expect(findings).toEqual([]);
+    expect(parsed?.explorer.favorites).toEqual([
+      { path: "Characters/Ada.md", kind: "file", label: "Ada" },
+    ]);
+  });
+
+  it("defaults favorites to empty when reading an older universe settings file", () => {
+    const findings: ValidationFinding[] = [];
+    const parsed = parseVaultAppearanceSettings(
+      [
+        {
+          relativePath: VAULT_APPEARANCE_SETTINGS_PATH,
+          content: JSON.stringify({ explorer: { activeSection: "allFiles" } }),
+        },
+      ],
+      findings,
+    );
+
+    expect(findings).toEqual([]);
+    expect(parsed?.explorer.favorites).toEqual([]);
   });
 
   it("flags invalid JSON instead of throwing", () => {
@@ -49,11 +104,21 @@ describe("vault appearance settings", () => {
 
     expect(parsed).toBeUndefined();
     expect(findings).toHaveLength(1);
-    expect(findings[0]).toMatchObject({ file: VAULT_APPEARANCE_SETTINGS_PATH, severity: "warning" });
+    expect(findings[0]).toMatchObject({
+      file: VAULT_APPEARANCE_SETTINGS_PATH,
+      severity: "warning",
+    });
   });
 
   it("lets a universe's stored appearance override the local/machine settings", () => {
-    const local = { ...baseSettings(), theme: "worldnotion-light" as const };
+    const local: AppSettingsV4 = {
+      ...baseSettings(),
+      theme: "worldnotion-light" as const,
+      explorer: {
+        ...baseSettings().explorer,
+        favorites: [{ path: "Local.md", kind: "file", label: "Local" }],
+      },
+    };
     const findings: ValidationFinding[] = [];
     const stored = parseVaultAppearanceSettings(
       [
@@ -70,6 +135,7 @@ describe("vault appearance settings", () => {
     const merged = applyVaultAppearanceSettings(local, stored);
 
     expect(merged.theme).toBe("one-dark-pro");
+    expect(merged.explorer.favorites).toEqual([{ path: "Local.md", kind: "file", label: "Local" }]);
     // Machine-scoped fields are untouched by the merge.
     expect(merged.recentUniverses).toBe(local.recentUniverses);
     expect(merged.sessions).toBe(local.sessions);

@@ -231,9 +231,16 @@
 
 body {
   margin: 0;
-  min-width: 320px;
+  width: 100%;
+  min-width: 0;
   min-height: 100vh;
   background: var(--wn-bg);
+}
+
+#root {
+  width: 100%;
+  min-width: 0;
+  min-height: 100vh;
 }
 
 button,
@@ -700,8 +707,10 @@ button:disabled {
   display: flex;
   align-items: center;
   min-height: calc(20px * var(--dock-tab-scale, 1.25));
-  border-bottom: 1px solid var(--wn-border);
-  background: var(--wn-panel-2);
+  padding: calc(3px * var(--dock-tab-scale, 1.25)) calc(4px * var(--dock-tab-scale, 1.25))
+    calc(3px * var(--dock-tab-scale, 1.25));
+  border-bottom: 0;
+  background: var(--wn-panel);
   cursor: grab;
 }
 
@@ -732,6 +741,10 @@ button:disabled {
 
 .dock-writing-tab-bar .dock-panel-tabs {
   margin-left: auto;
+}
+
+.dock-writing-tab-bar {
+  background: var(--wn-editor-bg);
 }
 
 .dock-panel-menu-anchor {
@@ -900,6 +913,7 @@ button:disabled {
 }
 
 .dock-tab {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: calc(4px * var(--dock-tab-scale, 1.25));
@@ -907,7 +921,9 @@ button:disabled {
   max-width: calc(110px * var(--dock-tab-scale, 1.25));
   min-height: calc(18px * var(--dock-tab-scale, 1.25));
   padding: 0 calc(3px * var(--dock-tab-scale, 1.25)) 0 calc(5px * var(--dock-tab-scale, 1.25));
-  border-right: 1px solid var(--wn-border);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
   color: var(--wn-muted);
   cursor: grab;
   font-size: calc(0.62rem * var(--dock-tab-scale, 1.25));
@@ -915,21 +931,18 @@ button:disabled {
   user-select: none;
   transition:
     background-color 120ms ease,
+    border-color 120ms ease,
     color 120ms ease,
     opacity 120ms ease;
 }
 
 .dock-tab-document {
-  margin: 2px 3px 0 2px;
-  border: 1px solid color-mix(in srgb, var(--wn-border) 88%, transparent);
-  border-bottom-color: transparent;
-  border-radius: 8px 8px 0 0;
-  background: color-mix(in srgb, var(--wn-panel) 78%, transparent);
+  margin: 0 calc(2px * var(--dock-tab-scale, 1.25));
 }
 
 .dock-tab-folder-note {
-  border-color: color-mix(in srgb, var(--wn-accent) 32%, var(--wn-border));
-  background: color-mix(in srgb, var(--wn-accent) 10%, var(--wn-panel));
+  border-color: transparent;
+  background: transparent;
 }
 
 .dock-tab-folder-note.active {
@@ -945,18 +958,13 @@ button:disabled {
 }
 
 .dock-tab-document.active {
-  border-bottom: 0;
+  border-color: color-mix(in srgb, var(--wn-border) 84%, transparent);
+  background: var(--wn-panel-2);
+  box-shadow: 0 1px 2px color-mix(in srgb, #000 12%, transparent);
 }
 
 .dock-tab-document.active::after {
-  content: "";
-  position: absolute;
-  right: -1px;
-  bottom: -2px;
-  left: -1px;
-  height: 3px;
-  background: var(--wn-editor-bg);
-  pointer-events: none;
+  display: none;
 }
 
 .dock-document-tab-group {
@@ -1028,34 +1036,45 @@ button:disabled {
 .dock-document-tab-group .dock-tab-document {
   margin: 0;
   border-top: 0;
-  border-right-color: color-mix(in srgb, var(--document-tab-group-color) 24%, var(--wn-border));
   border-bottom: 0;
   border-radius: 0;
   background: transparent;
 }
 
 .dock-document-tab-group .dock-tab-document.active {
-  background: var(--wn-editor-bg);
+  margin: calc(1px * var(--dock-tab-scale, 1.25));
+  border: 1px solid color-mix(in srgb, var(--wn-border) 84%, transparent);
+  border-radius: 8px;
+  background: var(--wn-panel-2);
+  box-shadow: 0 1px 2px color-mix(in srgb, #000 12%, transparent);
 }
 
 .dock-tab-panel {
-  border-radius: 0;
+  margin: 0 calc(1px * var(--dock-tab-scale, 1.25));
+  border-radius: 8px;
   text-transform: uppercase;
   letter-spacing: 0;
 }
 
 .dock-tab.active {
-  background: var(--wn-editor-bg);
+  border-color: color-mix(in srgb, var(--wn-border) 84%, transparent);
+  background: var(--wn-panel-2);
   color: var(--wn-text);
 }
 
 .dock-tab-panel.active {
-  background: color-mix(in srgb, var(--wn-panel-2) 74%, var(--wn-editor-bg));
+  background: var(--wn-panel-2);
 }
 
 .dock-tab:hover {
-  background: color-mix(in srgb, var(--wn-accent-soft) 46%, transparent);
+  border-color: color-mix(in srgb, var(--wn-border) 48%, transparent);
+  background: color-mix(in srgb, var(--wn-panel-2) 62%, transparent);
   color: var(--wn-text);
+}
+
+.dock-tab.active:hover {
+  border-color: color-mix(in srgb, var(--wn-border) 100%, transparent);
+  background: var(--wn-panel-2);
 }
 
 .dock-tab[data-dragging="true"] {
@@ -1139,7 +1158,7 @@ button:disabled {
   height: calc(19px * var(--dock-tab-scale, 1.25));
   flex: 0 0 auto;
   border: 1px solid color-mix(in srgb, var(--wn-border) 82%, transparent);
-  border-radius: 5px 5px 0 0;
+  border-radius: 5px;
   margin: 2px 8px 0 0;
 }
 
@@ -2222,10 +2241,10 @@ button:disabled {
   min-width: 0;
   min-height: 0;
   border-left: 1px solid var(--wn-border);
-  padding: 18px;
+  padding: 14px;
   overflow: hidden auto;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: stable both-edges;
 }
 
 .brand {
@@ -2490,6 +2509,10 @@ button:hover:not(:disabled),
   scrollbar-color: color-mix(in srgb, var(--wn-muted) 35%, transparent) transparent;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
+}
+
+.inspector {
+  scrollbar-gutter: stable both-edges;
 }
 
 .metadata-editor::-webkit-scrollbar,
@@ -3012,6 +3035,31 @@ button:hover:not(:disabled),
   flex: 0 0 auto;
   gap: 0;
   margin-left: auto;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.tree-button:hover .tree-node-buttons,
+.tree-button:focus-within .tree-node-buttons,
+.tree-node-buttons.has-persistent-state {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.tree-node-buttons.has-persistent-state .tree-inline-button:not(.active):not(.available) {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.tree-button:hover .tree-node-buttons.has-persistent-state .tree-inline-button:not(.active):not(.available),
+.tree-button:focus-within .tree-node-buttons.has-persistent-state .tree-inline-button:not(.active):not(.available) {
+  opacity: 0.55;
+  pointer-events: auto;
+  visibility: visible;
 }
 
 .tree-dirty {
@@ -4556,8 +4604,17 @@ button:hover:not(:disabled),
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 0;
   margin-top: 0;
+}
+
+.inspector section > :is(.variant-selector-shell, .inspector-subviews, .metadata-editor) {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .inspector h3 {
@@ -8136,6 +8193,8 @@ button:hover:not(:disabled),
   display: flex;
   flex-direction: column;
   gap: 12px;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
 }
 
@@ -8264,6 +8323,8 @@ button:hover:not(:disabled),
 .metadata-property-section {
   display: grid;
   gap: 5px;
+  width: 100%;
+  min-width: 0;
   padding: 6px 0 10px;
 }
 
@@ -12698,6 +12759,9 @@ select.property-field-control {
 
 .property-row-wrapper {
   display: grid;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .property-row-wrapper.dragging {
@@ -12725,9 +12789,12 @@ select.property-field-control {
 
 .property-row {
   display: grid;
-  grid-template-columns: 14px minmax(96px, 38%) 1fr 22px;
+  grid-template-columns: 13px minmax(88px, 32%) minmax(0, 1fr) 20px;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 28px;
   padding: 1px 2px;
   border-radius: 6px;
@@ -12741,7 +12808,7 @@ select.property-field-control {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
+  width: 13px;
   height: 22px;
   padding: 0;
   border: none;
@@ -12758,7 +12825,7 @@ select.property-field-control {
 .property-row-key {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
   color: var(--wn-muted);
   font-size: 0.8rem;
@@ -12776,7 +12843,15 @@ select.property-field-control {
 }
 
 .property-row-value {
+  display: block;
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
+}
+
+.property-row-value > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .property-row-value input,
@@ -12849,13 +12924,13 @@ select.property-field-control {
 
 .property-row-children {
   display: grid;
-  margin-left: 14px;
-  padding-left: 6px;
-  border-left: 1px solid color-mix(in srgb, var(--wn-border) 72%, transparent);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .property-row-locked {
-  grid-template-columns: minmax(96px, 38%) 1fr 22px;
+  grid-template-columns: minmax(96px, 38%) minmax(0, 1fr) 22px;
   color: var(--wn-muted);
 }
 
@@ -13514,10 +13589,13 @@ select.property-field-control {
 .file-field,
 .entity-ref-list-field,
 .image-field-empty {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 4px;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 34px;
   padding: 6px 10px;
   border: 1px dashed var(--wn-border);
@@ -13526,6 +13604,10 @@ select.property-field-control {
   color: var(--wn-muted);
   font-size: 0.8rem;
   cursor: pointer;
+}
+
+.entity-ref-list-field {
+  align-content: flex-start;
 }
 
 .image-field-empty:hover:not(:disabled) {
@@ -13580,7 +13662,9 @@ select.property-field-control {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  min-width: 0;
   max-width: 100%;
+  flex: 0 1 auto;
   min-height: 22px;
   padding: 1px 8px;
   border: 1px solid color-mix(in srgb, var(--wn-accent) 35%, transparent);
@@ -13609,8 +13693,10 @@ select.property-field-control {
 }
 
 .entity-ref-chip-label {
+  display: block;
+  min-width: 0;
   overflow: hidden;
-  max-width: 180px;
+  max-width: min(180px, 100%);
   padding: 0;
   border: none;
   background: transparent;
@@ -13759,7 +13845,7 @@ select.property-field-control {
 
 .variant-selector-shell .variant-selector {
   margin: 0;
-  padding: 4px;
+  padding: 0;
   border-radius: 6px;
   background: transparent;
 }
@@ -13769,7 +13855,7 @@ select.property-field-control {
   flex: 1 1 auto;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
 }
 
 .variant-selector select,
@@ -14021,9 +14107,41 @@ select.property-field-control {
 
 .document-presentation-title h1 {
   margin: 0;
-  color: var(--wn-text, #1f2937);
-  font-size: clamp(20px, 2.7vw, 28px);
-  line-height: 1.12;
+  color: var(--wn-text);
+  font-size: 1.88em;
+  font-weight: 750;
+  letter-spacing: 0;
+  line-height: 1.3;
+}
+
+.document-presentation-title h1[contenteditable="true"] {
+  margin: -2px -4px;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  outline: none;
+  background-clip: content-box;
+  cursor: text;
+  user-select: text;
+  transition: background-color 0.15s ease;
+}
+
+.document-presentation-title h1[contenteditable="true"]:hover,
+.document-presentation-title h1[contenteditable="true"]:focus {
+  background-color: var(--wn-subtle-bg);
+}
+
+.document-presentation-title h1[contenteditable="true"]:focus {
+  border-color: color-mix(in srgb, var(--wn-accent) 58%, transparent);
+}
+
+.document-presentation-title h1[aria-busy="true"] {
+  cursor: progress;
+  opacity: 0.72;
+}
+
+.document-presentation-title h1[data-error="true"] {
+  border-color: var(--wn-danger, #dc2626);
 }
 
 .document-presentation-portrait {

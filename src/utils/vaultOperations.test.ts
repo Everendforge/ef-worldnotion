@@ -11,6 +11,7 @@ import {
   planFolderDescriptionRename,
   renamePathChange,
   renamePathTarget,
+  updateFavoritesForPathChange,
 } from "./vaultOperations";
 
 const index: VaultIndex = {
@@ -115,6 +116,33 @@ describe("vault operation helpers", () => {
 
     expect(dirtyTabPathsAffectedByTree(tabs, "World/Cast")).toEqual(["World/Cast/Ada.md"]);
     expect(favoritesOutsideTree(favorites, "World/Cast")).toEqual([
+      { path: "Other.md", kind: "file", label: "Other" },
+    ]);
+  });
+
+  it("updates portable favorite paths and labels after a rename or move", () => {
+    const favorites: ExplorerFavorite[] = [
+      { path: "World/Cast", kind: "folder", label: "Cast" },
+      { path: "World/Cast/Ada.md", kind: "file", label: "Ada" },
+      { path: "Other.md", kind: "file", label: "Other" },
+    ];
+
+    expect(
+      updateFavoritesForPathChange(
+        favorites,
+        renamePathChange("World/Cast", "Characters", "folder"),
+      ),
+    ).toEqual([
+      { path: "World/Characters", kind: "folder", label: "Characters" },
+      { path: "World/Characters/Ada.md", kind: "file", label: "Ada" },
+      { path: "Other.md", kind: "file", label: "Other" },
+    ]);
+
+    expect(
+      updateFavoritesForPathChange(favorites, movePathChange("World/Cast", "Archive")),
+    ).toEqual([
+      { path: "Archive/Cast", kind: "folder", label: "Cast" },
+      { path: "Archive/Cast/Ada.md", kind: "file", label: "Ada" },
       { path: "Other.md", kind: "file", label: "Other" },
     ]);
   });

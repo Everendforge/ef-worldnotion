@@ -94,6 +94,20 @@ describe("ExplorerPanel virtualization", () => {
     expect(screen.queryByRole("button", { name: "Create a folder or note" })).toBeNull();
   });
 
+  it("reveals the active editor tab instead of the explorer selection", () => {
+    const row = makeRows(1)[0];
+    const onTreeAction = vi.fn();
+    renderPanel([row], "", {
+      activeTabPath: row.path,
+      selectedPath: "Other/Selected.md",
+      onTreeAction,
+    });
+
+    fireEvent.click(screen.getByTitle("Show active file in explorer"));
+
+    expect(onTreeAction).toHaveBeenCalledWith({ action: "expandPath", path: row.path });
+  });
+
   it("renders every row for small trees", () => {
     const { container } = renderPanel(makeRows(50));
     expect(container.querySelectorAll(".tree-node").length).toBe(50);

@@ -166,7 +166,7 @@ export function PropertyRow({
                 {property.required ? <span className="required-star">*</span> : null}
               </span>
             </span>
-            <span className="property-row-value">
+            <div className="property-row-value">
               <PropertyFieldRenderer
                 property={property}
                 value={handlers.getValue(property)}
@@ -176,7 +176,7 @@ export function PropertyRow({
                 availableOptions={handlers.getOptions(property)}
                 {...handlers.vaultIndexProps}
               />
-            </span>
+            </div>
             {handlers.isVariantMode ? (
               canOverride && overridden ? (
                 <button

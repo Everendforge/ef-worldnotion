@@ -49,6 +49,7 @@ export type ExplorerTreeAction =
   | "expandDepth1"
   | "expandDepth2"
   | "expandDepth3"
+  | { action: "expandPath"; path: string }
   | { action: "expandDepth"; depth: number };
 
 type ExplorerFocusCrumb = {
@@ -283,8 +284,8 @@ export function ExplorerPanel({
 
   const scrollToSelected = useCallback(() => {
     if (!activeTabPath || !sidebarMainRef.current) return;
-    // First, expand all ancestor folders to reveal the active file
-    onTreeAction("expandSelected");
+    // Expand ancestors of the active editor tab, not the explorer/inspector selection.
+    onTreeAction({ action: "expandPath", path: activeTabPath });
     // Use a small delay to allow the tree to re-render after expansion
     setTimeout(() => {
       const element = sidebarMainRef.current?.querySelector(
@@ -965,6 +966,10 @@ const ExplorerTreeRow = memo(function ExplorerTreeRow({
   const isOpen = openTabPaths.has(row.path);
   const isDirty = dirtyTabPaths.has(row.path);
   const descriptionIsOpen = Boolean(row.descriptionPath && openTabPaths.has(row.descriptionPath));
+  const hasPersistentActions =
+    isFocused ||
+    isFavorite ||
+    (row.kind === "folder" && folderNotesEnabled && row.hasDescription);
   const tagColor = entityTagColors?.get(row.path);
   const customIcon = customIcons?.[row.path];
   const IconComponent = customIcon ? getIconComponent(customIcon) : undefined;
@@ -1101,7 +1106,7 @@ const ExplorerTreeRow = memo(function ExplorerTreeRow({
         )}
         <span className="tree-label">{row.name}</span>
         {isDirty ? <strong className="tree-dirty">*</strong> : null}
-        <div className="tree-node-buttons">
+        <div className={`tree-node-buttons ${hasPersistentActions ? "has-persistent-state" : ""}`}>
           {row.kind === "folder" ? (
             <button
               type="button"

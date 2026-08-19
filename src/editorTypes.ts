@@ -343,7 +343,7 @@ export type AppSettingsV4 = {
   sessions: Record<string, WorkspaceSession>;
 };
 
-/** The subset of {@link ExplorerSettings} that is presentation, not per-file workspace content. */
+/** The subset of {@link ExplorerSettings} that is portable universe-level workspace content. */
 export type VaultAppearanceExplorerSettings = Pick<
   ExplorerSettings,
   | "confirmDragMove"
@@ -351,13 +351,14 @@ export type VaultAppearanceExplorerSettings = Pick<
   | "folderNotesEnabled"
   | "showImagesInAllFiles"
   | "activeSection"
+  | "favorites"
 >;
 
 /**
  * The slice of {@link AppSettingsV4} that represents how a universe looks and
  * behaves rather than machine-local state (recent lists, open tabs, AI advisor
  * network endpoints). Persisted inside the vault itself so opening the same
- * universe anywhere reproduces the same style.
+ * universe anywhere reproduces the same style and explorer favorites.
  */
 export type VaultAppearanceSettings = {
   version: 1;
